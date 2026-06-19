@@ -13,15 +13,16 @@ export const useAdminStore = defineStore('admin', {
 
   actions: {
     async fetchStats() {
-      this.stats = await adminAPI.getStats()
-      return this.stats
+      const res = await adminAPI.getStats()
+      this.stats = res
+      return res
     },
 
     async fetchUsers(params = {}) {
       this.loading = true
       try {
         const res = await adminAPI.getUsers(params)
-        this.users = res.list
+        this.users = res.list || res || []
         return res
       } finally {
         this.loading = false
@@ -40,7 +41,7 @@ export const useAdminStore = defineStore('admin', {
       this.loading = true
       try {
         const res = await adminAPI.getPatches(params)
-        this.patches = res.list
+        this.patches = res.list || res || []
         return res
       } finally {
         this.loading = false
@@ -59,16 +60,29 @@ export const useAdminStore = defineStore('admin', {
       this.loading = true
       try {
         const res = await adminAPI.getModules(params)
-        this.modules = res.list
+        this.modules = res.list || res || []
         return res
       } finally {
         this.loading = false
       }
     },
 
-    async fetchManufacturers() {
-      this.manufacturers = await adminAPI.getManufacturers()
-      return this.manufacturers
+    async createModule(data) {
+      return await adminAPI.createModule(data)
+    },
+
+    async updateModule(id, data) {
+      return await adminAPI.updateModule(id, data)
+    },
+
+    async fetchManufacturers(params = {}) {
+      const res = await adminAPI.getManufacturers(params)
+      this.manufacturers = res.list || res || []
+      return res
+    },
+
+    async createManufacturer(data) {
+      return await adminAPI.createManufacturer(data)
     },
 
     async updateManufacturer(id, data) {

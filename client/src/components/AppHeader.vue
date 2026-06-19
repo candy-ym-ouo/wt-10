@@ -20,7 +20,7 @@
           设备库
         </router-link>
         <router-link v-if="userStore.isLoggedIn" to="/compare" class="nav-link" :class="{ active: $route.path === '/compare' }">
-          <el-icon><Scale /></el-icon>
+          <el-icon><DataAnalysis /></el-icon>
           参数对比
           <span v-if="patchStore.compareCount > 0" class="badge">{{ patchStore.compareCount }}</span>
         </router-link>
@@ -78,6 +78,10 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { 
+  HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
+  ArrowDown, User, Document, Star, Setting, SwitchButton 
+} from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
 

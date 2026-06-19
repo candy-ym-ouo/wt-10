@@ -40,7 +40,7 @@
             <p class="module-manu" v-if="mod.manufacturer_name">{{ mod.manufacturer_name }}</p>
             <p class="module-desc">{{ mod.description }}</p>
             <div class="module-specs">
-              <span v-if="mod.width">宽度: {{ mod.width }} HP</span>
+              <span v-if="mod.hp">宽度: {{ mod.hp }} HP</span>
             </div>
           </div>
         </div>
@@ -69,7 +69,7 @@
               :class="{ active: selectedManufacturer === m.id }"
             >
               <span class="manu-name">{{ m.name }}</span>
-              <span class="manu-count">{{ m.module_count || 0 }} 个模块</span>
+              <span class="manu-count">{{ m.modules_count || 0 }} 个模块</span>
             </div>
           </div>
         </div>

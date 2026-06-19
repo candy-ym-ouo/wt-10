@@ -18,7 +18,7 @@
     </div>
 
     <div v-if="compareList.length === 0" class="empty-state">
-      <el-icon class="empty-icon"><Scale /></el-icon>
+      <el-icon class="empty-icon"><DataAnalysis /></el-icon>
       <p>还没有添加任何 Patch 到对比列表</p>
       <el-button type="primary" class="btn-primary" @click="goToPatches">去 Patch 库添加</el-button>
     </div>
@@ -109,7 +109,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Delete, Close, Scale } from '@element-plus/icons-vue'
+import { Plus, Delete, Close, DataAnalysis } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 
 const router = useRouter()

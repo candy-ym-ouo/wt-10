@@ -26,7 +26,7 @@
         <div class="module-specs">
           <div class="spec-item">
             <span class="spec-label">宽度</span>
-            <span class="spec-value">{{ module.width || '-' }} HP</span>
+            <span class="spec-value">{{ module.hp || '-' }} HP</span>
           </div>
           <div class="spec-item">
             <span class="spec-label">供电</span>
@@ -54,12 +54,12 @@
       <div class="card" v-if="module.patches && module.patches.length > 0">
         <div class="param-section">
           <h3>🎛️ 使用此模块的 Patch ({{ module.patches.length }})</h3>
-          <div class="grid-patches" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr);">
+          <div class="grid-patches" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
             <div
               v-for="patch in module.patches"
               :key="patch.id"
               class="card patch-card"
-              @click="$router.push(`/patches/${patch.id}');"
+              @click="$router.push(`/patches/${patch.id}`)"
             >
               <div class="patch-image">🎛️</div>
               <div class="patch-title">{{ patch.title }}</div>

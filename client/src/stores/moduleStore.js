@@ -13,7 +13,7 @@ export const useModuleStore = defineStore('module', {
   actions: {
     async fetchManufacturers(params = {}) {
       const res = await moduleAPI.getManufacturers(params)
-      this.manufacturers = res.list
+      this.manufacturers = res.list || res || []
       return res
     },
 
@@ -21,8 +21,8 @@ export const useModuleStore = defineStore('module', {
       this.loading = true
       try {
         const res = await moduleAPI.getModules(params)
-        this.modules = res.list
-        this.total = res.total
+        this.modules = res.list || res || []
+        this.total = res.total || 0
         this.moduleTypes = res.types || []
         return res
       } finally {

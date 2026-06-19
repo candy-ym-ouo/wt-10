@@ -1,11 +1,11 @@
 const db = require('../db');
 
 exports.getManufacturers = async (ctx) => {
-  const { page = 1, limit = 20 } = ctx.query;
+  const { page = 1, limit = 50 } = ctx.query;
   const offset = (page - 1) * limit;
 
   const manufacturers = db.prepare(`
-    SELECT m.*, COUNT(mod.id) as module_count
+    SELECT m.*, COUNT(mod.id) as modules_count
     FROM manufacturers m
     LEFT JOIN modules mod ON m.id = mod.manufacturer_id
     GROUP BY m.id
@@ -39,7 +39,7 @@ exports.getModules = async (ctx) => {
     params.push(manufacturer_id);
   }
   if (search) {
-    where.push('(mod.name LIKE ? OR m.name LIKE ?');
+    where.push('(mod.name LIKE ? OR m.name LIKE ?)');
     params.push(`%${search}%`, `%${search}%`);
   }
 
@@ -54,7 +54,8 @@ exports.getModules = async (ctx) => {
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
-  const total = db.prepare(`SELECT COUNT(*) as count FROM modules mod ${whereSql}`).get(...params);
+  const totalStmt = db.prepare(`SELECT COUNT(*) as count FROM modules mod LEFT JOIN manufacturers m ON mod.manufacturer_id = m.id ${whereSql}`);
+  const total = totalStmt.get(...params);
 
   const moduleTypes = db.prepare('SELECT DISTINCT type FROM modules ORDER BY type').all().map(r => r.type);
 
@@ -96,42 +97,47 @@ exports.getModuleDetail = async (ctx) => {
 };
 
 exports.createManufacturer = async (ctx) => {
-  const { name, website, description } = ctx.request.body;
+  const { name, country, website, description } = ctx.request.body;
 
-  const stmt = db.prepare('INSERT INTO manufacturers (name, website, description) VALUES (?, ?, ?)');
-  const result = stmt.run(name, website, description);
+  const stmt = db.prepare('INSERT INTO manufacturers (name, country, website, description) VALUES (?, ?, ?, ?)');
+  const result = stmt.run(name, country || '', website || '', description || '');
 
-  ctx.body = { id: result.lastInsertRowid, name, website, description };
+  ctx.body = { id: result.lastInsertRowid, name, country, website, description };
 };
 
 exports.createModule = async (ctx) => {
-  const { name, manufacturer_id, type, width, power, description, specs } = ctx.request.body;
+  const { name, manufacturer_id, type, hp, power, description, specs, status } = ctx.request.body;
 
   const stmt = db.prepare(`
-    INSERT INTO modules (name, manufacturer_id, type, width, power, description, specs)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO modules (name, manufacturer_id, type, hp, power, description, specs, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(name, manufacturer_id, type, width, power, description, JSON.stringify(specs || {}));
+  const result = stmt.run(name, manufacturer_id, type, hp || 0, power || '', description || '', JSON.stringify(specs || {}), status || 'active');
 
   ctx.body = { id: result.lastInsertRowid };
 };
 
 exports.updateModule = async (ctx) => {
   const id = parseInt(ctx.params.id);
-  const { name, manufacturer_id, type, width, power, description, specs } = ctx.request.body;
+  const { name, manufacturer_id, type, hp, power, description, specs, status } = ctx.request.body;
 
   const stmt = db.prepare(`
     UPDATE modules SET
       name = COALESCE(?, name),
       manufacturer_id = COALESCE(?, manufacturer_id),
       type = COALESCE(?, type),
-      width = COALESCE(?, width),
+      hp = COALESCE(?, hp),
       power = COALESCE(?, power),
       description = COALESCE(?, description),
-      specs = COALESCE(?, specs)
+      specs = COALESCE(?, specs),
+      status = COALESCE(?, status),
+      updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `);
-  stmt.run(name, manufacturer_id, type, width, power, description, specs ? JSON.stringify(specs) : null, id);
+  stmt.run(
+    name, manufacturer_id, type, hp, power, description,
+    specs ? JSON.stringify(specs) : null, status, id
+  );
 
   ctx.body = { success: true };
 };

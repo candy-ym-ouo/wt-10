@@ -30,9 +30,9 @@ export const useUserStore = defineStore('user', {
     async fetchCurrentUser() {
       if (!this.token) return null
       try {
-        const user = await authAPI.getMe()
-        this.setUser(user)
-        return user
+        const res = await authAPI.getMe()
+        this.setUser(res)
+        return res
       } catch (e) {
         this.logout()
         return null
@@ -40,13 +40,13 @@ export const useUserStore = defineStore('user', {
     },
 
     async updateProfile(data) {
-      const user = await authAPI.updateProfile(data)
-      this.setUser(user)
-      return user
+      const res = await authAPI.updateProfile(data)
+      this.setUser(res)
+      return res
     },
 
     async getUserProfile(id) {
-      return await userAPI.getProfile(id)
+      return await userAPI.getById(id)
     },
 
     setToken(token) {
