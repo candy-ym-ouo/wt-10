@@ -1,6 +1,41 @@
 const db = require('../db');
 const bcrypt = require('bcryptjs');
 
+const typeToCategory = {
+  'comment': 'comment',
+  'like': 'like',
+  'favorite': 'favorite',
+  'follow': 'follow',
+  'review': 'review',
+  'activity': 'activity',
+  'system': 'system'
+};
+
+const createNotification = (userId, type, fromUserId, patchId, content, options = {}) => {
+  try {
+    const category = options.category || typeToCategory[type] || 'system';
+
+    const subscription = db.prepare(`
+      SELECT enabled FROM notification_subscriptions 
+      WHERE user_id = ? AND category = ?
+    `).get(userId, category);
+
+    if (subscription && subscription.enabled === 0) {
+      return;
+    }
+
+    const linkUrl = options.linkUrl || null;
+    const extraData = options.extraData ? JSON.stringify(options.extraData) : null;
+
+    db.prepare(`
+      INSERT INTO notifications (user_id, type, category, from_user_id, patch_id, content, link_url, extra_data)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, type, category, fromUserId, patchId, content, linkUrl, extraData);
+  } catch (e) {
+    console.error('创建通知失败:', e);
+  }
+};
+
 exports.getStats = async (ctx) => {
   const stats = {
     users: db.prepare('SELECT COUNT(*) as count FROM users').get().count,
@@ -230,6 +265,7 @@ exports.getRecentPatches = async (ctx) => {
 exports.updatePatchStatus = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
   const { status } = ctx.request.body;
+  const adminId = ctx.state.user.id;
 
   const validStatuses = ['pending', 'approved', 'rejected'];
   if (!validStatuses.includes(status)) {
@@ -238,7 +274,35 @@ exports.updatePatchStatus = async (ctx) => {
     return;
   }
 
+  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ?').get(patchId);
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
   db.prepare('UPDATE patches SET status = ? WHERE id = ?').run(status, patchId);
+
+  const statusLabels = {
+    pending: '待审核',
+    approved: '审核通过',
+    rejected: '审核未通过'
+  };
+
+  if (patch.user_id !== adminId) {
+    createNotification(
+      patch.user_id,
+      'review',
+      adminId,
+      patchId,
+      `你的 Patch "${patch.title}" 状态已变更为：${statusLabels[status] || status}`,
+      {
+        category: 'review',
+        linkUrl: `/patches/${patchId}`
+      }
+    );
+  }
+
   ctx.body = { success: true, status };
 };
 

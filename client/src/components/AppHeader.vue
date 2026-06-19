@@ -47,6 +47,18 @@
       </nav>
 
       <div class="header-right">
+        <div 
+          v-if="userStore.isLoggedIn" 
+          class="notification-btn"
+          @click="$router.push('/notifications')"
+          :class="{ active: $route.path === '/notifications' }"
+        >
+          <el-icon><Bell /></el-icon>
+          <span v-if="unreadCount > 0" class="notification-badge">
+            {{ unreadCount > 99 ? '99+' : unreadCount }}
+          </span>
+        </div>
+
         <el-button 
           v-if="userStore.isLoggedIn" 
           type="primary" 
@@ -67,6 +79,10 @@
           </div>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item command="notifications">
+                <el-icon><Bell /></el-icon>通知中心
+                <span v-if="unreadCount > 0" class="dropdown-badge">{{ unreadCount }}</span>
+              </el-dropdown-item>
               <el-dropdown-item command="workbench">
                 <el-icon><Odometer /></el-icon>创作者工作台
               </el-dropdown-item>
@@ -99,22 +115,62 @@
 </template>
 
 <script setup>
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { 
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
-  Odometer, CollectionTag, TrendCharts, Present, Trophy
+  Odometer, CollectionTag, TrendCharts, Present, Trophy, Bell
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
+import { useNotificationStore } from '@/stores/notificationStore'
+import { socialAPI } from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
 const patchStore = usePatchStore()
+const notificationStore = useNotificationStore()
+
+const unreadCount = ref(0)
+
+const fetchUnreadCount = async () => {
+  if (!userStore.isLoggedIn) {
+    unreadCount.value = 0
+    return
+  }
+  try {
+    const res = await socialAPI.getMyNotifications({ page: 1, limit: 1 })
+    unreadCount.value = res.unreadCount || 0
+    notificationStore.notifications.unreadCount = res.unreadCount || 0
+    if (res.countsByCategory) {
+      notificationStore.notifications.countsByCategory = res.countsByCategory
+    }
+  } catch (e) {
+    console.error('获取未读通知数失败:', e)
+  }
+}
+
+watch(() => userStore.isLoggedIn, (loggedIn) => {
+  if (loggedIn) {
+    fetchUnreadCount()
+  } else {
+    unreadCount.value = 0
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  if (userStore.isLoggedIn) {
+    fetchUnreadCount()
+  }
+})
 
 const handleCommand = (command) => {
   switch (command) {
+    case 'notifications':
+      router.push('/notifications')
+      break
     case 'workbench':
       router.push('/workbench')
       break
@@ -133,6 +189,7 @@ const handleCommand = (command) => {
     case 'logout':
       userStore.logout()
       patchStore.compareCount = 0
+      notificationStore.resetNotifications()
       ElMessage.success('已退出登录')
       router.push('/')
       break
@@ -218,6 +275,58 @@ const handleCommand = (command) => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.notification-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 20px;
+  transition: all 0.3s ease;
+}
+
+.notification-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.notification-btn.active {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.dropdown-badge {
+  margin-left: auto;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 10px;
 }
 
 .user-info {

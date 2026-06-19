@@ -53,6 +53,14 @@ router.get('/me/stats', requireAuth, socialController.getCreatorStats);
 router.get('/me/notifications', requireAuth, socialController.getMyNotifications);
 router.put('/me/notifications/:id/read', requireAuth, socialController.markNotificationRead);
 router.post('/me/notifications/read-all', requireAuth, socialController.markAllNotificationsRead);
+router.post('/me/notifications/read-batch', requireAuth, socialController.markBatchNotificationsRead);
+router.delete('/me/notifications/:id', requireAuth, socialController.deleteNotification);
+router.post('/me/notifications/delete-batch', requireAuth, socialController.deleteBatchNotifications);
+router.post('/me/notifications/clear-read', requireAuth, socialController.clearReadNotifications);
+
+router.get('/me/notification-subscriptions', requireAuth, socialController.getNotificationSubscriptions);
+router.put('/me/notification-subscriptions', requireAuth, socialController.updateNotificationSubscription);
+router.put('/me/notification-subscriptions/batch', requireAuth, socialController.updateNotificationSubscriptionsBatch);
 
 router.post('/users/:id/follow', requireAuth, socialController.followUser);
 router.get('/users/:id/follow-status', requireAuth, socialController.checkFollowStatus);

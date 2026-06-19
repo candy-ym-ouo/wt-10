@@ -1,5 +1,41 @@
 const db = require('../db');
 
+const typeToCategory = {
+  'comment': 'comment',
+  'like': 'like',
+  'favorite': 'favorite',
+  'follow': 'follow',
+  'review': 'review',
+  'activity': 'activity',
+  'new_patch': 'follow',
+  'system': 'system'
+};
+
+const createNotification = (userId, type, fromUserId, patchId, content, options = {}) => {
+  try {
+    const category = options.category || typeToCategory[type] || 'system';
+
+    const subscription = db.prepare(`
+      SELECT enabled FROM notification_subscriptions 
+      WHERE user_id = ? AND category = ?
+    `).get(userId, category);
+
+    if (subscription && subscription.enabled === 0) {
+      return;
+    }
+
+    const linkUrl = options.linkUrl || null;
+    const extraData = options.extraData ? JSON.stringify(options.extraData) : null;
+
+    db.prepare(`
+      INSERT INTO notifications (user_id, type, category, from_user_id, patch_id, content, link_url, extra_data)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, type, category, fromUserId, patchId, content, linkUrl, extraData);
+  } catch (e) {
+    console.error('创建通知失败:', e);
+  }
+};
+
 exports.getPatches = async (ctx) => {
   const { page = 1, limit = 12, search, tag, user_id, sort = 'newest' } = ctx.query;
   const offset = (page - 1) * limit;
@@ -121,19 +157,17 @@ exports.createPatch = async (ctx) => {
     `).all(ctx.state.user.id);
     
     followers.forEach(follower => {
-      try {
-        db.prepare(`
-          INSERT INTO notifications (user_id, type, from_user_id, patch_id, content)
-          VALUES (?, 'new_patch', ?, ?, ?)
-        `).run(
-          follower.follower_id,
-          ctx.state.user.id,
-          result.lastInsertRowid,
-          `${user?.username || '用户'} 发布了新 Patch "${title}"`
-        );
-      } catch (e) {
-        console.error('创建新Patch通知失败:', e);
-      }
+      createNotification(
+        follower.follower_id,
+        'new_patch',
+        ctx.state.user.id,
+        result.lastInsertRowid,
+        `${user?.username || '用户'} 发布了新 Patch "${title}"`,
+        {
+          category: 'follow',
+          linkUrl: `/patches/${result.lastInsertRowid}`
+        }
+      );
     });
   }
 
@@ -211,17 +245,6 @@ exports.deletePatch = async (ctx) => {
   ctx.body = { success: true };
 };
 
-const createNotification = (userId, type, fromUserId, patchId, content) => {
-  try {
-    db.prepare(`
-      INSERT INTO notifications (user_id, type, from_user_id, patch_id, content)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(userId, type, fromUserId, patchId, content);
-  } catch (e) {
-    console.error('创建通知失败:', e);
-  }
-};
-
 exports.addComment = async (ctx) => {
   const id = parseInt(ctx.params.id);
   const { content } = ctx.request.body;
@@ -251,7 +274,11 @@ exports.addComment = async (ctx) => {
       'comment',
       userId,
       id,
-      `${user?.username || '用户'} 评论了你的 Patch "${patch.title}": "${truncatedContent}"`
+      `${user?.username || '用户'} 评论了你的 Patch "${patch.title}": "${truncatedContent}"`,
+      {
+        category: 'comment',
+        linkUrl: `/patches/${id}`
+      }
     );
   }
 

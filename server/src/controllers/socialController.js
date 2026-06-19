@@ -251,7 +251,7 @@ exports.getMyDrafts = async (ctx) => {
 };
 
 exports.getMyNotifications = async (ctx) => {
-  const { page = 1, limit = 20, unread_only } = ctx.query;
+  const { page = 1, limit = 20, unread_only, category } = ctx.query;
   const offset = (page - 1) * limit;
   const userId = ctx.state.user.id;
 
@@ -260,6 +260,11 @@ exports.getMyNotifications = async (ctx) => {
 
   if (unread_only === '1') {
     where += ' AND n.read = 0';
+  }
+
+  if (category && category !== 'all') {
+    where += ' AND n.category = ?';
+    params.push(category);
   }
 
   const notifications = db.prepare(`
@@ -278,10 +283,23 @@ exports.getMyNotifications = async (ctx) => {
     SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = 0
   `).get(userId);
 
+  const categoryCounts = db.prepare(`
+    SELECT category, COUNT(*) as count 
+    FROM notifications 
+    WHERE user_id = ? AND read = 0
+    GROUP BY category
+  `).all(userId);
+
+  const countsByCategory = {};
+  categoryCounts.forEach(c => {
+    countsByCategory[c.category] = c.count;
+  });
+
   ctx.body = {
     list: notifications,
     total: total.count,
     unreadCount: unreadCount.count,
+    countsByCategory,
     page: parseInt(page),
     limit: parseInt(limit)
   };
@@ -307,34 +325,221 @@ exports.markNotificationRead = async (ctx) => {
 
 exports.markAllNotificationsRead = async (ctx) => {
   const userId = ctx.state.user.id;
+  const { category } = ctx.request.body || {};
 
-  db.prepare(`
-    UPDATE notifications SET read = 1 
-    WHERE user_id = ? AND read = 0
-  `).run(userId);
+  let sql = 'UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0';
+  let params = [userId];
+
+  if (category && category !== 'all') {
+    sql += ' AND category = ?';
+    params.push(category);
+  }
+
+  db.prepare(sql).run(...params);
 
   ctx.body = { success: true };
 };
 
-const createNotification = (userId, type, fromUserId, patchId, content) => {
+exports.markBatchNotificationsRead = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { ids } = ctx.request.body || {};
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    ctx.status = 400;
+    ctx.body = { error: '请选择要标记的通知' };
+    return;
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
+  db.prepare(`
+    UPDATE notifications SET read = 1 
+    WHERE user_id = ? AND id IN (${placeholders})
+  `).run(userId, ...ids);
+
+  ctx.body = { success: true, count: ids.length };
+};
+
+exports.deleteNotification = async (ctx) => {
+  const notificationId = parseInt(ctx.params.id);
+  const userId = ctx.state.user.id;
+
+  const result = db.prepare(`
+    DELETE FROM notifications 
+    WHERE id = ? AND user_id = ?
+  `).run(notificationId, userId);
+
+  if (result.changes === 0) {
+    ctx.status = 404;
+    ctx.body = { error: '通知不存在' };
+    return;
+  }
+
+  ctx.body = { success: true };
+};
+
+exports.deleteBatchNotifications = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { ids } = ctx.request.body || {};
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    ctx.status = 400;
+    ctx.body = { error: '请选择要删除的通知' };
+    return;
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
+  const result = db.prepare(`
+    DELETE FROM notifications 
+    WHERE user_id = ? AND id IN (${placeholders})
+  `).run(userId, ...ids);
+
+  ctx.body = { success: true, count: result.changes };
+};
+
+exports.clearReadNotifications = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { category } = ctx.request.body || {};
+
+  let sql = 'DELETE FROM notifications WHERE user_id = ? AND read = 1';
+  let params = [userId];
+
+  if (category && category !== 'all') {
+    sql += ' AND category = ?';
+    params.push(category);
+  }
+
+  const result = db.prepare(sql).run(...params);
+
+  ctx.body = { success: true, count: result.changes };
+};
+
+exports.getNotificationSubscriptions = async (ctx) => {
+  const userId = ctx.state.user.id;
+
+  const subscriptions = db.prepare(`
+    SELECT category, enabled
+    FROM notification_subscriptions
+    WHERE user_id = ?
+  `).all(userId);
+
+  const defaultCategories = [
+    { category: 'comment', label: '评论通知', description: '有人评论你的 Patch 时通知', enabled: 1 },
+    { category: 'review', label: '审核通知', description: 'Patch 审核状态变更时通知', enabled: 1 },
+    { category: 'follow', label: '关注通知', description: '有人关注你或关注的人发布内容时通知', enabled: 1 },
+    { category: 'activity', label: '活动通知', description: '活动相关的通知', enabled: 1 },
+    { category: 'like', label: '点赞通知', description: '有人点赞你的 Patch 时通知', enabled: 1 },
+    { category: 'favorite', label: '收藏通知', description: '有人收藏你的 Patch 时通知', enabled: 1 },
+    { category: 'system', label: '系统通知', description: '系统相关的通知', enabled: 1 }
+  ];
+
+  const result = defaultCategories.map(def => {
+    const sub = subscriptions.find(s => s.category === def.category);
+    return {
+      ...def,
+      enabled: sub ? sub.enabled : def.enabled
+    };
+  });
+
+  ctx.body = { subscriptions: result };
+};
+
+exports.updateNotificationSubscription = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { category, enabled } = ctx.request.body || {};
+
+  if (!category) {
+    ctx.status = 400;
+    ctx.body = { error: '缺少分类参数' };
+    return;
+  }
+
+  const enabledVal = enabled ? 1 : 0;
+
+  db.prepare(`
+    INSERT INTO notification_subscriptions (user_id, category, enabled, updated_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id, category) DO UPDATE SET
+      enabled = excluded.enabled,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(userId, category, enabledVal);
+
+  ctx.body = { success: true, category, enabled: !!enabledVal };
+};
+
+exports.updateNotificationSubscriptionsBatch = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { subscriptions } = ctx.request.body || {};
+
+  if (!subscriptions || !Array.isArray(subscriptions)) {
+    ctx.status = 400;
+    ctx.body = { error: '参数格式错误' };
+    return;
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO notification_subscriptions (user_id, category, enabled, updated_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id, category) DO UPDATE SET
+      enabled = excluded.enabled,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+
+  const tx = db.transaction((items) => {
+    items.forEach(item => {
+      if (item.category) {
+        stmt.run(userId, item.category, item.enabled ? 1 : 0);
+      }
+    });
+  });
+
+  tx(subscriptions);
+
+  ctx.body = { success: true, count: subscriptions.length };
+};
+
+const typeToCategory = {
+  'comment': 'comment',
+  'like': 'like',
+  'favorite': 'favorite',
+  'follow': 'follow',
+  'review': 'review',
+  'activity': 'activity',
+  'system': 'system'
+};
+
+const createNotification = (userId, type, fromUserId, patchId, content, options = {}) => {
   try {
+    const category = options.category || typeToCategory[type] || 'system';
+
+    const subscription = db.prepare(`
+      SELECT enabled FROM notification_subscriptions 
+      WHERE user_id = ? AND category = ?
+    `).get(userId, category);
+
+    if (subscription && subscription.enabled === 0) {
+      return;
+    }
+
+    const linkUrl = options.linkUrl || null;
+    const extraData = options.extraData ? JSON.stringify(options.extraData) : null;
+
     db.prepare(`
-      INSERT INTO notifications (user_id, type, from_user_id, patch_id, content)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(userId, type, fromUserId, patchId, content);
+      INSERT INTO notifications (user_id, type, category, from_user_id, patch_id, content, link_url, extra_data)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, type, category, fromUserId, patchId, content, linkUrl, extraData);
   } catch (e) {
     console.error('创建通知失败:', e);
   }
 };
 
-const createNotificationForFollowers = (creatorId, type, fromUserId, patchId, content) => {
+const createNotificationForFollowers = (creatorId, type, fromUserId, patchId, content, options = {}) => {
   try {
     const followers = db.prepare(`
       SELECT follower_id FROM follows WHERE following_id = ?
     `).all(creatorId);
     
     followers.forEach(follower => {
-      createNotification(follower.follower_id, type, fromUserId, patchId, content);
+      createNotification(follower.follower_id, type, fromUserId, patchId, content, options);
     });
   } catch (e) {
     console.error('为粉丝创建通知失败:', e);
