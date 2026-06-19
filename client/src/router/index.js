@@ -214,6 +214,11 @@ const routes = [
         path: 'download-records',
         name: 'AdminDownloadRecords',
         component: () => import('@/views/admin/AdminDownloadRecords.vue')
+      },
+      {
+        path: 'reports',
+        name: 'AdminReports',
+        component: () => import('@/views/admin/DataReport.vue')
       }
     ]
   },

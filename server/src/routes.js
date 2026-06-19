@@ -14,6 +14,7 @@ const challengeController = require('./controllers/challengeController');
 const wikiController = require('./controllers/wikiController');
 const creatorVerificationController = require('./controllers/creatorVerificationController');
 const downloadController = require('./controllers/downloadController');
+const reportController = require('./controllers/reportController');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -212,5 +213,12 @@ router.get('/admin/downloads', requireAdmin, downloadController.adminGetResource
 router.put('/admin/downloads/:id/review', requireAdmin, downloadController.adminReviewResource);
 router.delete('/admin/downloads/:id', requireAdmin, downloadController.adminDeleteResource);
 router.get('/admin/download-records', requireAdmin, downloadController.adminGetDownloadRecords);
+
+router.get('/admin/reports/overview', requireAdmin, reportController.getOverview);
+router.get('/admin/reports/users', requireAdmin, reportController.getUserStats);
+router.get('/admin/reports/patches', requireAdmin, reportController.getPatchStats);
+router.get('/admin/reports/modules', requireAdmin, reportController.getModuleStats);
+router.get('/admin/reports/manufacturers', requireAdmin, reportController.getManufacturerStats);
+router.get('/admin/reports/export', requireAdmin, reportController.exportReport);
 
 module.exports = router;

@@ -247,5 +247,18 @@ export const adminDownloadApi = {
   getDownloadRecords: (params) => api.get('/admin/download-records', { params })
 }
 
+export const adminReportApi = {
+  getOverview: (params) => api.get('/admin/reports/overview', { params }),
+  getUserStats: (params) => api.get('/admin/reports/users', { params }),
+  getPatchStats: (params) => api.get('/admin/reports/patches', { params }),
+  getModuleStats: (params) => api.get('/admin/reports/modules', { params }),
+  getManufacturerStats: (params) => api.get('/admin/reports/manufacturers', { params }),
+  getExportUrl: (type, format = 'csv') => {
+    const token = localStorage.getItem('token')
+    return `/api/admin/reports/export?type=${type}&format=${format}&token=${encodeURIComponent(token || '')}`
+  }
+}
+
 export const downloadAPI = downloadApi
 export const adminDownloadAPI = adminDownloadApi
+export const adminReportAPI = adminReportApi

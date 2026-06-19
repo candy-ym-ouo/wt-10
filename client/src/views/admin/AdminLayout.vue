@@ -57,6 +57,10 @@
           <el-icon><Histogram /></el-icon>
           <span>下载记录</span>
         </el-menu-item>
+        <el-menu-item index="/admin/reports">
+          <el-icon><PieChart /></el-icon>
+          <span>数据报表</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -89,7 +93,7 @@ import { ElMessage } from 'element-plus'
 import { 
   Setting, DataAnalysis, User, Document, Box, 
   OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
-  Folder, Histogram
+  Folder, Histogram, PieChart
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 
