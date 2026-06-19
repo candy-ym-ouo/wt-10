@@ -6,6 +6,7 @@ const moduleController = require('./controllers/moduleController');
 const patchController = require('./controllers/patchController');
 const socialController = require('./controllers/socialController');
 const adminController = require('./controllers/adminController');
+const collectionController = require('./controllers/collectionController');
 
 const router = new Router({ prefix: '/api' });
 
@@ -51,6 +52,9 @@ router.delete('/compare/:id', requireAuth, socialController.removeFromCompare);
 router.post('/compare/clear', requireAuth, socialController.clearCompare);
 router.get('/compare/result', socialController.comparePatches);
 
+router.get('/collections', collectionController.getCollections);
+router.get('/collections/:id', collectionController.getCollectionDetail);
+
 router.get('/admin/stats', requireAdmin, adminController.getStats);
 router.get('/admin/users/recent', requireAdmin, adminController.getRecentUsers);
 router.get('/admin/users', requireAdmin, adminController.getUsers);
@@ -68,5 +72,14 @@ router.get('/admin/manufacturers', requireAdmin, adminController.getAllManufactu
 router.post('/admin/manufacturers', requireAdmin, adminController.createManufacturer);
 router.put('/admin/manufacturers/:id', requireAdmin, adminController.updateManufacturer);
 router.delete('/admin/manufacturers/:id', requireAdmin, adminController.deleteManufacturer);
+
+router.get('/admin/collections', requireAdmin, collectionController.adminGetCollections);
+router.post('/admin/collections', requireAdmin, collectionController.createCollection);
+router.put('/admin/collections/reorder', requireAdmin, collectionController.reorderCollections);
+router.put('/admin/collections/:id', requireAdmin, collectionController.updateCollection);
+router.delete('/admin/collections/:id', requireAdmin, collectionController.deleteCollection);
+router.post('/admin/collections/:id/patches', requireAdmin, collectionController.addPatchToCollection);
+router.delete('/admin/collections/:id/patches/:patchId', requireAdmin, collectionController.removePatchFromCollection);
+router.put('/admin/collections/:id/reorder', requireAdmin, collectionController.reorderPatches);
 
 module.exports = router;

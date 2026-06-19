@@ -33,6 +33,37 @@ try {
   console.error('创建 notifications 表失败:', e);
 }
 
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS collections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      cover_url TEXT,
+      sort_order INTEGER DEFAULT 0,
+      is_published INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS collection_patches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      collection_id INTEGER NOT NULL,
+      patch_id INTEGER NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(collection_id, patch_id),
+      FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+      FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_collections_published ON collections(is_published, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_collection_patches_collection ON collection_patches(collection_id, sort_order);
+  `);
+  console.log('collections 表检查/创建完成');
+} catch (e) {
+  console.error('创建 collections 表失败:', e);
+}
+
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

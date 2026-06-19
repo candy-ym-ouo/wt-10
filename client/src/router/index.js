@@ -52,6 +52,16 @@ const routes = [
     component: () => import('@/views/ModuleDetail.vue')
   },
   {
+    path: '/collections',
+    name: 'Collections',
+    component: () => import('@/views/Collections.vue')
+  },
+  {
+    path: '/collections/:id',
+    name: 'CollectionDetail',
+    component: () => import('@/views/CollectionDetail.vue')
+  },
+  {
     path: '/compare',
     name: 'Compare',
     component: () => import('@/views/Compare.vue'),
@@ -116,6 +126,11 @@ const routes = [
         path: 'manufacturers',
         name: 'AdminManufacturers',
         component: () => import('@/views/admin/Manufacturers.vue')
+      },
+      {
+        path: 'collections',
+        name: 'AdminCollections',
+        component: () => import('@/views/admin/AdminCollections.vue')
       }
     ]
   },

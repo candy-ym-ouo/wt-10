@@ -59,6 +59,31 @@
         </div>
       </section>
 
+      <section class="section" v-if="featuredCollections.length > 0">
+        <div class="section-header">
+          <h2 class="section-title">🎯 精选专题</h2>
+          <el-button type="text" @click="$router.push('/collections')">查看更多 →</el-button>
+        </div>
+        <div class="collections-row">
+          <div
+            v-for="item in featuredCollections"
+            :key="item.id"
+            class="home-collection-card"
+            @click="$router.push(`/collections/${item.id}`)"
+          >
+            <div class="home-collection-cover">
+              <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" />
+              <div v-else class="cover-placeholder-sm">🎯</div>
+            </div>
+            <div class="home-collection-info">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.description || '暂无描述' }}</p>
+              <span class="patch-count">{{ item.patch_count }} 个 Patch</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="section features">
         <h2 class="section-title text-center">平台特色</h2>
         <div class="features-grid">
@@ -94,6 +119,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
+import { collectionApi } from '@/api'
 import PatchCard from '@/components/PatchCard.vue'
 
 const router = useRouter()
@@ -103,15 +129,18 @@ const userStore = useUserStore()
 const loading = ref(true)
 const popularPatches = ref([])
 const newestPatches = ref([])
+const featuredCollections = ref([])
 
 onMounted(async () => {
   try {
-    const [popular, newest] = await Promise.all([
+    const [popular, newest, collections] = await Promise.all([
       patchStore.fetchPatches({ sort: 'popular', limit: 4 }),
-      patchStore.fetchPatches({ sort: 'newest', limit: 4 })
+      patchStore.fetchPatches({ sort: 'newest', limit: 4 }),
+      collectionApi.getCollections({ limit: 4 })
     ])
     popularPatches.value = popular.list
     newestPatches.value = newest.list
+    featuredCollections.value = collections.data?.list || collections.data || []
   } finally {
     loading.value = false
   }
@@ -264,5 +293,83 @@ const handleAddToCompare = async (patchId) => {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.6);
   line-height: 1.6;
+}
+
+.collections-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.home-collection-card {
+  display: flex;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.home-collection-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 215, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.1);
+}
+
+.home-collection-cover {
+  width: 100px;
+  min-width: 100px;
+  height: 70px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 170, 0, 0.05));
+}
+
+.home-collection-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-placeholder-sm {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.home-collection-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-collection-info h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-collection-info p {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.patch-count {
+  font-size: 0.75rem;
+  color: #ffd700;
 }
 </style>

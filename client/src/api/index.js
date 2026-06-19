@@ -75,6 +75,11 @@ export const socialApi = {
   comparePatches: (ids) => api.get('/compare/result', { params: { ids } })
 }
 
+export const collectionApi = {
+  getCollections: (params) => api.get('/collections', { params }),
+  getDetail: (id) => api.get(`/collections/${id}`)
+}
+
 export const adminApi = {
   getStats: () => api.get('/admin/stats'),
   getRecentUsers: () => api.get('/admin/users/recent'),
@@ -92,7 +97,15 @@ export const adminApi = {
   getManufacturers: (params) => api.get('/admin/manufacturers', { params }),
   createManufacturer: (data) => api.post('/admin/manufacturers', data),
   updateManufacturer: (id, data) => api.put(`/admin/manufacturers/${id}`, data),
-  deleteManufacturer: (id) => api.delete(`/admin/manufacturers/${id}`)
+  deleteManufacturer: (id) => api.delete(`/admin/manufacturers/${id}`),
+  getCollections: (params) => api.get('/admin/collections', { params }),
+  createCollection: (data) => api.post('/admin/collections', data),
+  updateCollection: (id, data) => api.put(`/admin/collections/${id}`, data),
+  deleteCollection: (id) => api.delete(`/admin/collections/${id}`),
+  reorderCollections: (orders) => api.put('/admin/collections/reorder', { orders }),
+  addPatchToCollection: (id, data) => api.post(`/admin/collections/${id}/patches`, data),
+  removePatchFromCollection: (id, patchId) => api.delete(`/admin/collections/${id}/patches/${patchId}`),
+  reorderPatches: (id, orders) => api.put(`/admin/collections/${id}/reorder`, { orders })
 }
 
 export const authAPI = authApi
@@ -101,3 +114,4 @@ export const patchAPI = patchApi
 export const moduleAPI = moduleApi
 export const socialAPI = socialApi
 export const adminAPI = adminApi
+export const collectionAPI = collectionApi
