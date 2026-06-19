@@ -137,6 +137,7 @@ exports.getCompareList = async (ctx) => {
 exports.addToCompare = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
   const userId = ctx.state.user.id;
+  let updatedIds = [patchId];
 
   let compareList = db.prepare('SELECT * FROM compare_lists WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(userId);
 
@@ -154,10 +155,10 @@ exports.addToCompare = async (ctx) => {
       }
       patchIds.push(patchId);
     }
+    updatedIds = patchIds;
     db.prepare('UPDATE compare_lists SET patch_ids = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(patchIds), compareList.id);
   }
 
-  const updatedIds = JSON.parse(compareList.patch_ids || '[]');
   ctx.body = { patch_ids: updatedIds, count: updatedIds.length };
 };
 

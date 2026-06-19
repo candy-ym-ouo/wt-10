@@ -27,7 +27,7 @@
               {{ patch.is_favorited ? '已收藏' : '收藏' }}
             </el-button>
             <el-button type="primary" class="btn-primary" @click="addToCompare">
-              <el-icon><Scale /></el-icon>
+              <el-icon><SetUp /></el-icon>
               加入对比
             </el-button>
             <el-dropdown v-if="isOwner || userStore.isAdmin" @command="handleAction">
@@ -221,7 +221,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Loading, Warning, ArrowLeft, Star, Collection, Scale, MoreFilled, Edit, Delete, View } from '@element-plus/icons-vue'
+import { Loading, Warning, ArrowLeft, Star, Collection, SetUp, MoreFilled, Edit, Delete, View } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
 import { moduleAPI } from '@/api'

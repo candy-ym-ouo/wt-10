@@ -4,6 +4,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="$PROJECT_DIR/server"
 CLIENT_DIR="$PROJECT_DIR/client"
 DB_FILE="$SERVER_DIR/data/patch_vault.db"
+PREFERRED_NODE_DIR="/opt/homebrew/Cellar/node/26.3.0/bin"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -16,19 +17,34 @@ echo -e "${BLUE}========================================${NC}"
 echo ""
 
 echo -e "${YELLOW}[1/6] 检查 Node.js 环境...${NC}"
+if [ -d "$PREFERRED_NODE_DIR" ]; then
+    export PATH="$PREFERRED_NODE_DIR:$PATH"
+fi
 if ! command -v node &> /dev/null; then
-    echo "❌ 未检测到 Node.js，请先安装 Node.js >= 16.0.0"
+    echo "❌ 未检测到 Node.js，请先安装受支持的 Node.js 版本（20.x - 26.x）"
     exit 1
 fi
 echo "✅ Node.js 版本: $(node -v)"
 echo "✅ npm 版本: $(npm -v)"
 echo ""
 
+check_server_runtime() {
+    node -e "require('./src/db')" >/dev/null 2>&1
+}
+
 echo -e "${YELLOW}[2/6] 安装后端依赖...${NC}"
 cd "$SERVER_DIR"
 if [ ! -d "node_modules" ]; then
     echo "正在安装后端依赖..."
     npm install
+elif ! check_server_runtime; then
+    echo "检测到后端原生依赖与当前 Node.js 不兼容，正在重新安装后端依赖..."
+    rm -rf node_modules
+    npm install
+fi
+if ! check_server_runtime; then
+    echo "❌ 后端依赖安装完成，但数据库驱动仍无法加载。请确认当前 Node.js 版本与依赖兼容后重试。"
+    exit 1
 fi
 echo "✅ 后端依赖已就绪"
 echo ""

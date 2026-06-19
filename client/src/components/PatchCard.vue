@@ -40,7 +40,7 @@
         type="primary"
         @click.stop="$emit('addToCompare', patch.id)"
       >
-        <el-icon><Scale /></el-icon>
+        <el-icon><SetUp /></el-icon>
         对比
       </el-button>
     </div>
@@ -49,6 +49,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { SetUp } from '@element-plus/icons-vue'
 
 const props = defineProps({
   patch: {

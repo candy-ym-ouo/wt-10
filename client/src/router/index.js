@@ -58,6 +58,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/workbench',
+    name: 'CreatorWorkbench',
+    component: () => import('@/views/CreatorWorkbench.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/my-patches',
     name: 'MyPatches',
     component: () => import('@/views/MyPatches.vue'),

@@ -24,6 +24,10 @@
           参数对比
           <span v-if="patchStore.compareCount > 0" class="badge">{{ patchStore.compareCount }}</span>
         </router-link>
+        <router-link v-if="userStore.isLoggedIn" to="/workbench" class="nav-link" :class="{ active: $route.path === '/workbench' }">
+          <el-icon><Odometer /></el-icon>
+          工作台
+        </router-link>
       </nav>
 
       <div class="header-right">
@@ -47,6 +51,9 @@
           </div>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item command="workbench">
+                <el-icon><Odometer /></el-icon>创作者工作台
+              </el-dropdown-item>
               <el-dropdown-item command="profile">
                 <el-icon><User /></el-icon>个人中心
               </el-dropdown-item>
@@ -80,7 +87,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { 
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
-  ArrowDown, User, Document, Star, Setting, SwitchButton 
+  ArrowDown, User, Document, Star, Setting, SwitchButton,
+  Odometer
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
@@ -91,6 +99,9 @@ const patchStore = usePatchStore()
 
 const handleCommand = (command) => {
   switch (command) {
+    case 'workbench':
+      router.push('/workbench')
+      break
     case 'profile':
       router.push('/profile')
       break
