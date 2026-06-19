@@ -36,18 +36,25 @@ db.exec(`
     avatar TEXT,
     bio TEXT,
     role TEXT DEFAULT 'user',
+    followers_count INTEGER DEFAULT 0,
+    following_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
-const existingUsers = db.prepare(`SELECT id, username, email, ${passwordSelect}, avatar, bio, role, created_at, updated_at FROM users`).all();
-const insertUser = db.prepare(`INSERT OR IGNORE INTO users_new (id, username, email, password, avatar, bio, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+const userAllColumns = getColumns('users');
+const userSelectFields = ['id', 'username', 'email', passwordSelect, 'avatar', 'bio', 'role', 'created_at', 'updated_at']
+  .filter(f => f !== passwordSelect || userAllColumns.includes(f.replace(' as password', '')) || userAllColumns.includes('password') || userAllColumns.includes('password_hash'));
+userSelectFields.splice(3, 1, passwordSelect);
+
+const existingUsers = db.prepare(`SELECT ${userSelectFields.join(', ')} FROM users`).all();
+const insertUser = db.prepare(`INSERT OR IGNORE INTO users_new (id, username, email, password, avatar, bio, role, followers_count, following_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 existingUsers.forEach(u => {
   let pwd = u.password;
   if (!pwd && u.password_hash) pwd = u.password_hash;
   if (!pwd) pwd = bcrypt.hashSync('123456', 10);
-  insertUser.run(u.id, u.username, u.email, pwd, u.avatar, u.bio, u.role || 'user', u.created_at, u.updated_at);
+  insertUser.run(u.id, u.username, u.email, pwd, u.avatar, u.bio, u.role || 'user', 0, 0, u.created_at, u.updated_at);
 });
 
 db.exec(`
@@ -203,6 +210,18 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS follows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    follower_id INTEGER NOT NULL,
+    following_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(follower_id, following_id),
+    FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (following_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
 const adminPassword = bcrypt.hashSync('admin123', 10);
 db.prepare(`INSERT OR IGNORE INTO users (username, email, password, role, bio)
   VALUES (?, ?, ?, ?, ?)`).run('admin', 'admin@patchvault.com', adminPassword, 'admin', '系统管理员');
@@ -215,6 +234,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_modules_manufacturer ON modules(manufacturer_id);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
   CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id);
+  CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id);
+  CREATE INDEX IF NOT EXISTS idx_follows_created ON follows(created_at DESC);
 `);
 
 db.exec('PRAGMA foreign_keys = ON');

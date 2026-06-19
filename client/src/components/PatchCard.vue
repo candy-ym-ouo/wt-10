@@ -13,6 +13,14 @@
         </el-avatar>
         <span>{{ patch.username }}</span>
       </div>
+      <FollowButton 
+        v-if="showActions"
+        :user-id="patch.user_id" 
+        size="small"
+        @click.stop
+      />
+    </div>
+    <div class="patch-stats-row">
       <div class="patch-stats">
         <span><el-icon><Star /></el-icon> {{ patch.likes_count || patch.real_likes || 0 }}</span>
         <span><el-icon><View /></el-icon> {{ patch.views_count || 0 }}</span>
@@ -50,6 +58,7 @@
 <script setup>
 import { computed } from 'vue'
 import { SetUp } from '@element-plus/icons-vue'
+import FollowButton from './FollowButton.vue'
 
 const props = defineProps({
   patch: {

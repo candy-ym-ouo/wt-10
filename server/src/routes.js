@@ -46,6 +46,15 @@ router.get('/me/notifications', requireAuth, socialController.getMyNotifications
 router.put('/me/notifications/:id/read', requireAuth, socialController.markNotificationRead);
 router.post('/me/notifications/read-all', requireAuth, socialController.markAllNotificationsRead);
 
+router.post('/users/:id/follow', requireAuth, socialController.followUser);
+router.get('/users/:id/follow-status', requireAuth, socialController.checkFollowStatus);
+router.get('/users/:id/followers', socialController.getFollowers);
+router.get('/users/:id/following', socialController.getFollowing);
+
+router.get('/me/followers', requireAuth, socialController.getMyFollowers);
+router.get('/me/following', requireAuth, socialController.getMyFollowing);
+router.get('/me/feed', requireAuth, socialController.getFollowingFeed);
+
 router.get('/compare', requireAuth, socialController.getCompareList);
 router.post('/compare/:id', requireAuth, socialController.addToCompare);
 router.delete('/compare/:id', requireAuth, socialController.removeFromCompare);

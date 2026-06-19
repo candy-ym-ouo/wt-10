@@ -46,7 +46,12 @@ exports.login = async (ctx) => {
 
 exports.profile = async (ctx) => {
   const userId = parseInt(ctx.params.id);
-  const user = db.prepare('SELECT id, username, email, avatar, bio, created_at FROM users WHERE id = ?').get(userId);
+  const currentUserId = ctx.state.user?.id;
+  
+  const user = db.prepare(`
+    SELECT id, username, email, avatar, bio, created_at, followers_count, following_count
+    FROM users WHERE id = ?
+  `).get(userId);
 
   if (!user) {
     ctx.status = 404;
@@ -55,15 +60,25 @@ exports.profile = async (ctx) => {
   }
 
   const patches = db.prepare(`
-    SELECT p.*, COUNT(l.id) as likes_count
+    SELECT p.*, COUNT(l.id) as likes_count,
+           EXISTS(SELECT 1 FROM likes WHERE user_id = ? AND patch_id = p.id) as is_liked,
+           EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited
     FROM patches p
     LEFT JOIN likes l ON p.id = l.patch_id
     WHERE p.user_id = ? AND p.is_public = 1
     GROUP BY p.id
     ORDER BY p.created_at DESC
-  `).all(userId);
+  `).all(currentUserId || 0, currentUserId || 0, userId);
 
-  ctx.body = { ...user, patches };
+  const isFollowing = currentUserId ? db.prepare(`
+    SELECT 1 FROM follows WHERE follower_id = ? AND following_id = ?
+  `).get(currentUserId, userId) : null;
+
+  ctx.body = { 
+    ...user, 
+    patches, 
+    is_following: !!isFollowing 
+  };
 };
 
 exports.updateProfile = async (ctx) => {

@@ -103,6 +103,7 @@ exports.createPatch = async (ctx) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const isPublic = is_public ? 1 : 0;
   const result = stmt.run(
     title, description, ctx.state.user.id,
     JSON.stringify(modules_used || []),
@@ -110,8 +111,31 @@ exports.createPatch = async (ctx) => {
     JSON.stringify(cables || []),
     audio_url, image_url, patch_file,
     JSON.stringify(tags || []),
-    is_public ? 1 : 0
+    isPublic
   );
+
+  if (isPublic) {
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(ctx.state.user.id);
+    const followers = db.prepare(`
+      SELECT follower_id FROM follows WHERE following_id = ?
+    `).all(ctx.state.user.id);
+    
+    followers.forEach(follower => {
+      try {
+        db.prepare(`
+          INSERT INTO notifications (user_id, type, from_user_id, patch_id, content)
+          VALUES (?, 'new_patch', ?, ?, ?)
+        `).run(
+          follower.follower_id,
+          ctx.state.user.id,
+          result.lastInsertRowid,
+          `${user?.username || '用户'} 发布了新 Patch "${title}"`
+        );
+      } catch (e) {
+        console.error('创建新Patch通知失败:', e);
+      }
+    });
+  }
 
   ctx.body = { id: result.lastInsertRowid };
 };

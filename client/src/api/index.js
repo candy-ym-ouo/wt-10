@@ -72,7 +72,16 @@ export const socialApi = {
   addToCompare: (id) => api.post(`/compare/${id}`),
   removeFromCompare: (id) => api.delete(`/compare/${id}`),
   clearCompare: () => api.post('/compare/clear'),
-  comparePatches: (ids) => api.get('/compare/result', { params: { ids } })
+  comparePatches: (ids) => api.get('/compare/result', { params: { ids } }),
+  
+  followUser: (userId) => api.post(`/users/${userId}/follow`),
+  checkFollowStatus: (userId) => api.get(`/users/${userId}/follow-status`),
+  getUserFollowers: (userId, params) => api.get(`/users/${userId}/followers`, { params }),
+  getUserFollowing: (userId, params) => api.get(`/users/${userId}/following`, { params }),
+  
+  getMyFollowers: (params) => api.get('/me/followers', { params }),
+  getMyFollowing: (params) => api.get('/me/following', { params }),
+  getFollowingFeed: (params) => api.get('/me/feed', { params })
 }
 
 export const collectionApi = {

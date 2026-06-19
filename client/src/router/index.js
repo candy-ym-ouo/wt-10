@@ -92,6 +92,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/feed',
+    name: 'FollowingFeed',
+    component: () => import('@/views/FollowingFeed.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/users/:id',
     name: 'UserProfile',
     component: () => import('@/views/UserProfile.vue')

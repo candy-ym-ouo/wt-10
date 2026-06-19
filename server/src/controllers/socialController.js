@@ -327,6 +327,250 @@ const createNotification = (userId, type, fromUserId, patchId, content) => {
   }
 };
 
+const createNotificationForFollowers = (creatorId, type, fromUserId, patchId, content) => {
+  try {
+    const followers = db.prepare(`
+      SELECT follower_id FROM follows WHERE following_id = ?
+    `).all(creatorId);
+    
+    followers.forEach(follower => {
+      createNotification(follower.follower_id, type, fromUserId, patchId, content);
+    });
+  } catch (e) {
+    console.error('为粉丝创建通知失败:', e);
+  }
+};
+
+const updateUserFollowCounts = (userId) => {
+  const followerCount = db.prepare(`
+    SELECT COUNT(*) as count FROM follows WHERE following_id = ?
+  `).get(userId);
+  
+  const followingCount = db.prepare(`
+    SELECT COUNT(*) as count FROM follows WHERE follower_id = ?
+  `).get(userId);
+  
+  db.prepare(`
+    UPDATE users SET followers_count = ?, following_count = ? WHERE id = ?
+  `).run(followerCount.count, followingCount.count, userId);
+};
+
+exports.followUser = async (ctx) => {
+  const followingId = parseInt(ctx.params.id);
+  const followerId = ctx.state.user.id;
+
+  if (followingId === followerId) {
+    ctx.status = 400;
+    ctx.body = { error: '不能关注自己' };
+    return;
+  }
+
+  const targetUser = db.prepare('SELECT id, username FROM users WHERE id = ?').get(followingId);
+  if (!targetUser) {
+    ctx.status = 404;
+    ctx.body = { error: '用户不存在' };
+    return;
+  }
+
+  const existing = db.prepare('SELECT * FROM follows WHERE follower_id = ? AND following_id = ?').get(followerId, followingId);
+
+  if (existing) {
+    db.prepare('DELETE FROM follows WHERE id = ?').run(existing.id);
+    updateUserFollowCounts(followerId);
+    updateUserFollowCounts(followingId);
+    ctx.body = { following: false };
+  } else {
+    db.prepare('INSERT INTO follows (follower_id, following_id) VALUES (?, ?)').run(followerId, followingId);
+    updateUserFollowCounts(followerId);
+    updateUserFollowCounts(followingId);
+    
+    const follower = db.prepare('SELECT username FROM users WHERE id = ?').get(followerId);
+    createNotification(
+      followingId,
+      'follow',
+      followerId,
+      null,
+      `${follower?.username || '用户'} 关注了你`
+    );
+    
+    ctx.body = { following: true };
+  }
+};
+
+exports.checkFollowStatus = async (ctx) => {
+  const userId = parseInt(ctx.params.id);
+  const currentUserId = ctx.state.user?.id;
+
+  if (!currentUserId) {
+    ctx.body = { following: false };
+    return;
+  }
+
+  const follow = db.prepare('SELECT * FROM follows WHERE follower_id = ? AND following_id = ?').get(currentUserId, userId);
+  ctx.body = { following: !!follow };
+};
+
+exports.getFollowers = async (ctx) => {
+  const userId = parseInt(ctx.params.id);
+  const { page = 1, limit = 20 } = ctx.query;
+  const offset = (page - 1) * limit;
+  const currentUserId = ctx.state.user?.id;
+
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  if (!user) {
+    ctx.status = 404;
+    ctx.body = { error: '用户不存在' };
+    return;
+  }
+
+  const followers = db.prepare(`
+    SELECT u.id, u.username, u.avatar, u.bio, u.followers_count, u.following_count,
+           f.created_at as followed_at,
+           CASE WHEN f2.id IS NOT NULL THEN 1 ELSE 0 END as is_following_back
+    FROM follows f
+    JOIN users u ON f.follower_id = u.id
+    LEFT JOIN follows f2 ON f2.follower_id = ? AND f2.following_id = u.id
+    WHERE f.following_id = ?
+    ORDER BY f.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(currentUserId || 0, userId, limit, offset);
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM follows WHERE following_id = ?').get(userId);
+
+  ctx.body = {
+    list: followers,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.getFollowing = async (ctx) => {
+  const userId = parseInt(ctx.params.id);
+  const { page = 1, limit = 20 } = ctx.query;
+  const offset = (page - 1) * limit;
+  const currentUserId = ctx.state.user?.id;
+
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  if (!user) {
+    ctx.status = 404;
+    ctx.body = { error: '用户不存在' };
+    return;
+  }
+
+  const following = db.prepare(`
+    SELECT u.id, u.username, u.avatar, u.bio, u.followers_count, u.following_count,
+           f.created_at as followed_at,
+           CASE WHEN f2.id IS NOT NULL THEN 1 ELSE 0 END as is_following_back
+    FROM follows f
+    JOIN users u ON f.following_id = u.id
+    LEFT JOIN follows f2 ON f2.follower_id = ? AND f2.following_id = u.id
+    WHERE f.follower_id = ?
+    ORDER BY f.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(currentUserId || 0, userId, limit, offset);
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM follows WHERE follower_id = ?').get(userId);
+
+  ctx.body = {
+    list: following,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.getFollowingFeed = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { page = 1, limit = 12 } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const patches = db.prepare(`
+    SELECT p.*, u.username, u.avatar,
+           COUNT(l.id) as real_likes,
+           CASE WHEN l2.id IS NOT NULL THEN 1 ELSE 0 END as is_liked,
+           CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorited
+    FROM follows fol
+    JOIN patches p ON fol.following_id = p.user_id
+    JOIN users u ON p.user_id = u.id
+    LEFT JOIN likes l ON p.id = l.patch_id
+    LEFT JOIN likes l2 ON l2.patch_id = p.id AND l2.user_id = ?
+    LEFT JOIN favorites f ON f.patch_id = p.id AND f.user_id = ?
+    WHERE fol.follower_id = ? AND p.is_public = 1
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, userId, userId, limit, offset);
+
+  const total = db.prepare(`
+    SELECT COUNT(DISTINCT p.id) as count
+    FROM follows fol
+    JOIN patches p ON fol.following_id = p.user_id
+    WHERE fol.follower_id = ? AND p.is_public = 1
+  `).get(userId);
+
+  ctx.body = {
+    list: patches,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.getMyFollowers = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { page = 1, limit = 20 } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const followers = db.prepare(`
+    SELECT u.id, u.username, u.avatar, u.bio, u.followers_count, u.following_count,
+           f.created_at as followed_at,
+           CASE WHEN f2.id IS NOT NULL THEN 1 ELSE 0 END as is_following_back
+    FROM follows f
+    JOIN users u ON f.follower_id = u.id
+    LEFT JOIN follows f2 ON f2.follower_id = ? AND f2.following_id = u.id
+    WHERE f.following_id = ?
+    ORDER BY f.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, userId, limit, offset);
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM follows WHERE following_id = ?').get(userId);
+
+  ctx.body = {
+    list: followers,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.getMyFollowing = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { page = 1, limit = 20 } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const following = db.prepare(`
+    SELECT u.id, u.username, u.avatar, u.bio, u.followers_count, u.following_count,
+           f.created_at as followed_at,
+           CASE WHEN f2.id IS NOT NULL THEN 1 ELSE 0 END as is_following_back
+    FROM follows f
+    JOIN users u ON f.following_id = u.id
+    LEFT JOIN follows f2 ON f2.follower_id = ? AND f2.following_id = u.id
+    WHERE f.follower_id = ?
+    ORDER BY f.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, userId, limit, offset);
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM follows WHERE follower_id = ?').get(userId);
+
+  ctx.body = {
+    list: following,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
 exports.toggleLike = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
   const userId = ctx.state.user.id;

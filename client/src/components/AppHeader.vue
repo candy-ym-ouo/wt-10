@@ -23,6 +23,10 @@
           <el-icon><CollectionTag /></el-icon>
           专题策展
         </router-link>
+        <router-link v-if="userStore.isLoggedIn" to="/feed" class="nav-link" :class="{ active: $route.path === '/feed' }">
+          <el-icon><TrendCharts /></el-icon>
+          关注动态
+        </router-link>
         <router-link v-if="userStore.isLoggedIn" to="/compare" class="nav-link" :class="{ active: $route.path === '/compare' }">
           <el-icon><DataAnalysis /></el-icon>
           参数对比
@@ -92,7 +96,7 @@ import { ElMessage } from 'element-plus'
 import { 
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
-  Odometer, CollectionTag
+  Odometer, CollectionTag, TrendCharts
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
