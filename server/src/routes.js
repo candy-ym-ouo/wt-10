@@ -79,6 +79,7 @@ router.put('/admin/collections/reorder', requireAdmin, collectionController.reor
 router.put('/admin/collections/:id', requireAdmin, collectionController.updateCollection);
 router.delete('/admin/collections/:id', requireAdmin, collectionController.deleteCollection);
 router.post('/admin/collections/:id/patches', requireAdmin, collectionController.addPatchToCollection);
+router.put('/admin/collections/:id/patches/:patchId', requireAdmin, collectionController.updatePatchNote);
 router.delete('/admin/collections/:id/patches/:patchId', requireAdmin, collectionController.removePatchFromCollection);
 router.put('/admin/collections/:id/reorder', requireAdmin, collectionController.reorderPatches);
 

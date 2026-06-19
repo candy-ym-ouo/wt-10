@@ -175,8 +175,10 @@ exports.addPatchToCollection = async (ctx) => {
 
   const existing = db.prepare('SELECT id FROM collection_patches WHERE collection_id = ? AND patch_id = ?').get(collectionId, patch_id);
   if (existing) {
-    ctx.status = 400;
-    ctx.body = { error: '该 Patch 已在此专题中' };
+    if (note !== undefined) {
+      db.prepare('UPDATE collection_patches SET note = ? WHERE id = ?').run(note || '', existing.id);
+    }
+    ctx.body = { id: existing.id, success: true, updated: true };
     return;
   }
 
@@ -189,6 +191,22 @@ exports.addPatchToCollection = async (ctx) => {
   const result = stmt.run(collectionId, patch_id, maxOrder.max_order + 1, note || '');
 
   ctx.body = { id: result.lastInsertRowid, success: true };
+};
+
+exports.updatePatchNote = async (ctx) => {
+  const collectionId = parseInt(ctx.params.id);
+  const patchId = parseInt(ctx.params.patchId);
+  const { note } = ctx.request.body;
+
+  const existing = db.prepare('SELECT id FROM collection_patches WHERE collection_id = ? AND patch_id = ?').get(collectionId, patchId);
+  if (!existing) {
+    ctx.status = 404;
+    ctx.body = { error: '该 Patch 不在此专题中' };
+    return;
+  }
+
+  db.prepare('UPDATE collection_patches SET note = ? WHERE id = ?').run(note || '', existing.id);
+  ctx.body = { success: true };
 };
 
 exports.removePatchFromCollection = async (ctx) => {

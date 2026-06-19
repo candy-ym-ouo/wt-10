@@ -71,8 +71,8 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await collectionApi.getCollections({ page: page.value, limit })
-    collections.value = res.data.list || res.data || []
-    total.value = res.data.total || 0
+    collections.value = res.list || res || []
+    total.value = res.total || 0
   } finally {
     loading.value = false
   }

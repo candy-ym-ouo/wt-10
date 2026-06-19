@@ -124,7 +124,7 @@ const fetchPatches = async () => {
       keyword: keyword.value, 
       status: statusFilter.value 
     })
-    patches.value = res.data.list || res.data || []
+    patches.value = res.list || res || []
   } catch (err) {
     ElMessage.error('获取 Patch 列表失败')
     console.error(err)

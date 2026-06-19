@@ -267,7 +267,7 @@ const fetchCollections = async () => {
   try {
     loading.value = true
     const res = await adminApi.getCollections({ search: keyword.value })
-    collections.value = res.data.list || res.data || []
+    collections.value = res.list || res || []
   } catch (err) {
     ElMessage.error('获取专题列表失败')
     console.error(err)
@@ -459,11 +459,10 @@ const savePatchesOrder = async () => {
 const updatePatchNote = async (patch) => {
   if (!currentCollection.value) return
   try {
-    await adminApi.addPatchToCollection(currentCollection.value.id, {
-      patch_id: patch.id,
-      note: patch.cp_note
-    })
+    await adminApi.updatePatchNote(currentCollection.value.id, patch.id, patch.cp_note || '')
+    ElMessage.success('备注已更新')
   } catch (err) {
+    ElMessage.error('备注更新失败')
     console.error(err)
   }
 }

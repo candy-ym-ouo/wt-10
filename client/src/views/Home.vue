@@ -140,7 +140,7 @@ onMounted(async () => {
     ])
     popularPatches.value = popular.list
     newestPatches.value = newest.list
-    featuredCollections.value = collections.data?.list || collections.data || []
+    featuredCollections.value = collections.list || collections || []
   } finally {
     loading.value = false
   }

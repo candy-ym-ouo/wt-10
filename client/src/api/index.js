@@ -104,6 +104,7 @@ export const adminApi = {
   deleteCollection: (id) => api.delete(`/admin/collections/${id}`),
   reorderCollections: (orders) => api.put('/admin/collections/reorder', { orders }),
   addPatchToCollection: (id, data) => api.post(`/admin/collections/${id}/patches`, data),
+  updatePatchNote: (id, patchId, note) => api.put(`/admin/collections/${id}/patches/${patchId}`, { note }),
   removePatchFromCollection: (id, patchId) => api.delete(`/admin/collections/${id}/patches/${patchId}`),
   reorderPatches: (id, orders) => api.put(`/admin/collections/${id}/reorder`, { orders })
 }

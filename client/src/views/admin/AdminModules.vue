@@ -174,7 +174,7 @@ const formatDate = (dateStr) => {
 const fetchManufacturers = async () => {
   try {
     const res = await moduleApi.getManufacturers()
-    manufacturers.value = res.data.list || res.data || []
+    manufacturers.value = res.list || res || []
   } catch (err) {
     console.error(err)
   }
@@ -187,7 +187,7 @@ const fetchModules = async () => {
       keyword: keyword.value, 
       manufacturer_id: manufacturerFilter.value 
     })
-    modules.value = res.data.list || res.data || []
+    modules.value = res.list || res || []
   } catch (err) {
     ElMessage.error('获取模块列表失败')
     console.error(err)

@@ -127,7 +127,7 @@ const fetchManufacturers = async () => {
   try {
     loading.value = true
     const res = await adminApi.getManufacturers({ keyword: keyword.value })
-    manufacturers.value = res.data.list || res.data || []
+    manufacturers.value = res.list || res || []
   } catch (err) {
     ElMessage.error('获取厂商列表失败')
     console.error(err)

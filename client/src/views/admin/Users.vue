@@ -85,7 +85,7 @@ const fetchUsers = async () => {
   try {
     loading.value = true
     const res = await adminApi.getUsers({ keyword: keyword.value })
-    users.value = res.data.list || res.data || []
+    users.value = res.list || res || []
   } catch (err) {
     ElMessage.error('获取用户列表失败')
     console.error(err)
