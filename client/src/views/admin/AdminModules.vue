@@ -58,10 +58,17 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="openEditDialog(row)">
               编辑
+            </el-button>
+            <el-button 
+              size="small" 
+              type="primary" 
+              @click="goToWiki(row)"
+            >
+              百科管理
             </el-button>
             <el-button 
               size="small" 
@@ -138,9 +145,12 @@
 
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { adminApi, moduleApi } from '@/api'
+
+const router = useRouter()
 
 const loading = ref(true)
 const keyword = ref('')
@@ -257,6 +267,10 @@ const toggleStatus = async (module) => {
     ElMessage.error('操作失败')
     console.error(err)
   }
+}
+
+const goToWiki = (module) => {
+  router.push(`/admin/modules/${module.id}/wiki`)
 }
 
 onMounted(async () => {

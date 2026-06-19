@@ -154,6 +154,11 @@ const routes = [
         component: () => import('@/views/admin/AdminModules.vue')
       },
       {
+        path: 'modules/:id/wiki',
+        name: 'AdminModuleWiki',
+        component: () => import('@/views/admin/ModuleWiki.vue')
+      },
+      {
         path: 'manufacturers',
         name: 'AdminManufacturers',
         component: () => import('@/views/admin/Manufacturers.vue')
