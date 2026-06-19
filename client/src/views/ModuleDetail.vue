@@ -65,7 +65,7 @@
             </div>
 
             <div class="wiki-section" v-if="wikiData.wiki.design_philosophy">
-              <h3><el-icon><Idea /></el-icon> 设计理念</h3>
+              <h3><el-icon><Star /></el-icon> 设计理念</h3>
               <p class="wiki-content">{{ wikiData.wiki.design_philosophy }}</p>
             </div>
 
@@ -133,7 +133,7 @@
                     <p>{{ param.description }}</p>
                   </div>
                   <div class="param-tips" v-if="param.tips">
-                    <el-icon><Lightbulb /></el-icon>
+                    <el-icon><Star /></el-icon>
                     <span class="tips-text">{{ param.tips }}</span>
                   </div>
                 </div>
@@ -163,7 +163,7 @@
             <div v-for="tip in filteredTips" :key="tip.id" class="card tip-card">
               <div class="tip-header">
                 <div class="tip-icon">
-                  <el-icon :size="20"><Lightbulb /></el-icon>
+                  <el-icon :size="20"><Star /></el-icon>
                 </div>
                 <div class="tip-info">
                   <h4>{{ tip.title }}</h4>
@@ -182,7 +182,7 @@
           </div>
 
           <div class="card empty-card" v-else>
-            <el-icon><Lightbulb /></el-icon>
+            <el-icon><Star /></el-icon>
             <p>暂无使用技巧</p>
           </div>
         </el-tab-pane>
@@ -204,7 +204,7 @@
               <div class="patch-meta">
                 <span>by {{ rec.username }}</span>
                 <span class="patch-likes">
-                  <el-icon><FilledLike /></el-icon>
+                  <el-icon><Star /></el-icon>
                   {{ rec.likes_count || 0 }}
                 </span>
               </div>
@@ -255,8 +255,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { 
   Loading, ArrowLeft, Warning, Reading, InfoFilled, 
-  Timer, Idea, Star, Suitcase, DocumentAdd, Setting,
-  Lightbulb, FilledLike, Document
+  Timer, Star, Suitcase, DocumentAdd, Setting,
+  Document
 } from '@element-plus/icons-vue'
 import { moduleAPI } from '@/api'
 

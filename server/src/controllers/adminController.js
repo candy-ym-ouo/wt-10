@@ -125,7 +125,7 @@ exports.getAllPatches = async (ctx) => {
   const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
 
   const patches = db.prepare(`
-    SELECT p.*, u.username
+    SELECT p.*, u.username, u.avatar, u.is_creator_verified
     FROM patches p
     JOIN users u ON p.user_id = u.id
     ${whereSql}

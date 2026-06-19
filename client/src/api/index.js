@@ -203,3 +203,19 @@ export const adminChallengeApi = {
 
 export const challengeAPI = challengeApi
 export const adminChallengeAPI = adminChallengeApi
+
+export const creatorVerificationApi = {
+  submit: (data) => api.post('/creator/verification', data),
+  getStatus: () => api.get('/creator/verification/status'),
+  getHistory: () => api.get('/creator/verification/history'),
+  getUserBadge: (userId) => api.get(`/users/${userId}/verification-badge`)
+}
+
+export const adminCreatorVerificationApi = {
+  getList: (params) => api.get('/admin/creator-verifications', { params }),
+  getDetail: (id) => api.get(`/admin/creator-verifications/${id}`),
+  review: (id, data) => api.put(`/admin/creator-verifications/${id}/review`, data)
+}
+
+export const creatorVerificationAPI = creatorVerificationApi
+export const adminCreatorVerificationAPI = adminCreatorVerificationApi

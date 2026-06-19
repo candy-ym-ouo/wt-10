@@ -10,6 +10,7 @@ const collectionController = require('./controllers/collectionController');
 const activityController = require('./controllers/activityController');
 const challengeController = require('./controllers/challengeController');
 const wikiController = require('./controllers/wikiController');
+const creatorVerificationController = require('./controllers/creatorVerificationController');
 
 const router = new Router({ prefix: '/api' });
 
@@ -163,5 +164,14 @@ router.post('/admin/challenge/jury/:action', requireAdmin, challengeController.a
 router.post('/admin/challenge/activities/:id/calculate-rankings', requireAdmin, challengeController.calculateRankings);
 router.post('/admin/challenge/activities/:id/publish-results', requireAdmin, challengeController.publishResults);
 router.post('/admin/challenge/winners/assign', requireAdmin, challengeController.adminAssignWinner);
+
+router.post('/creator/verification', requireAuth, creatorVerificationController.submitVerification);
+router.get('/creator/verification/status', requireAuth, creatorVerificationController.getMyVerificationStatus);
+router.get('/creator/verification/history', requireAuth, creatorVerificationController.getVerificationHistory);
+router.get('/users/:id/verification-badge', creatorVerificationController.getUserVerificationBadge);
+
+router.get('/admin/creator-verifications', requireAdmin, creatorVerificationController.adminGetVerifications);
+router.get('/admin/creator-verifications/:id', requireAdmin, creatorVerificationController.adminGetVerificationDetail);
+router.put('/admin/creator-verifications/:id/review', requireAdmin, creatorVerificationController.adminReviewVerification);
 
 module.exports = router;

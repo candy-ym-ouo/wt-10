@@ -14,6 +14,14 @@
         <div class="profile-info">
           <div class="header-row">
             <h1 class="username">{{ user.username }}</h1>
+            <CreatorBadge
+              v-if="user.is_creator_verified"
+              :verified="true"
+              :verified-at="user.creator_verified_at"
+              size="large"
+              clickable
+              @click="showVerifiedInfo"
+            />
             <FollowButton :user-id="user.id" size="large" />
           </div>
           <p class="bio">{{ user.bio || '这个人很懒，什么都没写~' }}</p>
@@ -107,6 +115,7 @@ import { useUserStore } from '@/stores/userStore'
 import PatchCard from '@/components/PatchCard.vue'
 import FollowButton from '@/components/FollowButton.vue'
 import FollowList from '@/components/FollowList.vue'
+import CreatorBadge from '@/components/CreatorBadge.vue'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -122,6 +131,12 @@ const favoriteCount = computed(() => user.value?.favorites_count || 0)
 
 const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleDateString('zh-CN')
+}
+
+const showVerifiedInfo = () => {
+  if (user.value?.creator_verified_at) {
+    ElMessage.success(`创作者认证 · ${formatDate(user.value.creator_verified_at)} 通过认证`)
+  }
 }
 
 const fetchUser = async () => {

@@ -14,13 +14,70 @@
             </el-avatar>
           </div>
           <div class="profile-info">
-            <h2 class="profile-name">{{ userStore.user?.username }}</h2>
+            <div class="profile-name-row">
+              <h2 class="profile-name">{{ userStore.user?.username }}</h2>
+              <CreatorBadge
+                v-if="userStore.user?.is_creator_verified"
+                :verified="true"
+                :verified-at="userStore.user?.creator_verified_at"
+                size="default"
+              />
+            </div>
             <p class="profile-email">{{ userStore.user?.email }}</p>
-            <p class="profile-role">
+            <div class="profile-tags">
               <el-tag :type="userStore.isAdmin ? 'danger' : 'success'">
                 {{ userStore.isAdmin ? '管理员' : '普通用户' }}
               </el-tag>
-            </p>
+              <el-tag
+                v-if="!userStore.user?.is_creator_verified"
+                type="warning"
+                effect="plain"
+                class="verify-tag"
+                @click="goToVerification"
+              >
+                申请创作者认证 →
+              </el-tag>
+              <el-tag
+                v-else-if="verificationStatus?.verification?.status === 'pending'"
+                type="info"
+                effect="plain"
+                class="verify-tag"
+                @click="goToVerification"
+              >
+                认证审核中 →
+              </el-tag>
+              <el-tag
+                v-else
+                type="success"
+                effect="dark"
+                class="verify-tag"
+                @click="goToVerification"
+              >
+                🎖️ 已认证创作者
+              </el-tag>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 24px;">
+          <h3 class="section-title">快捷入口</h3>
+          <div class="quick-links">
+            <div class="quick-link" @click="router.push('/my-patches')">
+              <el-icon><Document /></el-icon>
+              <span>我的作品</span>
+            </div>
+            <div class="quick-link" @click="router.push('/favorites')">
+              <el-icon><Star /></el-icon>
+              <span>我的收藏</span>
+            </div>
+            <div class="quick-link" @click="router.push('/creator-verification')">
+              <el-icon><Medal /></el-icon>
+              <span>创作者认证</span>
+            </div>
+            <div class="quick-link" @click="router.push('/workbench')">
+              <el-icon><Tools /></el-icon>
+              <span>创作者工作台</span>
+            </div>
           </div>
         </div>
       </el-col>
@@ -81,14 +138,19 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Document, Star, Medal, Tools } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
-import { patchAPI } from '@/api'
+import { patchAPI, socialApi, creatorVerificationAPI } from '@/api'
+import { useRouter } from 'vue-router'
+import CreatorBadge from '@/components/CreatorBadge.vue'
 
 const userStore = useUserStore()
+const router = useRouter()
 
 const formRef = ref()
 const saving = ref(false)
 const stats = ref({ patches: 0, likes: 0, favorites: 0 })
+const verificationStatus = ref(null)
 
 const form = reactive({
   username: '',
@@ -105,6 +167,18 @@ const rules = {
   ]
 }
 
+const goToVerification = () => {
+  router.push('/creator-verification')
+}
+
+const loadVerificationStatus = async () => {
+  try {
+    verificationStatus.value = await creatorVerificationAPI.getStatus()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 onMounted(() => {
   if (userStore.user) {
     form.username = userStore.user.username
@@ -113,13 +187,14 @@ onMounted(() => {
     form.bio = userStore.user.bio || ''
   }
   loadStats()
+  loadVerificationStatus()
 })
 
 const loadStats = async () => {
   try {
     const [myPatches, favorites] = await Promise.all([
       patchAPI.getList({ user_id: userStore.user?.id, limit: 1 }),
-      patchStore.fetchMyFavorites({ limit: 1 })
+      socialApi.getMyFavorites({ limit: 1 })
     ])
     
     let totalLikes = 0
@@ -162,11 +237,19 @@ const submit = async () => {
   text-align: center;
 }
 
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .profile-name {
   font-size: 24px;
   font-weight: 700;
   color: #ffd700;
-  margin-bottom: 8px;
+  margin: 0;
 }
 
 .profile-email {
@@ -175,8 +258,20 @@ const submit = async () => {
   margin-bottom: 12px;
 }
 
-.profile-role {
-  margin-bottom: 0;
+.profile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.verify-tag {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.verify-tag:hover {
+  transform: translateY(-1px);
 }
 
 .section-title {
@@ -184,6 +279,35 @@ const submit = async () => {
   font-weight: 600;
   color: #ffd700;
   margin-bottom: 20px;
+}
+
+.quick-links {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.quick-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.quick-link:hover {
+  background: rgba(255, 215, 0, 0.1);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: #ffd700;
+}
+
+.quick-link .el-icon {
+  font-size: 18px;
 }
 
 :deep(.el-form-item__label) {

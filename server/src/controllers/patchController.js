@@ -27,7 +27,7 @@ exports.getPatches = async (ctx) => {
   if (sort === 'views') orderSql = 'ORDER BY p.views_count DESC';
 
   const patches = db.prepare(`
-    SELECT p.*, u.username, u.avatar,
+    SELECT p.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
            COUNT(l.id) as real_likes,
            EXISTS(SELECT 1 FROM likes WHERE user_id = ? AND patch_id = p.id) as is_liked,
            EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited
@@ -57,7 +57,7 @@ exports.getPatchDetail = async (ctx) => {
   db.prepare('UPDATE patches SET views_count = views_count + 1 WHERE id = ?').run(id);
 
   const patch = db.prepare(`
-    SELECT p.*, u.username, u.avatar,
+    SELECT p.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
            COUNT(l.id) as real_likes,
            EXISTS(SELECT 1 FROM likes WHERE user_id = ? AND patch_id = p.id) as is_liked,
            EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited

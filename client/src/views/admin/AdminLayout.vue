@@ -45,6 +45,10 @@
           <el-icon><Trophy /></el-icon>
           <span>挑战赛管理</span>
         </el-menu-item>
+        <el-menu-item index="/admin/creator-verifications">
+          <el-icon><Medal /></el-icon>
+          <span>创作者认证</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -76,7 +80,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { 
   Setting, DataAnalysis, User, Document, Box, 
-  OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy
+  OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 

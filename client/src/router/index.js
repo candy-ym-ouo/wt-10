@@ -99,6 +99,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/creator-verification',
+    name: 'CreatorVerification',
+    component: () => import('@/views/CreatorVerification.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/my-patches',
     name: 'MyPatches',
     component: () => import('@/views/MyPatches.vue'),
@@ -177,6 +183,11 @@ const routes = [
         path: 'challenge/seasons',
         name: 'AdminChallengeSeasons',
         component: () => import('@/views/admin/ChallengeSeasons.vue')
+      },
+      {
+        path: 'creator-verifications',
+        name: 'AdminCreatorVerifications',
+        component: () => import('@/views/admin/CreatorVerifications.vue')
       }
     ]
   },

@@ -11,7 +11,12 @@
         <el-avatar :size="20" :src="patch.avatar">
           {{ patch.username?.charAt(0).toUpperCase() }}
         </el-avatar>
-        <span>{{ patch.username }}</span>
+        <span class="author-name">{{ patch.username }}</span>
+        <CreatorBadge
+          v-if="patch.is_creator_verified"
+          :verified="true"
+          size="small"
+        />
       </div>
       <FollowButton 
         v-if="showActions"
@@ -59,6 +64,7 @@
 import { computed } from 'vue'
 import { SetUp } from '@element-plus/icons-vue'
 import FollowButton from './FollowButton.vue'
+import CreatorBadge from './CreatorBadge.vue'
 
 const props = defineProps({
   patch: {

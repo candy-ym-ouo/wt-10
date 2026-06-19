@@ -7,6 +7,12 @@
       <div class="user-details">
         <div class="username-row">
           <span class="username">{{ user.username }}</span>
+          <CreatorBadge
+            v-if="user.is_creator_verified"
+            :verified="true"
+            :verified-at="user.creator_verified_at"
+            size="small"
+          />
           <span v-if="user.is_following_back" class="follow-badge">互相关注</span>
         </div>
         <p v-if="user.bio" class="bio">{{ user.bio }}</p>
@@ -29,6 +35,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import FollowButton from './FollowButton.vue'
+import CreatorBadge from './CreatorBadge.vue'
 
 const props = defineProps({
   user: {

@@ -12,7 +12,7 @@ const authMiddleware = async (ctx, next) => {
   try {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = db.prepare('SELECT id, username, email, avatar, role, bio FROM users WHERE id = ?').get(decoded.id);
+    const user = db.prepare('SELECT id, username, email, avatar, role, bio, is_creator_verified, creator_verified_at FROM users WHERE id = ?').get(decoded.id);
     
     if (user) {
       ctx.state.user = user;

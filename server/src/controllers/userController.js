@@ -22,7 +22,7 @@ exports.register = async (ctx) => {
   const stmt = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)');
   const result = stmt.run(username, email, hashedPassword);
 
-  const user = db.prepare('SELECT id, username, email, avatar, role, bio FROM users WHERE id = ?').get(result.lastInsertRowid);
+  const user = db.prepare('SELECT id, username, email, avatar, role, bio, is_creator_verified, creator_verified_at FROM users WHERE id = ?').get(result.lastInsertRowid);
   const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
   ctx.body = { user, token };
@@ -40,6 +40,7 @@ exports.login = async (ctx) => {
 
   const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
   const { password: _, ...safeUser } = user;
+  delete safeUser.password;
 
   ctx.body = { user: safeUser, token };
 };
@@ -49,7 +50,8 @@ exports.profile = async (ctx) => {
   const currentUserId = ctx.state.user?.id;
   
   const user = db.prepare(`
-    SELECT id, username, email, avatar, bio, created_at, followers_count, following_count
+    SELECT id, username, email, avatar, bio, created_at, followers_count, following_count,
+           is_creator_verified, creator_verified_at
     FROM users WHERE id = ?
   `).get(userId);
 
@@ -96,7 +98,7 @@ exports.updateProfile = async (ctx) => {
   `);
   stmt.run(username, email, bio, avatar, userId);
 
-  const user = db.prepare('SELECT id, username, email, avatar, bio, role FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT id, username, email, avatar, bio, role, is_creator_verified, creator_verified_at FROM users WHERE id = ?').get(userId);
   ctx.body = user;
 };
 
