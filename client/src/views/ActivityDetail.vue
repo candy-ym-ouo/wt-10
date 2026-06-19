@@ -54,7 +54,7 @@
               <span>{{ activity.submission_count }} 份作品</span>
             </div>
             <div v-if="activity.max_registrations > 0" class="meta-item">
-              <el-icon><Users /></el-icon>
+              <el-icon><Avatar /></el-icon>
               <span>限制 {{ activity.max_registrations }} 人</span>
             </div>
           </div>
@@ -160,12 +160,12 @@
                     <div class="submission-stats">
                       <span class="stat-item" :class="{ voted: submission.has_voted }">
                         <el-icon @click.stop="voteSubmission(submission)">
-                          {{ submission.has_voted ? 'Star' : 'StarFilled' }}
+                          <component :is="submission.has_voted ? StarFilled : Star" />
                         </el-icon>
                         {{ submission.votes_count }}
                       </span>
                       <span class="stat-item">
-                        <el-icon><Score /></el-icon>
+                        <el-icon><Medal /></el-icon>
                         {{ submission.score }}
                       </span>
                     </div>
@@ -389,9 +389,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
 import {
-  Loading, Warning, Calendar, Clock, Edit, User, Document, Users,
+  Loading, Warning, Calendar, Clock, Edit, User, Document, Avatar,
   Check, Upload, Trophy, InfoFilled, List, FolderOpened, Star,
-  StarFilled, Score, UserFilled
+  StarFilled, Medal, UserFilled
 } from '@element-plus/icons-vue'
 import { activityApi, patchApi } from '@/api'
 import { useUserStore } from '@/stores/userStore'

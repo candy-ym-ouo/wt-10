@@ -17,7 +17,7 @@ const userStore = useUserStore()
 const patchStore = usePatchStore()
 
 const isAuthRoute = computed(() => 
-  route.path === '/login' || route.path === '/register'
+  route.path === '/login' || route.path === '/register' || route.path.startsWith('/admin')
 )
 
 onMounted(async () => {

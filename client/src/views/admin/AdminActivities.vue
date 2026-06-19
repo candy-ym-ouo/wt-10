@@ -1,5 +1,5 @@
 <template>
-  <div class="admin-activities">
+  <div class="admin-page">
     <div class="page-header">
       <h1 class="page-title">🎯 活动管理</h1>
       <el-button type="primary" @click="showCreateDialog = true">
@@ -34,7 +34,8 @@
       </el-select>
     </div>
 
-    <el-table :data="activities" v-loading="loading" class="activities-table">
+    <div class="table-card">
+      <el-table :data="activities" v-loading="loading" class="activities-table" stripe>
       <el-table-column label="ID" width="80">
         <template #default="{ row }">{{ row.id }}</template>
       </el-table-column>
@@ -102,6 +103,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
 
     <div v-if="total > limit" class="pagination">
       <el-pagination
@@ -837,7 +839,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.admin-activities {
+.admin-page {
   padding: 0;
 }
 
