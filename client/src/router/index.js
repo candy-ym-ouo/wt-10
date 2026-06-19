@@ -72,6 +72,21 @@ const routes = [
     component: () => import('@/views/ActivityDetail.vue')
   },
   {
+    path: '/challenge',
+    name: 'ChallengeHome',
+    component: () => import('@/views/ChallengeHome.vue')
+  },
+  {
+    path: '/challenge/seasons/:id',
+    name: 'ChallengeSeasonDetail',
+    component: () => import('@/views/ChallengeSeasonDetail.vue')
+  },
+  {
+    path: '/challenge/hall-of-fame',
+    name: 'ChallengeHallOfFame',
+    component: () => import('@/views/ChallengeHallOfFame.vue')
+  },
+  {
     path: '/compare',
     name: 'Compare',
     component: () => import('@/views/Compare.vue'),
@@ -152,6 +167,11 @@ const routes = [
         path: 'activities',
         name: 'AdminActivities',
         component: () => import('@/views/admin/AdminActivities.vue')
+      },
+      {
+        path: 'challenge/seasons',
+        name: 'AdminChallengeSeasons',
+        component: () => import('@/views/admin/ChallengeSeasons.vue')
       }
     ]
   },

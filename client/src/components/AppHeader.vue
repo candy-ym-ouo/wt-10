@@ -23,9 +23,13 @@
           <el-icon><CollectionTag /></el-icon>
           专题策展
         </router-link>
-        <router-link to="/activities" class="nav-link" :class="{ active: $route.path.startsWith('/activities') }">
+        <router-link to="/activities" class="nav-link" :class="{ active: $route.path.startsWith('/activities') && !$route.path.startsWith('/challenge') }">
           <el-icon><Present /></el-icon>
           活动中心
+        </router-link>
+        <router-link to="/challenge" class="nav-link" :class="{ active: $route.path.startsWith('/challenge') }">
+          <el-icon><Trophy /></el-icon>
+          挑战赛
         </router-link>
         <router-link v-if="userStore.isLoggedIn" to="/feed" class="nav-link" :class="{ active: $route.path === '/feed' }">
           <el-icon><TrendCharts /></el-icon>
@@ -100,7 +104,7 @@ import { ElMessage } from 'element-plus'
 import { 
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
-  Odometer, CollectionTag, TrendCharts, Present
+  Odometer, CollectionTag, TrendCharts, Present, Trophy
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'

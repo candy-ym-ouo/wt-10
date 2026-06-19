@@ -8,6 +8,7 @@ const socialController = require('./controllers/socialController');
 const adminController = require('./controllers/adminController');
 const collectionController = require('./controllers/collectionController');
 const activityController = require('./controllers/activityController');
+const challengeController = require('./controllers/challengeController');
 
 const router = new Router({ prefix: '/api' });
 
@@ -115,5 +116,31 @@ router.put('/admin/activities/registrations/:id/status', requireAdmin, activityC
 router.get('/admin/activities/:id/submissions', requireAdmin, activityController.adminGetSubmissions);
 router.put('/admin/activities/submissions/:id/review', requireAdmin, activityController.adminReviewSubmission);
 router.delete('/admin/activities/submissions/:id', requireAdmin, activityController.adminDeleteSubmission);
+
+router.get('/challenge/seasons', challengeController.getSeasons);
+router.get('/challenge/seasons/:id', challengeController.getSeasonDetail);
+router.get('/challenge/seasons/:id/overview', challengeController.getSeasonOverview);
+router.get('/challenge/voting-rule', challengeController.getVotingRule);
+router.get('/challenge/awards', challengeController.getAwards);
+router.get('/challenge/jury', challengeController.getJury);
+router.get('/challenge/winners', challengeController.getWinners);
+router.get('/challenge/snapshots', challengeController.getResultSnapshot);
+
+router.post('/challenge/submissions/:id/vote', requireAuth, challengeController.enhancedVote);
+router.post('/challenge/submissions/:id/jury-score', requireAuth, challengeController.submitJuryScore);
+router.get('/challenge/jury/pending', requireAuth, challengeController.getPendingJuryReviews);
+
+router.get('/admin/challenge/seasons', requireAdmin, challengeController.adminGetSeasons);
+router.post('/admin/challenge/seasons', requireAdmin, challengeController.adminCreateSeason);
+router.put('/admin/challenge/seasons/:id', requireAdmin, challengeController.adminUpdateSeason);
+router.delete('/admin/challenge/seasons/:id', requireAdmin, challengeController.adminDeleteSeason);
+
+router.post('/admin/challenge/voting-rule', requireAdmin, challengeController.adminSaveVotingRule);
+router.post('/admin/challenge/awards', requireAdmin, challengeController.adminSaveAwards);
+router.post('/admin/challenge/jury/:action', requireAdmin, challengeController.adminManageJury);
+
+router.post('/admin/challenge/activities/:id/calculate-rankings', requireAdmin, challengeController.calculateRankings);
+router.post('/admin/challenge/activities/:id/publish-results', requireAdmin, challengeController.publishResults);
+router.post('/admin/challenge/winners/assign', requireAdmin, challengeController.adminAssignWinner);
 
 module.exports = router;

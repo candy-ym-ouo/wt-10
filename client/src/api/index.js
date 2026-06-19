@@ -153,3 +153,33 @@ export const adminAPI = adminApi
 export const collectionAPI = collectionApi
 export const activityAPI = activityApi
 export const adminActivityAPI = adminActivityApi
+
+export const challengeApi = {
+  getSeasons: (params) => api.get('/challenge/seasons', { params }),
+  getSeasonDetail: (id) => api.get(`/challenge/seasons/${id}`),
+  getSeasonOverview: (id) => api.get(`/challenge/seasons/${id}/overview`),
+  getVotingRule: (params) => api.get('/challenge/voting-rule', { params }),
+  getAwards: (params) => api.get('/challenge/awards', { params }),
+  getJury: (params) => api.get('/challenge/jury', { params }),
+  getWinners: (params) => api.get('/challenge/winners', { params }),
+  getSnapshots: (params) => api.get('/challenge/snapshots', { params }),
+  enhancedVote: (id, data) => api.post(`/challenge/submissions/${id}/vote`, data),
+  submitJuryScore: (id, data) => api.post(`/challenge/submissions/${id}/jury-score`, data),
+  getPendingJuryReviews: (params) => api.get('/challenge/jury/pending', { params })
+}
+
+export const adminChallengeApi = {
+  getSeasons: (params) => api.get('/admin/challenge/seasons', { params }),
+  createSeason: (data) => api.post('/admin/challenge/seasons', data),
+  updateSeason: (id, data) => api.put(`/admin/challenge/seasons/${id}`, data),
+  deleteSeason: (id) => api.delete(`/admin/challenge/seasons/${id}`),
+  saveVotingRule: (data) => api.post('/admin/challenge/voting-rule', data),
+  saveAwards: (data) => api.post('/admin/challenge/awards', data),
+  manageJury: (action, data) => api.post(`/admin/challenge/jury/${action}`, data),
+  calculateRankings: (id, data) => api.post(`/admin/challenge/activities/${id}/calculate-rankings`, data),
+  publishResults: (id, data) => api.post(`/admin/challenge/activities/${id}/publish-results`, data),
+  assignWinner: (data) => api.post('/admin/challenge/winners/assign', data)
+}
+
+export const challengeAPI = challengeApi
+export const adminChallengeAPI = adminChallengeApi
