@@ -38,6 +38,8 @@ db.exec(`
     role TEXT DEFAULT 'user',
     followers_count INTEGER DEFAULT 0,
     following_count INTEGER DEFAULT 0,
+    is_creator_verified INTEGER DEFAULT 0,
+    creator_verified_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -49,12 +51,12 @@ const userSelectFields = ['id', 'username', 'email', passwordSelect, 'avatar', '
 userSelectFields.splice(3, 1, passwordSelect);
 
 const existingUsers = db.prepare(`SELECT ${userSelectFields.join(', ')} FROM users`).all();
-const insertUser = db.prepare(`INSERT OR IGNORE INTO users_new (id, username, email, password, avatar, bio, role, followers_count, following_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+const insertUser = db.prepare(`INSERT OR IGNORE INTO users_new (id, username, email, password, avatar, bio, role, followers_count, following_count, is_creator_verified, creator_verified_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 existingUsers.forEach(u => {
   let pwd = u.password;
   if (!pwd && u.password_hash) pwd = u.password_hash;
   if (!pwd) pwd = bcrypt.hashSync('123456', 10);
-  insertUser.run(u.id, u.username, u.email, pwd, u.avatar, u.bio, u.role || 'user', 0, 0, u.created_at, u.updated_at);
+  insertUser.run(u.id, u.username, u.email, pwd, u.avatar, u.bio, u.role || 'user', u.followers_count || 0, u.following_count || 0, u.is_creator_verified || 0, u.creator_verified_at || null, u.created_at, u.updated_at);
 });
 
 db.exec(`
@@ -384,6 +386,35 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_module_tips_module ON module_tips(module_id, sort_order);
   CREATE INDEX IF NOT EXISTS idx_module_rec_patches_module ON module_recommended_patches(module_id, sort_order);
   CREATE INDEX IF NOT EXISTS idx_module_wiki_module ON module_wiki(module_id);
+
+  CREATE TABLE IF NOT EXISTS creator_verifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    real_name TEXT NOT NULL,
+    id_card TEXT,
+    phone TEXT,
+    email TEXT,
+    experience_years INTEGER DEFAULT 0,
+    professional_field TEXT,
+    bio TEXT,
+    portfolio_url TEXT,
+    social_links TEXT,
+    id_card_front TEXT,
+    id_card_back TEXT,
+    certificate TEXT,
+    status TEXT DEFAULT 'pending',
+    review_note TEXT,
+    reviewed_by INTEGER,
+    reviewed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_verifications_user ON creator_verifications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_verifications_status ON creator_verifications(status);
+  CREATE INDEX IF NOT EXISTS idx_verifications_created ON creator_verifications(created_at DESC);
 `);
 
 db.exec('PRAGMA foreign_keys = ON');

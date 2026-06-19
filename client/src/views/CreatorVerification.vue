@@ -391,6 +391,10 @@ const loadData = async () => {
     currentVerification.value = statusRes.verification
     history.value = historyRes || []
 
+    if (statusRes.user) {
+      userStore.setUser(statusRes.user)
+    }
+
     if (statusRes.verification && statusRes.verification.status === 'rejected') {
       form.real_name = statusRes.verification.real_name || ''
       form.id_card = statusRes.verification.id_card || ''

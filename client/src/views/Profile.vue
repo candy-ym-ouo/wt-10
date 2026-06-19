@@ -173,7 +173,11 @@ const goToVerification = () => {
 
 const loadVerificationStatus = async () => {
   try {
-    verificationStatus.value = await creatorVerificationAPI.getStatus()
+    const res = await creatorVerificationAPI.getStatus()
+    verificationStatus.value = res
+    if (res.user) {
+      userStore.setUser(res.user)
+    }
   } catch (e) {
     console.error(e)
   }

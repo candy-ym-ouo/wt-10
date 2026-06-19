@@ -86,13 +86,14 @@ exports.getMyVerificationStatus = async (ctx) => {
   }
 
   const user = db.prepare(
-    'SELECT is_creator_verified, creator_verified_at FROM users WHERE id = ?'
+    'SELECT id, username, email, avatar, bio, role, is_creator_verified, creator_verified_at FROM users WHERE id = ?'
   ).get(userId);
 
   ctx.body = {
     verification,
     is_verified: !!user?.is_creator_verified,
-    verified_at: user?.creator_verified_at || null
+    verified_at: user?.creator_verified_at || null,
+    user
   };
 };
 
