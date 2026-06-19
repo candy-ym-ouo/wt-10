@@ -800,6 +800,132 @@ exports.getWinners = async (ctx) => {
   ctx.body = winners;
 };
 
+exports.getRankings = async (ctx) => {
+  const { activity_id, season_id, limit = 100 } = ctx.query;
+
+  if (!activity_id && !season_id) {
+    ctx.status = 400;
+    ctx.body = { error: '请指定活动或赛季' };
+    return;
+  }
+
+  let activity;
+  if (activity_id) {
+    activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(parseInt(activity_id));
+    if (!activity) {
+      ctx.status = 404;
+      ctx.body = { error: '活动不存在' };
+      return;
+    }
+  }
+
+  const seasonId = activity?.season_id || parseInt(season_id);
+  const activityId = activity?.id || parseInt(activity_id);
+
+  let votingRule = db.prepare(`
+    SELECT * FROM challenge_voting_rules
+    WHERE (activity_id = ? OR season_id = ?)
+    LIMIT 1
+  `).get(activityId, seasonId);
+
+  if (!votingRule) {
+    votingRule = {
+      vote_weight_public: 1.0,
+      vote_weight_jury: 3.0,
+      vote_weight_creator: 2.0,
+      score_formula: 'weighted_sum'
+    };
+  }
+
+  let whereSql = '';
+  let params = [];
+  if (activityId) {
+    whereSql = 'WHERE s.activity_id = ? AND s.status = ?';
+    params = [activityId, 'approved'];
+  } else if (seasonId) {
+    whereSql = `
+      JOIN activities a ON s.activity_id = a.id
+      WHERE a.season_id = ? AND s.status = ?
+    `;
+    params = [seasonId, 'approved'];
+  }
+
+  const submissions = db.prepare(`
+    SELECT s.*, u.username, u.avatar
+    FROM activity_submissions s
+    JOIN users u ON s.user_id = u.id
+    ${whereSql}
+  `).all(...params);
+
+  const rankings = [];
+
+  for (const sub of submissions) {
+    const publicVotes = db.prepare(`
+      SELECT COALESCE(COUNT(*), 0) as total
+      FROM activity_votes
+      WHERE submission_id = ? AND vote_type = 'public'
+    `).get(sub.id).total;
+
+    const juryData = db.prepare(`
+      SELECT
+        COUNT(*) as review_count,
+        COALESCE(AVG(total_score), 0) as avg_score
+      FROM challenge_jury_scores
+      WHERE submission_id = ?
+    `).get(sub.id);
+
+    const publicScore = publicVotes * votingRule.vote_weight_public;
+    const juryScore = juryData.avg_score * votingRule.vote_weight_jury;
+    const creatorScore = (sub.score || 0) * votingRule.vote_weight_creator;
+
+    let finalScore;
+    switch (votingRule.score_formula) {
+      case 'average':
+        finalScore = (publicScore + juryScore + creatorScore) / 3;
+        break;
+      case 'jury_only':
+        finalScore = juryScore;
+        break;
+      case 'public_only':
+        finalScore = publicScore;
+        break;
+      case 'weighted_sum':
+      default:
+        finalScore = publicScore + juryScore + creatorScore;
+    }
+
+    finalScore = Math.round(finalScore * 100) / 100;
+
+    rankings.push({
+      submission_id: sub.id,
+      user_id: sub.user_id,
+      username: sub.username,
+      avatar: sub.avatar,
+      submission_title: sub.title,
+      votes_count: publicVotes,
+      public_score: Math.round(publicScore * 100) / 100,
+      jury_score: Math.round(juryScore * 100) / 100,
+      creator_score: Math.round(creatorScore * 100) / 100,
+      final_score: finalScore,
+      jury_review_count: juryData.review_count,
+      activity_id: sub.activity_id
+    });
+  }
+
+  rankings.sort((a, b) => b.final_score - a.final_score);
+  rankings.forEach((r, i) => { r.rank_position = i + 1; });
+
+  if (limit && parseInt(limit) > 0) {
+    rankings.splice(parseInt(limit));
+  }
+
+  ctx.body = {
+    list: rankings,
+    total: rankings.length,
+    voting_rule: votingRule
+  };
+};
+
 exports.adminAssignWinner = async (ctx) => {
   const {
     submission_id, award_id, award_name, award_level, rank_position, is_featured, certificate_url

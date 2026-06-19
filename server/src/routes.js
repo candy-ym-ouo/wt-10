@@ -124,6 +124,7 @@ router.get('/challenge/voting-rule', challengeController.getVotingRule);
 router.get('/challenge/awards', challengeController.getAwards);
 router.get('/challenge/jury', challengeController.getJury);
 router.get('/challenge/winners', challengeController.getWinners);
+router.get('/challenge/rankings', challengeController.getRankings);
 router.get('/challenge/snapshots', challengeController.getResultSnapshot);
 
 router.post('/challenge/submissions/:id/vote', requireAuth, challengeController.enhancedVote);

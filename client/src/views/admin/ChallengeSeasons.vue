@@ -452,6 +452,17 @@ const openSeasonConfig = async (row) => {
   currentSeason.value = row
   currentActivityId.value = null
   showConfigDialog.value = true
+  try {
+    const detail = await challengeApi.getSeasonDetail(row.id)
+    if (detail) {
+      currentSeason.value = detail
+      if (detail.activities?.length > 0) {
+        currentActivityId.value = detail.activities[0].id
+      }
+    }
+  } catch (e) {
+    console.error('加载赛季详情失败', e)
+  }
 }
 
 const viewFront = (row) => {

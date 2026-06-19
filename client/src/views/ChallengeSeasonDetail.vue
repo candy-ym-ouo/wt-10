@@ -506,7 +506,7 @@ const fetchRankings = async () => {
   try {
     const act = activities.value[0]
     if (act) {
-      const res = await activityApi.getRankings(act.id, { limit: 50 })
+      const res = await challengeApi.getRankings({ activity_id: act.id, limit: 50 })
       rankings.value = res.list || res || []
     } else {
       rankings.value = (season.value?.winners || []).map((w, i) => ({

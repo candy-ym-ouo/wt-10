@@ -162,6 +162,7 @@ export const challengeApi = {
   getAwards: (params) => api.get('/challenge/awards', { params }),
   getJury: (params) => api.get('/challenge/jury', { params }),
   getWinners: (params) => api.get('/challenge/winners', { params }),
+  getRankings: (params) => api.get('/challenge/rankings', { params }),
   getSnapshots: (params) => api.get('/challenge/snapshots', { params }),
   enhancedVote: (id, data) => api.post(`/challenge/submissions/${id}/vote`, data),
   submitJuryScore: (id, data) => api.post(`/challenge/submissions/${id}/jury-score`, data),
