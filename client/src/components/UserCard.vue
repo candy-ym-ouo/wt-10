@@ -46,7 +46,7 @@ const emit = defineEmits(['follow', 'unfollow'])
 const router = useRouter()
 
 const goToProfile = () => {
-  router.push(`/user/${props.user.id}`)
+  router.push(`/users/${props.user.id}`)
 }
 
 const handleFollow = (res) => {

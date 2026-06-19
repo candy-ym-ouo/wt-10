@@ -205,7 +205,7 @@ onMounted(() => {
   margin: 0 0 24px 0;
 }
 
-.patch-grid {
+.feed-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
