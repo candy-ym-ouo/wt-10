@@ -1,5 +1,42 @@
 const db = require('../db');
 
+const typeToCategory = {
+  'comment': 'comment',
+  'like': 'like',
+  'favorite': 'favorite',
+  'follow': 'follow',
+  'review': 'review',
+  'activity': 'activity',
+  'activity_registration': 'activity',
+  'activity_submission': 'activity',
+  'system': 'system'
+};
+
+const createNotification = (userId, type, fromUserId, patchId, content, options = {}) => {
+  try {
+    const category = options.category || typeToCategory[type] || 'system';
+
+    const subscription = db.prepare(`
+      SELECT enabled FROM notification_subscriptions 
+      WHERE user_id = ? AND category = ?
+    `).get(userId, category);
+
+    if (subscription && subscription.enabled === 0) {
+      return;
+    }
+
+    const linkUrl = options.linkUrl || null;
+    const extraData = options.extraData ? JSON.stringify(options.extraData) : null;
+
+    db.prepare(`
+      INSERT INTO notifications (user_id, type, category, from_user_id, patch_id, content, link_url, extra_data)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, type, category, fromUserId, patchId, content, linkUrl, extraData);
+  } catch (e) {
+    console.error('创建通知失败:', e);
+  }
+};
+
 exports.getActivities = async (ctx) => {
   const { page = 1, limit = 12, type, status } = ctx.query;
   const offset = (page - 1) * limit;
@@ -127,11 +164,18 @@ exports.registerActivity = async (ctx) => {
     `);
     stmt.run(activityId, userId, extra_data ? JSON.stringify(extra_data) : null);
 
-    const notifStmt = db.prepare(`
-      INSERT INTO notifications (user_id, type, content)
-      VALUES (?, 'activity_registration', ?)
-    `);
-    notifStmt.run(userId, `您已成功报名"${activity.title}"活动`);
+    createNotification(
+      userId,
+      'activity_registration',
+      null,
+      null,
+      `您已成功报名"${activity.title}"活动`,
+      {
+        category: 'activity',
+        linkUrl: `/activities/${activityId}`,
+        extraData: { activity_title: activity.title, activity_id: activityId }
+      }
+    );
 
     ctx.body = { success: true };
   } catch (err) {
@@ -211,11 +255,18 @@ exports.submitWork = async (ctx) => {
     activityId, userId, patch_id || null, title, description || '', content || '', attachment_url || null
   );
 
-  const notifStmt = db.prepare(`
-    INSERT INTO notifications (user_id, type, content)
-    VALUES (?, 'activity_submission', ?)
-  `);
-  notifStmt.run(userId, `您的作品"${title}"已成功提交至"${activity.title}"，等待审核`);
+  createNotification(
+    userId,
+    'activity_submission',
+    null,
+    patch_id || null,
+    `您的作品"${title}"已成功提交至"${activity.title}"，等待审核`,
+    {
+      category: 'activity',
+      linkUrl: `/activities/${activityId}/submissions/${result.lastInsertRowid}`,
+      extraData: { activity_title: activity.title, activity_id: activityId, submission_id: result.lastInsertRowid }
+    }
+  );
 
   ctx.body = { success: true, id: result.lastInsertRowid };
 };
@@ -564,12 +615,19 @@ exports.adminUpdateRegistrationStatus = async (ctx) => {
   `).get(registrationId);
 
   if (registration) {
-    const notifStmt = db.prepare(`
-      INSERT INTO notifications (user_id, type, content)
-      VALUES (?, 'activity_registration', ?)
-    `);
     const statusText = status === 'approved' ? '已通过' : status === 'rejected' ? '未通过' : '待审核';
-    notifStmt.run(registration.user_id, `您在"${registration.title}"的报名${statusText}`);
+    createNotification(
+      registration.user_id,
+      'activity_registration',
+      ctx.state.user.id,
+      null,
+      `您在"${registration.title}"的报名${statusText}`,
+      {
+        category: 'activity',
+        linkUrl: `/activities/${registration.activity_id}`,
+        extraData: { activity_title: registration.title, activity_id: registration.activity_id, registration_status: status }
+      }
+    );
   }
 
   ctx.body = { success: true };
@@ -650,23 +708,30 @@ exports.adminReviewSubmission = async (ctx) => {
   stmt.run(...params);
 
   const submission = db.prepare(`
-    SELECT s.*, a.title
+    SELECT s.*, a.title as activity_title
     FROM activity_submissions s
     JOIN activities a ON s.activity_id = a.id
     WHERE s.id = ?
   `).get(submissionId);
 
   if (submission && status) {
-    const notifStmt = db.prepare(`
-      INSERT INTO notifications (user_id, type, content)
-      VALUES (?, 'activity_submission', ?)
-    `);
     const statusText = status === 'approved' ? '已通过审核' : status === 'rejected' ? '未通过审核' : '正在审核';
-    let content = `您的作品"${submission.title}"在"${submission.title}"活动中${statusText}`;
+    let content = `您的作品"${submission.title}"在"${submission.activity_title}"活动中${statusText}`;
     if (review_note) {
       content += `，评审意见：${review_note}`;
     }
-    notifStmt.run(submission.user_id, content);
+    createNotification(
+      submission.user_id,
+      'activity_submission',
+      reviewerId,
+      submission.patch_id,
+      content,
+      {
+        category: 'activity',
+        linkUrl: `/activities/${submission.activity_id}/submissions/${submissionId}`,
+        extraData: { activity_title: submission.activity_title, activity_id: submission.activity_id, submission_id: submissionId, review_note }
+      }
+    );
   }
 
   ctx.body = { success: true };

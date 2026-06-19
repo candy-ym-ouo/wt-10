@@ -1,5 +1,44 @@
 const db = require('../db');
 
+const typeToCategory = {
+  'comment': 'comment',
+  'like': 'like',
+  'favorite': 'favorite',
+  'follow': 'follow',
+  'review': 'review',
+  'activity': 'activity',
+  'verification_submitted': 'review',
+  'verification_approved': 'review',
+  'verification_rejected': 'review',
+  'new_patch': 'follow',
+  'system': 'system'
+};
+
+const createNotification = (userId, type, fromUserId, patchId, content, options = {}) => {
+  try {
+    const category = options.category || typeToCategory[type] || 'system';
+
+    const subscription = db.prepare(`
+      SELECT enabled FROM notification_subscriptions 
+      WHERE user_id = ? AND category = ?
+    `).get(userId, category);
+
+    if (subscription && subscription.enabled === 0) {
+      return;
+    }
+
+    const linkUrl = options.linkUrl || null;
+    const extraData = options.extraData ? JSON.stringify(options.extraData) : null;
+
+    db.prepare(`
+      INSERT INTO notifications (user_id, type, category, from_user_id, patch_id, content, link_url, extra_data)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, type, category, fromUserId, patchId, content, linkUrl, extraData);
+  } catch (e) {
+    console.error('创建通知失败:', e);
+  }
+};
+
 exports.submitVerification = async (ctx) => {
   const userId = ctx.state.user.id;
   const {
@@ -60,11 +99,17 @@ exports.submitVerification = async (ctx) => {
   const verification = db.prepare('SELECT * FROM creator_verifications WHERE id = ?').get(result.lastInsertRowid);
   verification.social_links = verification.social_links ? JSON.parse(verification.social_links) : [];
 
-  const notifyStmt = db.prepare(`
-    INSERT INTO notifications (user_id, type, content, created_at)
-    VALUES (?, 'verification_submitted', ?, CURRENT_TIMESTAMP)
-  `);
-  notifyStmt.run(userId, '您的创作者认证申请已提交，请耐心等待审核');
+  createNotification(
+    userId,
+    'verification_submitted',
+    null,
+    null,
+    '您的创作者认证申请已提交，请耐心等待审核',
+    {
+      category: 'review',
+      linkUrl: '/profile'
+    }
+  );
 
   ctx.body = { success: true, verification };
 };
@@ -209,16 +254,22 @@ exports.adminReviewVerification = async (ctx) => {
     `).run(verification.user_id);
   }
 
-  const notifyStmt = db.prepare(`
-    INSERT INTO notifications (user_id, type, content, created_at)
-    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-  `);
-  notifyStmt.run(
+  const type = status === 'approved' ? 'verification_approved' : 'verification_rejected';
+  const content = status === 'approved'
+    ? `恭喜！您的创作者认证已通过${review_note ? '：' + review_note : ''}`
+    : `很抱歉，您的创作者认证未通过${review_note ? '：' + review_note : ''}`;
+
+  createNotification(
     verification.user_id,
-    status === 'approved' ? 'verification_approved' : 'verification_rejected',
-    status === 'approved'
-      ? `恭喜！您的创作者认证已通过${review_note ? '：' + review_note : ''}`
-      : `很抱歉，您的创作者认证未通过${review_note ? '：' + review_note : ''}`
+    type,
+    adminId,
+    null,
+    content,
+    {
+      category: 'review',
+      linkUrl: '/profile',
+      extraData: { review_note }
+    }
   );
 
   const updated = db.prepare('SELECT * FROM creator_verifications WHERE id = ?').get(id);

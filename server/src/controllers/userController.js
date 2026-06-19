@@ -2,6 +2,22 @@ const db = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const defaultCategories = ['comment', 'review', 'follow', 'activity', 'like', 'favorite', 'system'];
+
+const initUserSubscriptions = (userId) => {
+  try {
+    const insertSubscription = db.prepare(`
+      INSERT OR IGNORE INTO notification_subscriptions (user_id, category, enabled)
+      VALUES (?, ?, 1)
+    `);
+    defaultCategories.forEach(category => {
+      insertSubscription.run(userId, category);
+    });
+  } catch (e) {
+    console.error('初始化用户订阅失败:', e);
+  }
+};
+
 exports.register = async (ctx) => {
   const { username, email, password } = ctx.request.body;
 
@@ -21,6 +37,8 @@ exports.register = async (ctx) => {
   const hashedPassword = bcrypt.hashSync(password, 10);
   const stmt = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)');
   const result = stmt.run(username, email, hashedPassword);
+
+  initUserSubscriptions(result.lastInsertRowid);
 
   const user = db.prepare('SELECT id, username, email, avatar, role, bio, is_creator_verified, creator_verified_at FROM users WHERE id = ?').get(result.lastInsertRowid);
   const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });

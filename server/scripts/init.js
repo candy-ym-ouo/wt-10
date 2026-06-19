@@ -133,9 +133,12 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     type TEXT NOT NULL,
+    category TEXT DEFAULT 'system',
     from_user_id INTEGER,
     patch_id INTEGER,
     content TEXT,
+    link_url TEXT,
+    extra_data TEXT,
     read INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -143,9 +146,22 @@ db.exec(`
     FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE SET NULL
   );
 
+  CREATE TABLE IF NOT EXISTS notification_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    enabled INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, category),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_patches_user ON patches(user_id);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+  CREATE INDEX IF NOT EXISTS idx_notifications_user_category ON notifications(user_id, category, read);
   CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON notification_subscriptions(user_id);
   CREATE INDEX IF NOT EXISTS idx_patches_title ON patches(title);
   CREATE INDEX IF NOT EXISTS idx_likes_patch ON likes(patch_id);
   CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
@@ -245,7 +261,21 @@ const adminStmt = db.prepare(`
   INSERT OR IGNORE INTO users (username, email, password, role, bio)
   VALUES (?, ?, ?, ?, ?)
 `);
-adminStmt.run('admin', 'admin@patchvault.com', adminPassword, 'admin', '系统管理员');
+const adminResult = adminStmt.run('admin', 'admin@patchvault.com', adminPassword, 'admin', '系统管理员');
+
+const defaultCategories = ['comment', 'review', 'follow', 'activity', 'like', 'favorite', 'system'];
+const insertSubscription = db.prepare(`
+  INSERT OR IGNORE INTO notification_subscriptions (user_id, category, enabled)
+  VALUES (?, ?, 1)
+`);
+
+const allUsers = db.prepare('SELECT id FROM users').all();
+allUsers.forEach(user => {
+  defaultCategories.forEach(category => {
+    insertSubscription.run(user.id, category);
+  });
+});
 
 console.log('管理员账户创建完成！用户名: admin, 密码: admin123');
+console.log(`已为 ${allUsers.length} 个用户初始化订阅设置`);
 console.log('数据库初始化完成！');
