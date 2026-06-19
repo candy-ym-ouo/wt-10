@@ -39,6 +39,11 @@ router.post('/patches/:id/like', requireAuth, socialController.toggleLike);
 router.post('/patches/:id/favorite', requireAuth, socialController.toggleFavorite);
 router.get('/me/favorites', requireAuth, socialController.getMyFavorites);
 router.get('/me/patches', requireAuth, socialController.getMyPatches);
+router.get('/me/drafts', requireAuth, socialController.getMyDrafts);
+router.get('/me/stats', requireAuth, socialController.getCreatorStats);
+router.get('/me/notifications', requireAuth, socialController.getMyNotifications);
+router.put('/me/notifications/:id/read', requireAuth, socialController.markNotificationRead);
+router.post('/me/notifications/read-all', requireAuth, socialController.markAllNotificationsRead);
 
 router.get('/compare', requireAuth, socialController.getCompareList);
 router.post('/compare/:id', requireAuth, socialController.addToCompare);

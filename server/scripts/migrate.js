@@ -187,6 +187,22 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    from_user_id INTEGER,
+    patch_id INTEGER,
+    content TEXT,
+    read INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE SET NULL
+  );
+`);
+
 const adminPassword = bcrypt.hashSync('admin123', 10);
 db.prepare(`INSERT OR IGNORE INTO users (username, email, password, role, bio)
   VALUES (?, ?, ?, ?, ?)`).run('admin', 'admin@patchvault.com', adminPassword, 'admin', '系统管理员');
@@ -197,6 +213,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_likes_patch ON likes(patch_id);
   CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
   CREATE INDEX IF NOT EXISTS idx_modules_manufacturer ON modules(manufacturer_id);
+  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+  CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
 `);
 
 db.exec('PRAGMA foreign_keys = ON');

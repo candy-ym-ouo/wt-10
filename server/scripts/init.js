@@ -106,7 +106,23 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    from_user_id INTEGER,
+    patch_id INTEGER,
+    content TEXT,
+    read INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE SET NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_patches_user ON patches(user_id);
+  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+  CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_patches_title ON patches(title);
   CREATE INDEX IF NOT EXISTS idx_likes_patch ON likes(patch_id);
   CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);

@@ -63,6 +63,26 @@ export const usePatchStore = defineStore('patch', {
       return await socialAPI.getMyFavorites(params)
     },
 
+    async fetchMyDrafts(params = {}) {
+      return await socialAPI.getMyDrafts(params)
+    },
+
+    async fetchCreatorStats() {
+      return await socialAPI.getCreatorStats()
+    },
+
+    async fetchMyNotifications(params = {}) {
+      return await socialAPI.getMyNotifications(params)
+    },
+
+    async markNotificationRead(id) {
+      return await socialAPI.markNotificationRead(id)
+    },
+
+    async markAllNotificationsRead() {
+      return await socialAPI.markAllNotificationsRead()
+    },
+
     async fetchCompareList() {
       const res = await socialAPI.getCompareList()
       this.compareList = res.patches || []

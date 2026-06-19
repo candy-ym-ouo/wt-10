@@ -228,17 +228,27 @@
               <el-icon><Bell /></el-icon>
               消息提醒
             </h3>
-            <el-button text size="small">全部已读</el-button>
+            <el-button text size="small" @click="handleMarkAllRead" :disabled="!messages.some(m => !m.read)">全部已读</el-button>
           </div>
           <div class="messages-list">
-            <div v-if="messages.length === 0" class="empty-messages">
+            <div v-if="loadingMessages" class="empty-messages">
+              <el-icon class="empty-icon is-loading"><Loading /></el-icon>
+              <p>加载中...</p>
+            </div>
+            <div v-else-if="messages.length === 0" class="empty-messages">
               <el-icon class="empty-icon"><Bell /></el-icon>
               <p>暂无新消息</p>
             </div>
-            <div v-for="msg in messages" :key="msg.id" class="message-item" :class="{ unread: !msg.read }">
+            <div 
+              v-for="msg in messages" 
+              :key="msg.id" 
+              class="message-item" 
+              :class="{ unread: !msg.read }"
+              @click="handleMessageClick(msg)"
+            >
               <div class="message-avatar">
                 <el-avatar :size="36" :src="msg.avatar">
-                  {{ msg.username?.charAt(0).toUpperCase() }}
+                  {{ msg.username?.charAt(0).toUpperCase() || (msg.type === 'system' ? '系' : '用') }}
                 </el-avatar>
               </div>
               <div class="message-content">
@@ -290,6 +300,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Plus, Document, Edit, Star, StarFilled, View, User,
@@ -298,63 +309,29 @@ import {
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
 
+const router = useRouter()
 const userStore = useUserStore()
 const patchStore = usePatchStore()
 
 const activeTab = ref('patches')
+const loadingStats = ref(false)
 const loadingPatches = ref(false)
 const loadingDrafts = ref(false)
 const loadingFavorites = ref(false)
+const loadingMessages = ref(false)
+
+const stats = ref({
+  totalPatches: 0,
+  totalDrafts: 0,
+  totalFavorites: 0,
+  totalViews: 0,
+  totalLikes: 0
+})
+
 const myPatches = ref([])
 const drafts = ref([])
 const favorites = ref([])
-
-const messages = ref([
-  {
-    id: 1,
-    type: 'like',
-    username: 'music_lover',
-    avatar: '',
-    content: '赞了你的 Patch "Vintage Synth Lead"',
-    time: '2 分钟前',
-    read: false
-  },
-  {
-    id: 2,
-    type: 'comment',
-    username: 'synth_pro',
-    avatar: '',
-    content: '评论了你的 Patch: "这个音色太棒了，请问可以分享参数吗？"',
-    time: '1 小时前',
-    read: false
-  },
-  {
-    id: 3,
-    type: 'favorite',
-    username: 'patch_collector',
-    avatar: '',
-    content: '收藏了你的 Patch "Deep Bass 808"',
-    time: '3 小时前',
-    read: true
-  },
-  {
-    id: 4,
-    type: 'system',
-    username: '系统消息',
-    avatar: '',
-    content: '你的 Patch "Ambient Pad" 已通过审核并发布',
-    time: '昨天',
-    read: true
-  }
-])
-
-const stats = computed(() => ({
-  totalPatches: myPatches.value.length || 0,
-  totalDrafts: drafts.value.length || 0,
-  totalFavorites: favorites.value.length || 0,
-  totalViews: myPatches.value.reduce((sum, p) => sum + (p.views_count || 0), 0),
-  totalLikes: myPatches.value.reduce((sum, p) => sum + (p.likes_count || p.real_likes || 0), 0)
-}))
+const messages = ref([])
 
 const switchTab = (tab) => {
   activeTab.value = tab
@@ -367,11 +344,29 @@ const switchTab = (tab) => {
   }
 }
 
+const fetchStats = async () => {
+  loadingStats.value = true
+  try {
+    const res = await patchStore.fetchCreatorStats()
+    stats.value = {
+      totalPatches: res.publishedPatches || res.totalPatches || 0,
+      totalDrafts: res.totalDrafts || 0,
+      totalFavorites: res.totalFavorites || 0,
+      totalViews: res.totalViews || 0,
+      totalLikes: res.totalLikes || 0
+    }
+  } catch (e) {
+    console.error('获取统计数据失败:', e)
+  } finally {
+    loadingStats.value = false
+  }
+}
+
 const fetchMyPatches = async () => {
   loadingPatches.value = true
   try {
     const res = await patchStore.fetchMyPatches({ page: 1, limit: 100 })
-    myPatches.value = res.list || []
+    myPatches.value = (res.list || []).filter(p => p.is_public)
   } finally {
     loadingPatches.value = false
   }
@@ -380,8 +375,8 @@ const fetchMyPatches = async () => {
 const fetchDrafts = async () => {
   loadingDrafts.value = true
   try {
-    const res = await patchStore.fetchMyPatches({ page: 1, limit: 100, is_public: false })
-    drafts.value = res.list?.filter(p => !p.is_public) || []
+    const res = await patchStore.fetchMyDrafts({ page: 1, limit: 100 })
+    drafts.value = res.list || []
   } finally {
     loadingDrafts.value = false
   }
@@ -394,6 +389,45 @@ const fetchFavorites = async () => {
     favorites.value = res.list || []
   } finally {
     loadingFavorites.value = false
+  }
+}
+
+const fetchMessages = async () => {
+  loadingMessages.value = true
+  try {
+    const res = await patchStore.fetchMyNotifications({ page: 1, limit: 20 })
+    messages.value = (res.list || []).map(msg => ({
+      ...msg,
+      time: formatTime(msg.created_at)
+    }))
+  } catch (e) {
+    console.error('获取消息失败:', e)
+  } finally {
+    loadingMessages.value = false
+  }
+}
+
+const handleMarkAllRead = async () => {
+  try {
+    await patchStore.markAllNotificationsRead()
+    messages.value.forEach(msg => msg.read = 1)
+    ElMessage.success('已全部标为已读')
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const handleMessageClick = async (msg) => {
+  if (!msg.read) {
+    try {
+      await patchStore.markNotificationRead(msg.id)
+      msg.read = 1
+    } catch (e) {
+      console.error('标记已读失败:', e)
+    }
+  }
+  if (msg.patch_id) {
+    router.push(`/patches/${msg.patch_id}`)
   }
 }
 
@@ -419,9 +453,32 @@ const formatDate = (dateStr) => {
   return date.toLocaleDateString('zh-CN')
 }
 
-onMounted(() => {
+const formatTime = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now - date
+  const minutes = Math.floor(diff / (1000 * 60))
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes} 分钟前`
+  if (hours < 24) return `${hours} 小时前`
+  if (days < 7) return `${days} 天前`
+  return date.toLocaleDateString('zh-CN')
+}
+
+const refreshAll = () => {
+  fetchStats()
   fetchMyPatches()
+  fetchDrafts()
   fetchFavorites()
+  fetchMessages()
+}
+
+onMounted(() => {
+  refreshAll()
 })
 </script>
 

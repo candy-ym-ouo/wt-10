@@ -187,9 +187,21 @@ exports.deletePatch = async (ctx) => {
   ctx.body = { success: true };
 };
 
+const createNotification = (userId, type, fromUserId, patchId, content) => {
+  try {
+    db.prepare(`
+      INSERT INTO notifications (user_id, type, from_user_id, patch_id, content)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(userId, type, fromUserId, patchId, content);
+  } catch (e) {
+    console.error('创建通知失败:', e);
+  }
+};
+
 exports.addComment = async (ctx) => {
   const id = parseInt(ctx.params.id);
   const { content } = ctx.request.body;
+  const userId = ctx.state.user.id;
 
   if (!content) {
     ctx.status = 400;
@@ -197,8 +209,27 @@ exports.addComment = async (ctx) => {
     return;
   }
 
+  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ?').get(id);
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
   const stmt = db.prepare('INSERT INTO comments (user_id, patch_id, content) VALUES (?, ?, ?)');
-  const result = stmt.run(ctx.state.user.id, id, content);
+  const result = stmt.run(userId, id, content);
+
+  if (patch.user_id !== userId) {
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+    const truncatedContent = content.length > 30 ? content.substring(0, 30) + '...' : content;
+    createNotification(
+      patch.user_id,
+      'comment',
+      userId,
+      id,
+      `${user?.username || '用户'} 评论了你的 Patch "${patch.title}": "${truncatedContent}"`
+    );
+  }
 
   const comment = db.prepare(`
     SELECT c.*, u.username, u.avatar
