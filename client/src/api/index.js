@@ -123,5 +123,33 @@ export const userAPI = userApi
 export const patchAPI = patchApi
 export const moduleAPI = moduleApi
 export const socialAPI = socialApi
+export const activityApi = {
+  getActivities: (params) => api.get('/activities', { params }),
+  getDetail: (id) => api.get(`/activities/${id}`),
+  getSubmissions: (id, params) => api.get(`/activities/${id}/submissions`, { params }),
+  getRankings: (id, params) => api.get(`/activities/${id}/rankings`, { params }),
+  register: (id, data) => api.post(`/activities/${id}/register`, data),
+  cancelRegistration: (id) => api.delete(`/activities/${id}/register`),
+  submitWork: (id, data) => api.post(`/activities/${id}/submit`, data),
+  getSubmissionDetail: (id) => api.get(`/activities/submissions/${id}`),
+  voteSubmission: (id) => api.post(`/activities/submissions/${id}/vote`),
+  getMyRegistrations: (params) => api.get('/me/activities/registrations', { params }),
+  getMySubmissions: (params) => api.get('/me/activities/submissions', { params })
+}
+
+export const adminActivityApi = {
+  getActivities: (params) => api.get('/admin/activities', { params }),
+  createActivity: (data) => api.post('/admin/activities', data),
+  updateActivity: (id, data) => api.put(`/admin/activities/${id}`, data),
+  deleteActivity: (id) => api.delete(`/admin/activities/${id}`),
+  getRegistrations: (id, params) => api.get(`/admin/activities/${id}/registrations`, { params }),
+  updateRegistrationStatus: (id, status) => api.put(`/admin/activities/registrations/${id}/status`, { status }),
+  getSubmissions: (id, params) => api.get(`/admin/activities/${id}/submissions`, { params }),
+  reviewSubmission: (id, data) => api.put(`/admin/activities/submissions/${id}/review`, data),
+  deleteSubmission: (id) => api.delete(`/admin/activities/submissions/${id}`)
+}
+
 export const adminAPI = adminApi
 export const collectionAPI = collectionApi
+export const activityAPI = activityApi
+export const adminActivityAPI = adminActivityApi

@@ -237,6 +237,88 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id);
   CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id);
   CREATE INDEX IF NOT EXISTS idx_follows_created ON follows(created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'contest',
+    description TEXT,
+    cover_url TEXT,
+    content TEXT,
+    rules TEXT,
+    prizes TEXT,
+    start_date DATETIME,
+    end_date DATETIME,
+    registration_start DATETIME,
+    registration_end DATETIME,
+    submission_start DATETIME,
+    submission_end DATETIME,
+    status TEXT DEFAULT 'draft',
+    max_registrations INTEGER DEFAULT 0,
+    allow_submission INTEGER DEFAULT 1,
+    show_ranking INTEGER DEFAULT 1,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS activity_registrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'approved',
+    extra_data TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(activity_id, user_id),
+    FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS activity_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    patch_id INTEGER,
+    title TEXT NOT NULL,
+    description TEXT,
+    content TEXT,
+    attachment_url TEXT,
+    status TEXT DEFAULT 'pending',
+    votes_count INTEGER DEFAULT 0,
+    score INTEGER DEFAULT 0,
+    rank INTEGER,
+    review_note TEXT,
+    reviewed_at DATETIME,
+    reviewed_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE SET NULL,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS activity_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    submission_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    score INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(submission_id, user_id),
+    FOREIGN KEY (submission_id) REFERENCES activity_submissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status, sort_order);
+  CREATE INDEX IF NOT EXISTS idx_activities_dates ON activities(start_date, end_date);
+  CREATE INDEX IF NOT EXISTS idx_registrations_activity ON activity_registrations(activity_id);
+  CREATE INDEX IF NOT EXISTS idx_registrations_user ON activity_registrations(user_id);
+  CREATE INDEX IF NOT EXISTS idx_submissions_activity ON activity_submissions(activity_id, status);
+  CREATE INDEX IF NOT EXISTS idx_submissions_user ON activity_submissions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_submissions_rank ON activity_submissions(activity_id, rank);
+  CREATE INDEX IF NOT EXISTS idx_votes_submission ON activity_votes(submission_id);
+  CREATE INDEX IF NOT EXISTS idx_votes_user ON activity_votes(user_id);
 `);
 
 db.exec('PRAGMA foreign_keys = ON');

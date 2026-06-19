@@ -23,6 +23,10 @@
           <el-icon><CollectionTag /></el-icon>
           专题策展
         </router-link>
+        <router-link to="/activities" class="nav-link" :class="{ active: $route.path.startsWith('/activities') }">
+          <el-icon><Present /></el-icon>
+          活动中心
+        </router-link>
         <router-link v-if="userStore.isLoggedIn" to="/feed" class="nav-link" :class="{ active: $route.path === '/feed' }">
           <el-icon><TrendCharts /></el-icon>
           关注动态
@@ -96,7 +100,7 @@ import { ElMessage } from 'element-plus'
 import { 
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
-  Odometer, CollectionTag, TrendCharts
+  Odometer, CollectionTag, TrendCharts, Present
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'

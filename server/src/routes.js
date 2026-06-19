@@ -7,6 +7,7 @@ const patchController = require('./controllers/patchController');
 const socialController = require('./controllers/socialController');
 const adminController = require('./controllers/adminController');
 const collectionController = require('./controllers/collectionController');
+const activityController = require('./controllers/activityController');
 
 const router = new Router({ prefix: '/api' });
 
@@ -91,5 +92,28 @@ router.post('/admin/collections/:id/patches', requireAdmin, collectionController
 router.put('/admin/collections/:id/patches/:patchId', requireAdmin, collectionController.updatePatchNote);
 router.delete('/admin/collections/:id/patches/:patchId', requireAdmin, collectionController.removePatchFromCollection);
 router.put('/admin/collections/:id/reorder', requireAdmin, collectionController.reorderPatches);
+
+router.get('/activities', activityController.getActivities);
+router.get('/activities/:id', activityController.getActivityDetail);
+router.get('/activities/:id/submissions', activityController.getActivitySubmissions);
+router.get('/activities/:id/rankings', activityController.getActivityRankings);
+router.post('/activities/:id/register', requireAuth, activityController.registerActivity);
+router.delete('/activities/:id/register', requireAuth, activityController.cancelRegistration);
+router.post('/activities/:id/submit', requireAuth, activityController.submitWork);
+router.get('/activities/submissions/:id', activityController.getSubmissionDetail);
+router.post('/activities/submissions/:id/vote', requireAuth, activityController.voteSubmission);
+
+router.get('/me/activities/registrations', requireAuth, activityController.getMyRegistrations);
+router.get('/me/activities/submissions', requireAuth, activityController.getMySubmissions);
+
+router.get('/admin/activities', requireAdmin, activityController.adminGetActivities);
+router.post('/admin/activities', requireAdmin, activityController.adminCreateActivity);
+router.put('/admin/activities/:id', requireAdmin, activityController.adminUpdateActivity);
+router.delete('/admin/activities/:id', requireAdmin, activityController.adminDeleteActivity);
+router.get('/admin/activities/:id/registrations', requireAdmin, activityController.adminGetRegistrations);
+router.put('/admin/activities/registrations/:id/status', requireAdmin, activityController.adminUpdateRegistrationStatus);
+router.get('/admin/activities/:id/submissions', requireAdmin, activityController.adminGetSubmissions);
+router.put('/admin/activities/submissions/:id/review', requireAdmin, activityController.adminReviewSubmission);
+router.delete('/admin/activities/submissions/:id', requireAdmin, activityController.adminDeleteSubmission);
 
 module.exports = router;

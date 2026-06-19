@@ -37,6 +37,10 @@
           <el-icon><CollectionTag /></el-icon>
           <span>专题策展</span>
         </el-menu-item>
+        <el-menu-item index="/admin/activities">
+          <el-icon><Present /></el-icon>
+          <span>活动管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -68,7 +72,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { 
   Setting, DataAnalysis, User, Document, Box, 
-  OfficeBuilding, HomeFilled, SwitchButton, CollectionTag
+  OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 

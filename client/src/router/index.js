@@ -62,6 +62,16 @@ const routes = [
     component: () => import('@/views/CollectionDetail.vue')
   },
   {
+    path: '/activities',
+    name: 'Activities',
+    component: () => import('@/views/Activities.vue')
+  },
+  {
+    path: '/activities/:id',
+    name: 'ActivityDetail',
+    component: () => import('@/views/ActivityDetail.vue')
+  },
+  {
     path: '/compare',
     name: 'Compare',
     component: () => import('@/views/Compare.vue'),
@@ -137,6 +147,11 @@ const routes = [
         path: 'collections',
         name: 'AdminCollections',
         component: () => import('@/views/admin/AdminCollections.vue')
+      },
+      {
+        path: 'activities',
+        name: 'AdminActivities',
+        component: () => import('@/views/admin/AdminActivities.vue')
       }
     ]
   },
