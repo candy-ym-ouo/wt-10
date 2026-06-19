@@ -140,6 +140,16 @@ const routes = [
     component: () => import('@/views/UserProfile.vue')
   },
   {
+    path: '/downloads',
+    name: 'DownloadCenter',
+    component: () => import('@/views/DownloadCenter.vue')
+  },
+  {
+    path: '/downloads/:id',
+    name: 'DownloadDetail',
+    component: () => import('@/views/DownloadDetail.vue')
+  },
+  {
     path: '/admin',
     name: 'Admin',
     component: () => import('@/views/admin/AdminLayout.vue'),
@@ -194,6 +204,16 @@ const routes = [
         path: 'creator-verifications',
         name: 'AdminCreatorVerifications',
         component: () => import('@/views/admin/CreatorVerifications.vue')
+      },
+      {
+        path: 'downloads',
+        name: 'AdminDownloadResources',
+        component: () => import('@/views/admin/AdminDownloadResources.vue')
+      },
+      {
+        path: 'download-records',
+        name: 'AdminDownloadRecords',
+        component: () => import('@/views/admin/AdminDownloadRecords.vue')
       }
     ]
   },

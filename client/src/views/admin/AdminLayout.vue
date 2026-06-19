@@ -49,6 +49,14 @@
           <el-icon><Medal /></el-icon>
           <span>创作者认证</span>
         </el-menu-item>
+        <el-menu-item index="/admin/downloads">
+          <el-icon><Folder /></el-icon>
+          <span>资源审核</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/download-records">
+          <el-icon><Histogram /></el-icon>
+          <span>下载记录</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -80,7 +88,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { 
   Setting, DataAnalysis, User, Document, Box, 
-  OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal
+  OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
+  Folder, Histogram
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 

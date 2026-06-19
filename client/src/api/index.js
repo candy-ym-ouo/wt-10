@@ -226,3 +226,26 @@ export const adminCreatorVerificationApi = {
 
 export const creatorVerificationAPI = creatorVerificationApi
 export const adminCreatorVerificationAPI = adminCreatorVerificationApi
+
+export const downloadApi = {
+  getStats: () => api.get('/downloads/stats'),
+  getList: (params) => api.get('/downloads', { params }),
+  getDetail: (id) => api.get(`/downloads/${id}`),
+  upload: (formData) => api.post('/downloads', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  getDownloadUrl: (id) => `/api/downloads/${id}/download`,
+  getMyResources: (params) => api.get('/me/downloads', { params }),
+  deleteMyResource: (id) => api.delete(`/me/downloads/${id}`),
+  getMyDownloadRecords: (params) => api.get('/me/download-records', { params })
+}
+
+export const adminDownloadApi = {
+  getResources: (params) => api.get('/admin/downloads', { params }),
+  reviewResource: (id, data) => api.put(`/admin/downloads/${id}/review`, data),
+  deleteResource: (id) => api.delete(`/admin/downloads/${id}`),
+  getDownloadRecords: (params) => api.get('/admin/download-records', { params })
+}
+
+export const downloadAPI = downloadApi
+export const adminDownloadAPI = adminDownloadApi

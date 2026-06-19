@@ -2,15 +2,23 @@ const jwt = require('jsonwebtoken');
 const db = require('../db');
 
 const authMiddleware = async (ctx, next) => {
-  const authHeader = ctx.headers.authorization;
+  let token = null;
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = ctx.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  }
+  
+  if (!token && ctx.query.token) {
+    token = ctx.query.token;
+  }
+  
+  if (!token) {
     ctx.state.user = null;
     return next();
   }
 
   try {
-    const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = db.prepare('SELECT id, username, email, avatar, role, bio, is_creator_verified, creator_verified_at FROM users WHERE id = ?').get(decoded.id);
     

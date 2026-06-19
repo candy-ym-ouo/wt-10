@@ -31,6 +31,10 @@
           <el-icon><Trophy /></el-icon>
           挑战赛
         </router-link>
+        <router-link to="/downloads" class="nav-link" :class="{ active: $route.path.startsWith('/downloads') }">
+          <el-icon><Folder /></el-icon>
+          资源中心
+        </router-link>
         <router-link v-if="userStore.isLoggedIn" to="/feed" class="nav-link" :class="{ active: $route.path === '/feed' }">
           <el-icon><TrendCharts /></el-icon>
           关注动态
@@ -121,7 +125,8 @@ import { ElMessage } from 'element-plus'
 import { 
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
-  Odometer, CollectionTag, TrendCharts, Present, Trophy, Bell
+  Odometer, CollectionTag, TrendCharts, Present, Trophy, Bell,
+  Folder
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'

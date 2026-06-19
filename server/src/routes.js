@@ -1,4 +1,6 @@
 const Router = require('koa-router');
+const multer = require('koa-multer');
+const path = require('path');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
 
 const userController = require('./controllers/userController');
@@ -11,6 +13,21 @@ const activityController = require('./controllers/activityController');
 const challengeController = require('./controllers/challengeController');
 const wikiController = require('./controllers/wikiController');
 const creatorVerificationController = require('./controllers/creatorVerificationController');
+const downloadController = require('./controllers/downloadController');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads');
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const ext = path.extname(file.originalname);
+    cb(null, `${timestamp}_${randomStr}${ext}`);
+  }
+});
+const upload = multer({ storage: storage });
 
 const router = new Router({ prefix: '/api' });
 
@@ -181,5 +198,19 @@ router.get('/users/:id/verification-badge', creatorVerificationController.getUse
 router.get('/admin/creator-verifications', requireAdmin, creatorVerificationController.adminGetVerifications);
 router.get('/admin/creator-verifications/:id', requireAdmin, creatorVerificationController.adminGetVerificationDetail);
 router.put('/admin/creator-verifications/:id/review', requireAdmin, creatorVerificationController.adminReviewVerification);
+
+router.get('/downloads/stats', downloadController.getStats);
+router.get('/downloads', downloadController.getResourceList);
+router.get('/downloads/:id', downloadController.getResourceDetail);
+router.get('/downloads/:id/download', downloadController.downloadResource);
+router.post('/downloads', requireAuth, upload.single('file'), downloadController.uploadResource);
+router.get('/me/downloads', requireAuth, downloadController.getMyResources);
+router.delete('/me/downloads/:id', requireAuth, downloadController.deleteMyResource);
+router.get('/me/download-records', requireAuth, downloadController.getMyDownloadRecords);
+
+router.get('/admin/downloads', requireAdmin, downloadController.adminGetResources);
+router.put('/admin/downloads/:id/review', requireAdmin, downloadController.adminReviewResource);
+router.delete('/admin/downloads/:id', requireAdmin, downloadController.adminDeleteResource);
+router.get('/admin/download-records', requireAdmin, downloadController.adminGetDownloadRecords);
 
 module.exports = router;
