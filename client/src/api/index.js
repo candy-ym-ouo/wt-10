@@ -410,3 +410,15 @@ export const adminOpenPlatformApi = {
 
 export const openPlatformAPI = openPlatformApi
 export const adminOpenPlatformAPI = adminOpenPlatformApi
+
+export const adminRolesApi = {
+  getRoles: () => api.get('/admin/roles')
+}
+
+export const adminAuditLogApi = {
+  getList: (params) => api.get('/admin/audit-logs', { params }),
+  getDetail: (id) => api.get(`/admin/audit-logs/${id}`)
+}
+
+export const adminRolesAPI = adminRolesApi
+export const adminAuditLogAPI = adminAuditLogApi

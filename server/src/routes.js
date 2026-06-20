@@ -1,7 +1,9 @@
 const Router = require('koa-router');
 const multer = require('koa-multer');
 const path = require('path');
-const { requireAuth, requireAdmin } = require('./middleware/auth');
+const { requireAuth, requireAdmin, requireSuperAdmin, requirePermission, requireAnyPermission } = require('./middleware/auth');
+const { PERMISSIONS } = require('./constants/permissions');
+const { getAuditLogs, getAuditLogById } = require('./middleware/audit');
 
 const userController = require('./controllers/userController');
 const moduleController = require('./controllers/moduleController');
@@ -22,6 +24,7 @@ const orderController = require('./controllers/orderController');
 const earningsController = require('./controllers/earningsController');
 const articleController = require('./controllers/articleController');
 const openPlatformController = require('./controllers/openPlatformController');
+const { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, getRoleLabel, isStaffRole } = require('./constants/permissions');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -60,10 +63,10 @@ router.get('/modules/:id/recommended-combinations', moduleRecommendationControll
 router.get('/modules/:id/combination-patches/:pairedId', moduleRecommendationController.getCombinationPatches);
 router.get('/modules/:id/combination-stats', moduleRecommendationController.getModuleStats);
 router.get('/modules/combinations/popular', moduleRecommendationController.getPopularCombinations);
-router.post('/manufacturers', requireAdmin, moduleController.createManufacturer);
-router.post('/modules', requireAdmin, moduleController.createModule);
-router.put('/modules/:id', requireAdmin, moduleController.updateModule);
-router.delete('/modules/:id', requireAdmin, moduleController.deleteModule);
+router.post('/manufacturers', requirePermission(PERMISSIONS.MANUFACTURER_MANAGE), moduleController.createManufacturer);
+router.post('/modules', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.createModule);
+router.put('/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.updateModule);
+router.delete('/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.deleteModule);
 
 router.get('/patches', patchController.getPatches);
 router.get('/patches/:id', patchController.getPatchDetail);
@@ -121,64 +124,64 @@ router.get('/compare/result', socialController.comparePatches);
 router.get('/collections', collectionController.getCollections);
 router.get('/collections/:id', collectionController.getCollectionDetail);
 
-router.get('/admin/stats', requireAdmin, adminController.getStats);
-router.get('/admin/users/recent', requireAdmin, adminController.getRecentUsers);
-router.get('/admin/users', requireAdmin, adminController.getUsers);
-router.put('/admin/users/:id', requireAdmin, adminController.updateUser);
-router.delete('/admin/users/:id', requireAdmin, adminController.deleteUser);
-router.get('/admin/patches/recent', requireAdmin, adminController.getRecentPatches);
-router.get('/admin/patches', requireAdmin, adminController.getAllPatches);
-router.put('/admin/patches/:id/status', requireAdmin, adminController.updatePatchStatus);
-router.put('/admin/patches/:id/public', requireAdmin, adminController.togglePatchPublic);
-router.delete('/admin/patches/:id', requireAdmin, adminController.adminDeletePatch);
-router.get('/admin/modules', requireAdmin, adminController.getAllModules);
-router.post('/admin/modules', requireAdmin, adminController.createModule);
-router.put('/admin/modules/:id', requireAdmin, adminController.updateModule);
-router.get('/admin/modules/:id/wiki', requireAdmin, wikiController.adminGetWiki);
-router.post('/admin/modules/:id/wiki', requireAdmin, wikiController.adminSaveWiki);
-router.post('/admin/modules/:id/parameters', requireAdmin, wikiController.adminCreateParameter);
-router.put('/admin/modules/:id/parameters/:paramId', requireAdmin, wikiController.adminUpdateParameter);
-router.delete('/admin/modules/:id/parameters/:paramId', requireAdmin, wikiController.adminDeleteParameter);
-router.put('/admin/modules/:id/parameters/reorder', requireAdmin, wikiController.adminReorderParameters);
-router.post('/admin/modules/:id/tips', requireAdmin, wikiController.adminCreateTip);
-router.put('/admin/modules/:id/tips/:tipId', requireAdmin, wikiController.adminUpdateTip);
-router.delete('/admin/modules/:id/tips/:tipId', requireAdmin, wikiController.adminDeleteTip);
-router.put('/admin/modules/:id/tips/reorder', requireAdmin, wikiController.adminReorderTips);
-router.post('/admin/modules/:id/recommended-patches', requireAdmin, wikiController.adminAddRecommendedPatch);
-router.put('/admin/modules/:id/recommended-patches/:recId', requireAdmin, wikiController.adminUpdateRecommendedPatch);
-router.delete('/admin/modules/:id/recommended-patches/:recId', requireAdmin, wikiController.adminRemoveRecommendedPatch);
-router.put('/admin/modules/:id/recommended-patches/reorder', requireAdmin, wikiController.adminReorderRecommendedPatches);
-router.get('/admin/patches/search', requireAdmin, wikiController.adminSearchPatches);
-router.get('/admin/articles', requireAdmin, articleController.adminGetArticles);
-router.get('/admin/articles/:id', requireAdmin, articleController.adminGetArticleDetail);
-router.put('/admin/articles/:id/review', requireAdmin, articleController.adminReviewArticle);
-router.put('/admin/articles/:id/public', requireAdmin, articleController.adminToggleArticlePublic);
-router.delete('/admin/articles/:id', requireAdmin, articleController.adminDeleteArticle);
-router.get('/admin/manufacturers', requireAdmin, adminController.getAllManufacturers);
-router.post('/admin/manufacturers', requireAdmin, adminController.createManufacturer);
-router.put('/admin/manufacturers/:id', requireAdmin, adminController.updateManufacturer);
-router.delete('/admin/manufacturers/:id', requireAdmin, adminController.deleteManufacturer);
+router.get('/admin/stats', requirePermission(PERMISSIONS.DASHBOARD_VIEW), adminController.getStats);
+router.get('/admin/users/recent', requirePermission(PERMISSIONS.USER_VIEW), adminController.getRecentUsers);
+router.get('/admin/users', requirePermission(PERMISSIONS.USER_VIEW), adminController.getUsers);
+router.put('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), adminController.updateUser);
+router.delete('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), adminController.deleteUser);
+router.get('/admin/patches/recent', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getRecentPatches);
+router.get('/admin/patches', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getAllPatches);
+router.put('/admin/patches/:id/status', requireAnyPermission([PERMISSIONS.PATCH_REVIEW, PERMISSIONS.PATCH_MANAGE]), adminController.updatePatchStatus);
+router.put('/admin/patches/:id/public', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.togglePatchPublic);
+router.delete('/admin/patches/:id', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.adminDeletePatch);
+router.get('/admin/modules', requirePermission(PERMISSIONS.MODULE_VIEW), adminController.getAllModules);
+router.post('/admin/modules', requirePermission(PERMISSIONS.MODULE_MANAGE), adminController.createModule);
+router.put('/admin/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), adminController.updateModule);
+router.get('/admin/modules/:id/wiki', requirePermission(PERMISSIONS.MODULE_VIEW), wikiController.adminGetWiki);
+router.post('/admin/modules/:id/wiki', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminSaveWiki);
+router.post('/admin/modules/:id/parameters', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminCreateParameter);
+router.put('/admin/modules/:id/parameters/:paramId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminUpdateParameter);
+router.delete('/admin/modules/:id/parameters/:paramId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminDeleteParameter);
+router.put('/admin/modules/:id/parameters/reorder', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminReorderParameters);
+router.post('/admin/modules/:id/tips', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminCreateTip);
+router.put('/admin/modules/:id/tips/:tipId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminUpdateTip);
+router.delete('/admin/modules/:id/tips/:tipId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminDeleteTip);
+router.put('/admin/modules/:id/tips/reorder', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminReorderTips);
+router.post('/admin/modules/:id/recommended-patches', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminAddRecommendedPatch);
+router.put('/admin/modules/:id/recommended-patches/:recId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminUpdateRecommendedPatch);
+router.delete('/admin/modules/:id/recommended-patches/:recId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminRemoveRecommendedPatch);
+router.put('/admin/modules/:id/recommended-patches/reorder', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminReorderRecommendedPatches);
+router.get('/admin/patches/search', requirePermission(PERMISSIONS.PATCH_VIEW), wikiController.adminSearchPatches);
+router.get('/admin/articles', requirePermission(PERMISSIONS.ARTICLE_VIEW), articleController.adminGetArticles);
+router.get('/admin/articles/:id', requirePermission(PERMISSIONS.ARTICLE_VIEW), articleController.adminGetArticleDetail);
+router.put('/admin/articles/:id/review', requireAnyPermission([PERMISSIONS.ARTICLE_REVIEW, PERMISSIONS.ARTICLE_MANAGE]), articleController.adminReviewArticle);
+router.put('/admin/articles/:id/public', requirePermission(PERMISSIONS.ARTICLE_MANAGE), articleController.adminToggleArticlePublic);
+router.delete('/admin/articles/:id', requirePermission(PERMISSIONS.ARTICLE_MANAGE), articleController.adminDeleteArticle);
+router.get('/admin/manufacturers', requirePermission(PERMISSIONS.MANUFACTURER_VIEW), adminController.getAllManufacturers);
+router.post('/admin/manufacturers', requirePermission(PERMISSIONS.MANUFACTURER_MANAGE), adminController.createManufacturer);
+router.put('/admin/manufacturers/:id', requirePermission(PERMISSIONS.MANUFACTURER_MANAGE), adminController.updateManufacturer);
+router.delete('/admin/manufacturers/:id', requirePermission(PERMISSIONS.MANUFACTURER_MANAGE), adminController.deleteManufacturer);
 
-router.get('/admin/modules/combinations/stats', requireAdmin, moduleRecommendationController.adminGetCombinationStatsList);
-router.get('/admin/modules/:id/combinations', requireAdmin, moduleRecommendationController.adminGetRecommendedCombinations);
-router.post('/admin/modules/:id/combinations', requireAdmin, moduleRecommendationController.adminAddRecommendedCombination);
-router.put('/admin/modules/combinations/:comboId', requireAdmin, moduleRecommendationController.adminUpdateRecommendedCombination);
-router.delete('/admin/modules/combinations/:comboId', requireAdmin, moduleRecommendationController.adminRemoveRecommendedCombination);
-router.put('/admin/modules/:id/combinations/reorder', requireAdmin, moduleRecommendationController.adminReorderRecommendedCombinations);
-router.post('/admin/modules/combinations/recalculate', requireAdmin, moduleRecommendationController.recalculateStats);
-router.get('/admin/modules/combinations/config', requireAdmin, moduleRecommendationController.getConfig);
-router.put('/admin/modules/combinations/config', requireAdmin, moduleRecommendationController.updateConfig);
-router.post('/admin/modules/combinations/config/batch', requireAdmin, moduleRecommendationController.batchUpdateConfig);
+router.get('/admin/modules/combinations/stats', requirePermission(PERMISSIONS.MODULE_VIEW), moduleRecommendationController.adminGetCombinationStatsList);
+router.get('/admin/modules/:id/combinations', requirePermission(PERMISSIONS.MODULE_VIEW), moduleRecommendationController.adminGetRecommendedCombinations);
+router.post('/admin/modules/:id/combinations', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.adminAddRecommendedCombination);
+router.put('/admin/modules/combinations/:comboId', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.adminUpdateRecommendedCombination);
+router.delete('/admin/modules/combinations/:comboId', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.adminRemoveRecommendedCombination);
+router.put('/admin/modules/:id/combinations/reorder', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.adminReorderRecommendedCombinations);
+router.post('/admin/modules/combinations/recalculate', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.recalculateStats);
+router.get('/admin/modules/combinations/config', requirePermission(PERMISSIONS.MODULE_VIEW), moduleRecommendationController.getConfig);
+router.put('/admin/modules/combinations/config', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.updateConfig);
+router.post('/admin/modules/combinations/config/batch', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.batchUpdateConfig);
 
-router.get('/admin/collections', requireAdmin, collectionController.adminGetCollections);
-router.post('/admin/collections', requireAdmin, collectionController.createCollection);
-router.put('/admin/collections/reorder', requireAdmin, collectionController.reorderCollections);
-router.put('/admin/collections/:id', requireAdmin, collectionController.updateCollection);
-router.delete('/admin/collections/:id', requireAdmin, collectionController.deleteCollection);
-router.post('/admin/collections/:id/patches', requireAdmin, collectionController.addPatchToCollection);
-router.put('/admin/collections/:id/patches/:patchId', requireAdmin, collectionController.updatePatchNote);
-router.delete('/admin/collections/:id/patches/:patchId', requireAdmin, collectionController.removePatchFromCollection);
-router.put('/admin/collections/:id/reorder', requireAdmin, collectionController.reorderPatches);
+router.get('/admin/collections', requirePermission(PERMISSIONS.COLLECTION_VIEW), collectionController.adminGetCollections);
+router.post('/admin/collections', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.createCollection);
+router.put('/admin/collections/reorder', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.reorderCollections);
+router.put('/admin/collections/:id', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.updateCollection);
+router.delete('/admin/collections/:id', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.deleteCollection);
+router.post('/admin/collections/:id/patches', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.addPatchToCollection);
+router.put('/admin/collections/:id/patches/:patchId', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.updatePatchNote);
+router.delete('/admin/collections/:id/patches/:patchId', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.removePatchFromCollection);
+router.put('/admin/collections/:id/reorder', requirePermission(PERMISSIONS.COLLECTION_MANAGE), collectionController.reorderPatches);
 
 router.get('/activities', activityController.getActivities);
 router.get('/activities/:id', activityController.getActivityDetail);
@@ -193,15 +196,15 @@ router.post('/activities/submissions/:id/vote', requireAuth, activityController.
 router.get('/me/activities/registrations', requireAuth, activityController.getMyRegistrations);
 router.get('/me/activities/submissions', requireAuth, activityController.getMySubmissions);
 
-router.get('/admin/activities', requireAdmin, activityController.adminGetActivities);
-router.post('/admin/activities', requireAdmin, activityController.adminCreateActivity);
-router.put('/admin/activities/:id', requireAdmin, activityController.adminUpdateActivity);
-router.delete('/admin/activities/:id', requireAdmin, activityController.adminDeleteActivity);
-router.get('/admin/activities/:id/registrations', requireAdmin, activityController.adminGetRegistrations);
-router.put('/admin/activities/registrations/:id/status', requireAdmin, activityController.adminUpdateRegistrationStatus);
-router.get('/admin/activities/:id/submissions', requireAdmin, activityController.adminGetSubmissions);
-router.put('/admin/activities/submissions/:id/review', requireAdmin, activityController.adminReviewSubmission);
-router.delete('/admin/activities/submissions/:id', requireAdmin, activityController.adminDeleteSubmission);
+router.get('/admin/activities', requirePermission(PERMISSIONS.ACTIVITY_VIEW), activityController.adminGetActivities);
+router.post('/admin/activities', requirePermission(PERMISSIONS.ACTIVITY_MANAGE), activityController.adminCreateActivity);
+router.put('/admin/activities/:id', requirePermission(PERMISSIONS.ACTIVITY_MANAGE), activityController.adminUpdateActivity);
+router.delete('/admin/activities/:id', requirePermission(PERMISSIONS.ACTIVITY_MANAGE), activityController.adminDeleteActivity);
+router.get('/admin/activities/:id/registrations', requirePermission(PERMISSIONS.ACTIVITY_VIEW), activityController.adminGetRegistrations);
+router.put('/admin/activities/registrations/:id/status', requirePermission(PERMISSIONS.ACTIVITY_MANAGE), activityController.adminUpdateRegistrationStatus);
+router.get('/admin/activities/:id/submissions', requirePermission(PERMISSIONS.ACTIVITY_VIEW), activityController.adminGetSubmissions);
+router.put('/admin/activities/submissions/:id/review', requirePermission(PERMISSIONS.ACTIVITY_MANAGE), activityController.adminReviewSubmission);
+router.delete('/admin/activities/submissions/:id', requirePermission(PERMISSIONS.ACTIVITY_MANAGE), activityController.adminDeleteSubmission);
 
 router.get('/challenge/seasons', challengeController.getSeasons);
 router.get('/challenge/seasons/:id', challengeController.getSeasonDetail);
@@ -217,27 +220,27 @@ router.post('/challenge/submissions/:id/vote', requireAuth, challengeController.
 router.post('/challenge/submissions/:id/jury-score', requireAuth, challengeController.submitJuryScore);
 router.get('/challenge/jury/pending', requireAuth, challengeController.getPendingJuryReviews);
 
-router.get('/admin/challenge/seasons', requireAdmin, challengeController.adminGetSeasons);
-router.post('/admin/challenge/seasons', requireAdmin, challengeController.adminCreateSeason);
-router.put('/admin/challenge/seasons/:id', requireAdmin, challengeController.adminUpdateSeason);
-router.delete('/admin/challenge/seasons/:id', requireAdmin, challengeController.adminDeleteSeason);
+router.get('/admin/challenge/seasons', requirePermission(PERMISSIONS.CHALLENGE_VIEW), challengeController.adminGetSeasons);
+router.post('/admin/challenge/seasons', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.adminCreateSeason);
+router.put('/admin/challenge/seasons/:id', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.adminUpdateSeason);
+router.delete('/admin/challenge/seasons/:id', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.adminDeleteSeason);
 
-router.post('/admin/challenge/voting-rule', requireAdmin, challengeController.adminSaveVotingRule);
-router.post('/admin/challenge/awards', requireAdmin, challengeController.adminSaveAwards);
-router.post('/admin/challenge/jury/:action', requireAdmin, challengeController.adminManageJury);
+router.post('/admin/challenge/voting-rule', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.adminSaveVotingRule);
+router.post('/admin/challenge/awards', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.adminSaveAwards);
+router.post('/admin/challenge/jury/:action', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.adminManageJury);
 
-router.post('/admin/challenge/activities/:id/calculate-rankings', requireAdmin, challengeController.calculateRankings);
-router.post('/admin/challenge/activities/:id/publish-results', requireAdmin, challengeController.publishResults);
-router.post('/admin/challenge/winners/assign', requireAdmin, challengeController.adminAssignWinner);
+router.post('/admin/challenge/activities/:id/calculate-rankings', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.calculateRankings);
+router.post('/admin/challenge/activities/:id/publish-results', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.publishResults);
+router.post('/admin/challenge/winners/assign', requirePermission(PERMISSIONS.CHALLENGE_MANAGE), challengeController.adminAssignWinner);
 
 router.post('/creator/verification', requireAuth, creatorVerificationController.submitVerification);
 router.get('/creator/verification/status', requireAuth, creatorVerificationController.getMyVerificationStatus);
 router.get('/creator/verification/history', requireAuth, creatorVerificationController.getVerificationHistory);
 router.get('/users/:id/verification-badge', creatorVerificationController.getUserVerificationBadge);
 
-router.get('/admin/creator-verifications', requireAdmin, creatorVerificationController.adminGetVerifications);
-router.get('/admin/creator-verifications/:id', requireAdmin, creatorVerificationController.adminGetVerificationDetail);
-router.put('/admin/creator-verifications/:id/review', requireAdmin, creatorVerificationController.adminReviewVerification);
+router.get('/admin/creator-verifications', requirePermission(PERMISSIONS.CREATOR_VERIFICATION_VIEW), creatorVerificationController.adminGetVerifications);
+router.get('/admin/creator-verifications/:id', requirePermission(PERMISSIONS.CREATOR_VERIFICATION_VIEW), creatorVerificationController.adminGetVerificationDetail);
+router.put('/admin/creator-verifications/:id/review', requirePermission(PERMISSIONS.CREATOR_VERIFICATION_MANAGE), creatorVerificationController.adminReviewVerification);
 
 router.get('/downloads/stats', downloadController.getStats);
 router.get('/downloads', downloadController.getResourceList);
@@ -248,40 +251,40 @@ router.get('/me/downloads', requireAuth, downloadController.getMyResources);
 router.delete('/me/downloads/:id', requireAuth, downloadController.deleteMyResource);
 router.get('/me/download-records', requireAuth, downloadController.getMyDownloadRecords);
 
-router.get('/admin/downloads', requireAdmin, downloadController.adminGetResources);
-router.put('/admin/downloads/:id/review', requireAdmin, downloadController.adminReviewResource);
-router.delete('/admin/downloads/:id', requireAdmin, downloadController.adminDeleteResource);
-router.get('/admin/download-records', requireAdmin, downloadController.adminGetDownloadRecords);
+router.get('/admin/downloads', requirePermission(PERMISSIONS.DOWNLOAD_VIEW), downloadController.adminGetResources);
+router.put('/admin/downloads/:id/review', requireAnyPermission([PERMISSIONS.DOWNLOAD_REVIEW, PERMISSIONS.DOWNLOAD_MANAGE]), downloadController.adminReviewResource);
+router.delete('/admin/downloads/:id', requirePermission(PERMISSIONS.DOWNLOAD_MANAGE), downloadController.adminDeleteResource);
+router.get('/admin/download-records', requirePermission(PERMISSIONS.DOWNLOAD_RECORD_VIEW), downloadController.adminGetDownloadRecords);
 
-router.get('/admin/reports/overview', requireAdmin, reportController.getOverview);
-router.get('/admin/reports/users', requireAdmin, reportController.getUserStats);
-router.get('/admin/reports/patches', requireAdmin, reportController.getPatchStats);
-router.get('/admin/reports/modules', requireAdmin, reportController.getModuleStats);
-router.get('/admin/reports/manufacturers', requireAdmin, reportController.getManufacturerStats);
-router.get('/admin/reports/export', requireAdmin, reportController.exportReport);
+router.get('/admin/reports/overview', requirePermission(PERMISSIONS.REPORT_VIEW), reportController.getOverview);
+router.get('/admin/reports/users', requirePermission(PERMISSIONS.REPORT_VIEW), reportController.getUserStats);
+router.get('/admin/reports/patches', requirePermission(PERMISSIONS.REPORT_VIEW), reportController.getPatchStats);
+router.get('/admin/reports/modules', requirePermission(PERMISSIONS.REPORT_VIEW), reportController.getModuleStats);
+router.get('/admin/reports/manufacturers', requirePermission(PERMISSIONS.REPORT_VIEW), reportController.getManufacturerStats);
+router.get('/admin/reports/export', requirePermission(PERMISSIONS.REPORT_MANAGE), reportController.exportReport);
 
 router.get('/report/categories', contentReportController.getReportCategories);
 router.post('/reports', requireAuth, contentReportController.createReport);
 router.get('/me/reports', requireAuth, contentReportController.getMyReports);
-router.get('/admin/reports/content', requireAdmin, contentReportController.adminGetReports);
-router.get('/admin/reports/content/:id', requireAdmin, contentReportController.adminGetReportDetail);
-router.put('/admin/reports/content/:id', requireAdmin, contentReportController.adminHandleReport);
-router.post('/admin/reports/content/batch', requireAdmin, contentReportController.adminBatchHandleReports);
+router.get('/admin/reports/content', requirePermission(PERMISSIONS.CONTENT_REPORT_VIEW), contentReportController.adminGetReports);
+router.get('/admin/reports/content/:id', requirePermission(PERMISSIONS.CONTENT_REPORT_VIEW), contentReportController.adminGetReportDetail);
+router.put('/admin/reports/content/:id', requirePermission(PERMISSIONS.CONTENT_REPORT_HANDLE), contentReportController.adminHandleReport);
+router.post('/admin/reports/content/batch', requirePermission(PERMISSIONS.CONTENT_REPORT_HANDLE), contentReportController.adminBatchHandleReports);
 
 router.get('/products', productController.getProductList);
 router.get('/products/:id', productController.getProductDetail);
 router.get('/products/patch/:patchId', productController.getProductByPatchId);
-router.post('/products', requireAdmin, productController.createProduct);
-router.put('/products/:id', requireAdmin, productController.updateProduct);
-router.delete('/products/:id', requireAdmin, productController.deleteProduct);
-router.put('/products/:id/active', requireAdmin, productController.toggleProductActive);
+router.post('/products', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.createProduct);
+router.put('/products/:id', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.updateProduct);
+router.delete('/products/:id', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.deleteProduct);
+router.put('/products/:id/active', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.toggleProductActive);
 
-router.get('/admin/products', requireAdmin, productController.getProductList);
-router.get('/admin/products/:id', requireAdmin, productController.getProductDetail);
-router.post('/admin/products', requireAdmin, productController.createProduct);
-router.put('/admin/products/:id', requireAdmin, productController.updateProduct);
-router.delete('/admin/products/:id', requireAdmin, productController.deleteProduct);
-router.put('/admin/products/:id/active', requireAdmin, productController.toggleProductActive);
+router.get('/admin/products', requirePermission(PERMISSIONS.PRODUCT_VIEW), productController.getProductList);
+router.get('/admin/products/:id', requirePermission(PERMISSIONS.PRODUCT_VIEW), productController.getProductDetail);
+router.post('/admin/products', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.createProduct);
+router.put('/admin/products/:id', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.updateProduct);
+router.delete('/admin/products/:id', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.deleteProduct);
+router.put('/admin/products/:id/active', requirePermission(PERMISSIONS.PRODUCT_MANAGE), productController.toggleProductActive);
 
 router.get('/me/orders', requireAuth, orderController.getMyOrders);
 router.get('/me/orders/:id', requireAuth, orderController.getOrderDetail);
@@ -289,17 +292,17 @@ router.post('/orders', requireAuth, orderController.createOrder);
 router.get('/patches/:patchId/permission', orderController.checkPermission);
 router.get('/me/permissions', requireAuth, orderController.getMyPermissions);
 
-router.get('/admin/orders', requireAdmin, orderController.getAllOrders);
-router.get('/admin/orders/stats', requireAdmin, orderController.getOrderStats);
+router.get('/admin/orders', requirePermission(PERMISSIONS.ORDER_VIEW), orderController.getAllOrders);
+router.get('/admin/orders/stats', requirePermission(PERMISSIONS.ORDER_VIEW), orderController.getOrderStats);
 
 router.get('/me/earnings', requireAuth, earningsController.getMyEarnings);
 router.get('/me/earnings/overview', requireAuth, earningsController.getEarningsOverview);
 router.post('/me/withdrawals', requireAuth, earningsController.createWithdrawal);
 router.get('/me/withdrawals', requireAuth, earningsController.getMyWithdrawals);
 
-router.get('/admin/earnings/stats', requireAdmin, earningsController.getEarningsStats);
-router.get('/admin/withdrawals', requireAdmin, earningsController.getAllWithdrawals);
-router.put('/admin/withdrawals/:id/review', requireAdmin, earningsController.reviewWithdrawal);
+router.get('/admin/earnings/stats', requirePermission(PERMISSIONS.WITHDRAWAL_VIEW), earningsController.getEarningsStats);
+router.get('/admin/withdrawals', requirePermission(PERMISSIONS.WITHDRAWAL_VIEW), earningsController.getAllWithdrawals);
+router.put('/admin/withdrawals/:id/review', requirePermission(PERMISSIONS.WITHDRAWAL_REVIEW), earningsController.reviewWithdrawal);
 
 router.get('/open-platform/scopes', openPlatformController.getScopes);
 router.get('/me/api-keys', requireAuth, openPlatformController.getMyKeys);
@@ -310,12 +313,46 @@ router.post('/open-platform/token', requireAuth, openPlatformController.generate
 router.get('/me/api-call-logs', requireAuth, openPlatformController.getMyCallLogs);
 router.get('/me/api-call-stats', requireAuth, openPlatformController.getCallStats);
 
-router.get('/admin/api-keys', requireAdmin, openPlatformController.adminGetAllKeys);
-router.get('/admin/api-keys/:id', requireAdmin, openPlatformController.adminGetKeyDetail);
-router.post('/admin/api-keys/:id/ban', requireAdmin, openPlatformController.adminBanKey);
-router.post('/admin/api-keys/:id/unban', requireAdmin, openPlatformController.adminUnbanKey);
-router.put('/admin/api-keys/:id/rate-limit', requireAdmin, openPlatformController.adminUpdateRateLimit);
-router.get('/admin/api-call-logs', requireAdmin, openPlatformController.adminGetCallLogs);
-router.get('/admin/open-platform/stats', requireAdmin, openPlatformController.adminGetPlatformStats);
+router.get('/admin/api-keys', requirePermission(PERMISSIONS.OPEN_PLATFORM_VIEW), openPlatformController.adminGetAllKeys);
+router.get('/admin/api-keys/:id', requirePermission(PERMISSIONS.OPEN_PLATFORM_VIEW), openPlatformController.adminGetKeyDetail);
+router.post('/admin/api-keys/:id/ban', requirePermission(PERMISSIONS.OPEN_PLATFORM_MANAGE), openPlatformController.adminBanKey);
+router.post('/admin/api-keys/:id/unban', requirePermission(PERMISSIONS.OPEN_PLATFORM_MANAGE), openPlatformController.adminUnbanKey);
+router.put('/admin/api-keys/:id/rate-limit', requirePermission(PERMISSIONS.OPEN_PLATFORM_MANAGE), openPlatformController.adminUpdateRateLimit);
+router.get('/admin/api-call-logs', requirePermission(PERMISSIONS.API_CALL_LOG_VIEW), openPlatformController.adminGetCallLogs);
+router.get('/admin/open-platform/stats', requirePermission(PERMISSIONS.OPEN_PLATFORM_VIEW), openPlatformController.adminGetPlatformStats);
+
+router.get('/admin/roles', requireAdmin, async (ctx) => {
+  ctx.body = {
+    roles: [
+      { key: ROLES.ADMIN, label: ROLE_LABELS[ROLES.ADMIN], permissions: ROLE_PERMISSIONS[ROLES.ADMIN] },
+      { key: ROLES.OPERATOR, label: ROLE_LABELS[ROLES.OPERATOR], permissions: ROLE_PERMISSIONS[ROLES.OPERATOR] },
+      { key: ROLES.AUDITOR, label: ROLE_LABELS[ROLES.AUDITOR], permissions: ROLE_PERMISSIONS[ROLES.AUDITOR] }
+    ]
+  };
+});
+
+router.get('/admin/audit-logs', requirePermission(PERMISSIONS.AUDIT_LOG_VIEW), async (ctx) => {
+  const { page = 1, pageSize = 20, userId, action, targetType, startDate, endDate, keyword } = ctx.query;
+  ctx.body = getAuditLogs({
+    page: parseInt(page),
+    pageSize: parseInt(pageSize),
+    userId: userId ? parseInt(userId) : null,
+    action,
+    targetType,
+    startDate,
+    endDate,
+    keyword
+  });
+});
+
+router.get('/admin/audit-logs/:id', requirePermission(PERMISSIONS.AUDIT_LOG_VIEW), async (ctx) => {
+  const log = getAuditLogById(parseInt(ctx.params.id));
+  if (!log) {
+    ctx.status = 404;
+    ctx.body = { error: '日志不存在' };
+    return;
+  }
+  ctx.body = log;
+});
 
 module.exports = router;

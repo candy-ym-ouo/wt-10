@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
+const { hasPermission, hasAnyPermission, isStaffRole, getRolePermissions, ROLES } = require('../constants/permissions');
 
 const authMiddleware = async (ctx, next) => {
   let token = null;
@@ -110,7 +111,7 @@ const requireAuth = async (ctx, next) => {
 };
 
 const requireAdmin = async (ctx, next) => {
-  if (!ctx.state.user || ctx.state.user.role !== 'admin') {
+  if (!ctx.state.user || !isStaffRole(ctx.state.user.role)) {
     ctx.status = 403;
     ctx.body = { error: '需要管理员权限' };
     return;
@@ -118,4 +119,52 @@ const requireAdmin = async (ctx, next) => {
   return next();
 };
 
-module.exports = { authMiddleware, requireAuth, requireAdmin };
+const requireSuperAdmin = async (ctx, next) => {
+  if (!ctx.state.user || ctx.state.user.role !== ROLES.ADMIN) {
+    ctx.status = 403;
+    ctx.body = { error: '需要超级管理员权限' };
+    return;
+  }
+  return next();
+};
+
+const requirePermission = (permission) => {
+  return async (ctx, next) => {
+    if (!ctx.state.user) {
+      ctx.status = 401;
+      ctx.body = { error: '需要登录' };
+      return;
+    }
+    if (!hasPermission(ctx.state.user.role, permission)) {
+      ctx.status = 403;
+      ctx.body = { error: '权限不足', permission };
+      return;
+    }
+    return next();
+  };
+};
+
+const requireAnyPermission = (permissions) => {
+  return async (ctx, next) => {
+    if (!ctx.state.user) {
+      ctx.status = 401;
+      ctx.body = { error: '需要登录' };
+      return;
+    }
+    if (!hasAnyPermission(ctx.state.user.role, permissions)) {
+      ctx.status = 403;
+      ctx.body = { error: '权限不足', permissions };
+      return;
+    }
+    return next();
+  };
+};
+
+module.exports = { 
+  authMiddleware, 
+  requireAuth, 
+  requireAdmin, 
+  requireSuperAdmin,
+  requirePermission,
+  requireAnyPermission 
+};

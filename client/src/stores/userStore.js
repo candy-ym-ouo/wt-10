@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { authAPI, userAPI } from '@/api'
+import { authAPI, userAPI, adminAPI } from '@/api'
+import { hasPermission, hasAnyPermission, isStaffRole, getRoleLabel, ROLES } from '@/constants/permissions'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -13,8 +14,13 @@ export const useUserStore = defineStore('user', {
       if (state.user?.role === 'banned' || state.user?.role === 'suspended') return false
       return true
     },
-    isAdmin: (state) => state.user?.role === 'admin',
-    isBanned: (state) => state.user?.role === 'banned' || state.user?.role === 'suspended'
+    isAdmin: (state) => state.user?.role === ROLES.ADMIN,
+    isOperator: (state) => state.user?.role === ROLES.OPERATOR,
+    isAuditor: (state) => state.user?.role === ROLES.AUDITOR,
+    isStaff: (state) => isStaffRole(state.user?.role),
+    isBanned: (state) => state.user?.role === 'banned' || state.user?.role === 'suspended',
+    roleLabel: (state) => getRoleLabel(state.user?.role),
+    userRole: (state) => state.user?.role || ROLES.USER
   },
 
   actions: {
@@ -62,6 +68,14 @@ export const useUserStore = defineStore('user', {
 
     async getUserProfile(id) {
       return await userAPI.getById(id)
+    },
+
+    hasPermission(permission) {
+      return hasPermission(this.user?.role, permission)
+    },
+
+    hasAnyPermission(permissions) {
+      return hasAnyPermission(this.user?.role, permissions)
     },
 
     setToken(token) {

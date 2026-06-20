@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { PERMISSIONS } from '@/constants/permissions'
 
 const routes = [
   {
@@ -205,117 +206,145 @@ const routes = [
     path: '/admin',
     name: 'Admin',
     component: () => import('@/views/admin/AdminLayout.vue'),
-    meta: { requiresAdmin: true },
+    meta: { requiresStaff: true },
     children: [
       {
         path: '',
         name: 'AdminDashboard',
-        component: () => import('@/views/admin/Dashboard.vue')
+        component: () => import('@/views/admin/Dashboard.vue'),
+        meta: { permission: PERMISSIONS.DASHBOARD_VIEW }
       },
       {
         path: 'users',
         name: 'AdminUsers',
-        component: () => import('@/views/admin/Users.vue')
+        component: () => import('@/views/admin/Users.vue'),
+        meta: { permission: PERMISSIONS.USER_VIEW }
       },
       {
         path: 'patches',
         name: 'AdminPatches',
-        component: () => import('@/views/admin/AdminPatches.vue')
+        component: () => import('@/views/admin/AdminPatches.vue'),
+        meta: { permission: PERMISSIONS.PATCH_VIEW }
       },
       {
         path: 'modules',
         name: 'AdminModules',
-        component: () => import('@/views/admin/AdminModules.vue')
+        component: () => import('@/views/admin/AdminModules.vue'),
+        meta: { permission: PERMISSIONS.MODULE_VIEW }
       },
       {
         path: 'articles',
         name: 'AdminArticles',
-        component: () => import('@/views/admin/AdminArticles.vue')
+        component: () => import('@/views/admin/AdminArticles.vue'),
+        meta: { permission: PERMISSIONS.ARTICLE_VIEW }
       },
       {
         path: 'modules/combinations',
         name: 'AdminModuleCombinations',
-        component: () => import('@/views/admin/ModuleCombinations.vue')
+        component: () => import('@/views/admin/ModuleCombinations.vue'),
+        meta: { permission: PERMISSIONS.MODULE_VIEW }
       },
       {
         path: 'modules/:id/combinations',
         name: 'AdminModuleCombinationsDetail',
-        component: () => import('@/views/admin/ModuleCombinationsDetail.vue')
+        component: () => import('@/views/admin/ModuleCombinationsDetail.vue'),
+        meta: { permission: PERMISSIONS.MODULE_VIEW }
       },
       {
         path: 'modules/:id/wiki',
         name: 'AdminModuleWiki',
-        component: () => import('@/views/admin/ModuleWiki.vue')
+        component: () => import('@/views/admin/ModuleWiki.vue'),
+        meta: { permission: PERMISSIONS.MODULE_VIEW }
       },
       {
         path: 'manufacturers',
         name: 'AdminManufacturers',
-        component: () => import('@/views/admin/Manufacturers.vue')
+        component: () => import('@/views/admin/Manufacturers.vue'),
+        meta: { permission: PERMISSIONS.MANUFACTURER_VIEW }
       },
       {
         path: 'collections',
         name: 'AdminCollections',
-        component: () => import('@/views/admin/AdminCollections.vue')
+        component: () => import('@/views/admin/AdminCollections.vue'),
+        meta: { permission: PERMISSIONS.COLLECTION_VIEW }
       },
       {
         path: 'activities',
         name: 'AdminActivities',
-        component: () => import('@/views/admin/AdminActivities.vue')
+        component: () => import('@/views/admin/AdminActivities.vue'),
+        meta: { permission: PERMISSIONS.ACTIVITY_VIEW }
       },
       {
         path: 'challenge/seasons',
         name: 'AdminChallengeSeasons',
-        component: () => import('@/views/admin/ChallengeSeasons.vue')
+        component: () => import('@/views/admin/ChallengeSeasons.vue'),
+        meta: { permission: PERMISSIONS.CHALLENGE_VIEW }
       },
       {
         path: 'creator-verifications',
         name: 'AdminCreatorVerifications',
-        component: () => import('@/views/admin/CreatorVerifications.vue')
+        component: () => import('@/views/admin/CreatorVerifications.vue'),
+        meta: { permission: PERMISSIONS.CREATOR_VERIFICATION_VIEW }
       },
       {
         path: 'downloads',
         name: 'AdminDownloadResources',
-        component: () => import('@/views/admin/AdminDownloadResources.vue')
+        component: () => import('@/views/admin/AdminDownloadResources.vue'),
+        meta: { permission: PERMISSIONS.DOWNLOAD_VIEW }
       },
       {
         path: 'download-records',
         name: 'AdminDownloadRecords',
-        component: () => import('@/views/admin/AdminDownloadRecords.vue')
+        component: () => import('@/views/admin/AdminDownloadRecords.vue'),
+        meta: { permission: PERMISSIONS.DOWNLOAD_RECORD_VIEW }
       },
       {
         path: 'reports',
         name: 'AdminReports',
-        component: () => import('@/views/admin/DataReport.vue')
+        component: () => import('@/views/admin/DataReport.vue'),
+        meta: { permission: PERMISSIONS.REPORT_VIEW }
       },
       {
         path: 'reports/content',
         name: 'AdminContentReports',
-        component: () => import('@/views/admin/ContentReports.vue')
+        component: () => import('@/views/admin/ContentReports.vue'),
+        meta: { permission: PERMISSIONS.CONTENT_REPORT_VIEW }
       },
       {
         path: 'products',
         name: 'AdminProducts',
-        component: () => import('@/views/admin/AdminProducts.vue')
+        component: () => import('@/views/admin/AdminProducts.vue'),
+        meta: { permission: PERMISSIONS.PRODUCT_VIEW }
       },
       {
         path: 'orders',
         name: 'AdminOrders',
-        component: () => import('@/views/admin/AdminOrders.vue')
+        component: () => import('@/views/admin/AdminOrders.vue'),
+        meta: { permission: PERMISSIONS.ORDER_VIEW }
       },
       {
         path: 'withdrawals',
         name: 'AdminWithdrawals',
-        component: () => import('@/views/admin/AdminWithdrawals.vue')
+        component: () => import('@/views/admin/AdminWithdrawals.vue'),
+        meta: { permission: PERMISSIONS.WITHDRAWAL_VIEW }
       },
       {
         path: 'open-platform',
         name: 'AdminOpenPlatform',
-        component: () => import('@/views/admin/AdminOpenPlatform.vue')
+        component: () => import('@/views/admin/AdminOpenPlatform.vue'),
+        meta: { permission: PERMISSIONS.OPEN_PLATFORM_VIEW }
       },
       {
         path: 'api-call-logs',
         name: 'AdminApiCallLogs',
-        component: () => import('@/views/admin/AdminApiCallLogs.vue')
+        component: () => import('@/views/admin/AdminApiCallLogs.vue'),
+        meta: { permission: PERMISSIONS.API_CALL_LOG_VIEW }
+      },
+      {
+        path: 'audit-logs',
+        name: 'AdminAuditLogs',
+        component: () => import('@/views/admin/AdminAuditLogs.vue'),
+        meta: { permission: PERMISSIONS.AUDIT_LOG_VIEW }
       }
     ]
   },
@@ -337,8 +366,10 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next('/login')
-  } else if (to.meta.requiresAdmin && !userStore.isAdmin) {
+  } else if (to.meta.requiresStaff && !userStore.isStaff) {
     next('/')
+  } else if (to.meta.permission && !userStore.hasPermission(to.meta.permission)) {
+    next('/admin')
   } else if (to.meta.guest && userStore.isLoggedIn) {
     next('/')
   } else if (userStore.isBanned) {

@@ -6,10 +6,18 @@ const db = require('./db');
 
 const { authMiddleware } = require('./middleware/auth');
 const { apiKeyAuth } = require('./middleware/apiKeyAuth');
+const { initAuditTables } = require('./middleware/audit');
 const router = require('./routes');
 
 const app = new Koa();
 const PORT = process.env.PORT || 3000;
+
+try {
+  initAuditTables();
+  console.log('audit_logs 表检查/创建完成');
+} catch (e) {
+  console.error('创建 audit_logs 表失败:', e);
+}
 
 try {
   db.exec(`
@@ -652,6 +660,35 @@ app.use(async (ctx, next) => {
 app.use(router.routes());
 app.use(router.allowedMethods());
 
+try {
+  const bcrypt = require('bcryptjs');
+  const userStmt = db.prepare(`
+    INSERT OR IGNORE INTO users (username, email, password, role, bio)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const adminResult = userStmt.run('admin', 'admin@patchvault.com', bcrypt.hashSync('admin123', 10), 'admin', '系统管理员');
+  const operatorResult = userStmt.run('operator', 'operator@patchvault.com', bcrypt.hashSync('operator123', 10), 'operator', '运营人员');
+  const auditorResult = userStmt.run('auditor', 'auditor@patchvault.com', bcrypt.hashSync('auditor123', 10), 'auditor', '审核员');
+
+  const defaultCategories = ['comment', 'review', 'follow', 'activity', 'like', 'favorite', 'system'];
+  const insertSubscription = db.prepare(`
+    INSERT OR IGNORE INTO notification_subscriptions (user_id, category, enabled)
+    VALUES (?, ?, 1)
+  `);
+  const allUsers = db.prepare('SELECT id FROM users').all();
+  allUsers.forEach(user => {
+    defaultCategories.forEach(category => {
+      insertSubscription.run(user.id, category);
+    });
+  });
+
+  if (adminResult.changes > 0) console.log('管理员账户已创建: admin / admin123');
+  if (operatorResult.changes > 0) console.log('运营账户已创建: operator / operator123');
+  if (auditorResult.changes > 0) console.log('审核员账户已创建: auditor / auditor123');
+} catch (e) {
+  console.error('初始化默认账户失败:', e);
+}
+
 app.listen(PORT, () => {
   console.log(`
   ╔════════════════════════════════════════════════════════╗
@@ -661,6 +698,8 @@ app.listen(PORT, () => {
   ║   API 前缀: http://localhost:${PORT}/api                   ║
   ║                                                        ║
   ║   管理员账户: admin / admin123                         ║
+  ║   运营账户:   operator / operator123                   ║
+  ║   审核员账户: auditor / auditor123                     ║
   ║                                                        ║
   ╚════════════════════════════════════════════════════════╝
   `);

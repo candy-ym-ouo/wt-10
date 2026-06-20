@@ -305,12 +305,16 @@ console.log('数据库表创建完成！');
 
 const bcrypt = require('bcryptjs');
 const adminPassword = bcrypt.hashSync('admin123', 10);
+const operatorPassword = bcrypt.hashSync('operator123', 10);
+const auditorPassword = bcrypt.hashSync('auditor123', 10);
 
-const adminStmt = db.prepare(`
+const userStmt = db.prepare(`
   INSERT OR IGNORE INTO users (username, email, password, role, bio)
   VALUES (?, ?, ?, ?, ?)
 `);
-const adminResult = adminStmt.run('admin', 'admin@patchvault.com', adminPassword, 'admin', '系统管理员');
+userStmt.run('admin', 'admin@patchvault.com', adminPassword, 'admin', '系统管理员');
+userStmt.run('operator', 'operator@patchvault.com', operatorPassword, 'operator', '运营人员');
+userStmt.run('auditor', 'auditor@patchvault.com', auditorPassword, 'auditor', '审核员');
 
 const defaultCategories = ['comment', 'review', 'follow', 'activity', 'like', 'favorite', 'system'];
 const insertSubscription = db.prepare(`
@@ -326,5 +330,7 @@ allUsers.forEach(user => {
 });
 
 console.log('管理员账户创建完成！用户名: admin, 密码: admin123');
+console.log('运营账户创建完成！用户名: operator, 密码: operator123');
+console.log('审核员账户创建完成！用户名: auditor, 密码: auditor123');
 console.log(`已为 ${allUsers.length} 个用户初始化订阅设置`);
 console.log('数据库初始化完成！');
