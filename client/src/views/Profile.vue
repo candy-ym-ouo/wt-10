@@ -132,9 +132,31 @@
               <div class="stat-value">{{ stats.likes }}</div>
               <div class="stat-label">获得的点赞</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" @click="router.push('/favorites')" style="cursor: pointer;">
               <div class="stat-value">{{ stats.favorites }}</div>
               <div class="stat-label">收藏的 Patch</div>
+            </div>
+          </div>
+
+          <div v-if="favoriteFolders.length > 0" class="favorite-folders-section">
+            <h4 class="subsection-title">
+              <el-icon><Folder /></el-icon> 收藏分组
+            </h4>
+            <div class="folder-stats-grid">
+              <div
+                v-for="folder in favoriteFolders"
+                :key="folder.id"
+                class="folder-stat-card"
+                @click="goToFolder(folder.id)"
+              >
+                <div class="folder-icon-wrapper" :style="{ backgroundColor: folder.color + '20' }">
+                  <el-icon :color="folder.color"><Folder /></el-icon>
+                </div>
+                <div class="folder-info">
+                  <div class="folder-name">{{ getFolderDisplayName(folder) }}</div>
+                  <div class="folder-count">{{ folder.patch_count || folder.count || 0 }} 个收藏</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -146,19 +168,22 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Document, Star, Medal, Tools } from '@element-plus/icons-vue'
+import { Document, Star, Medal, Tools, Folder } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
+import { usePatchStore } from '@/stores/patchStore'
 import { patchAPI, socialApi, creatorVerificationAPI } from '@/api'
 import { useRouter } from 'vue-router'
 import CreatorBadge from '@/components/CreatorBadge.vue'
 
 const userStore = useUserStore()
+const patchStore = usePatchStore()
 const router = useRouter()
 
 const formRef = ref()
 const saving = ref(false)
 const stats = ref({ patches: 0, drafts: 0, scheduled: 0, likes: 0, favorites: 0 })
 const verificationStatus = ref(null)
+const favoriteFolders = ref([])
 
 const form = reactive({
   username: '',
@@ -200,7 +225,29 @@ onMounted(() => {
   }
   loadStats()
   loadVerificationStatus()
+  loadFavoriteFolders()
 })
+
+const loadFavoriteFolders = async () => {
+  try {
+    const res = await patchStore.fetchFavoriteFolders()
+    favoriteFolders.value = res.folders || []
+  } catch (e) {
+    console.error('加载收藏分组失败:', e)
+  }
+}
+
+const getFolderDisplayName = (folder) => {
+  if (folder.is_default || folder.name === 'default') return '默认分组'
+  return folder.name
+}
+
+const goToFolder = (folderId) => {
+  router.push({
+    path: '/favorites',
+    query: { folder: folderId }
+  })
+}
 
 const loadStats = async () => {
   try {
@@ -328,5 +375,83 @@ const submit = async () => {
 
 :deep(.el-form-item__label) {
   color: rgba(255, 255, 255, 0.7);
+}
+
+.favorite-folders-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.subsection-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 16px;
+}
+
+.subsection-title .el-icon {
+  color: #ffd700;
+}
+
+.folder-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.folder-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.folder-stat-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 215, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+.folder-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.folder-icon-wrapper .el-icon {
+  font-size: 22px;
+}
+
+.folder-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.folder-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-count {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
 }
 </style>

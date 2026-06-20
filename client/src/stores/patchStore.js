@@ -7,7 +7,9 @@ export const usePatchStore = defineStore('patch', {
     total: 0,
     loading: false,
     compareList: [],
-    compareCount: 0
+    compareCount: 0,
+    favoriteFolders: [],
+    favoriteFoldersLoading: false
   }),
 
   actions: {
@@ -43,8 +45,8 @@ export const usePatchStore = defineStore('patch', {
       return await patchAPI.toggleLike(id)
     },
 
-    async toggleFavorite(id, folder = 'default') {
-      return await patchAPI.toggleFavorite(id, folder)
+    async toggleFavorite(id, data = {}) {
+      return await patchAPI.toggleFavorite(id, data)
     },
 
     async addComment(id, content) {
@@ -61,6 +63,66 @@ export const usePatchStore = defineStore('patch', {
 
     async fetchMyFavorites(params = {}) {
       return await socialAPI.getMyFavorites(params)
+    },
+
+    async fetchFavoriteFolders() {
+      this.favoriteFoldersLoading = true
+      try {
+        const res = await socialAPI.getFavoriteFolders()
+        this.favoriteFolders = res.folders || []
+        return res
+      } finally {
+        this.favoriteFoldersLoading = false
+      }
+    },
+
+    async createFavoriteFolder(data) {
+      const res = await socialAPI.createFavoriteFolder(data)
+      if (res.folder) {
+        this.favoriteFolders.push(res.folder)
+      }
+      return res
+    },
+
+    async updateFavoriteFolder(id, data) {
+      const res = await socialAPI.updateFavoriteFolder(id, data)
+      const index = this.favoriteFolders.findIndex(f => f.id === id)
+      if (index !== -1 && data.name !== undefined) {
+        this.favoriteFolders[index].name = data.name
+      }
+      if (index !== -1 && data.description !== undefined) {
+        this.favoriteFolders[index].description = data.description
+      }
+      if (index !== -1 && data.color !== undefined) {
+        this.favoriteFolders[index].color = data.color
+      }
+      return res
+    },
+
+    async deleteFavoriteFolder(id, moveToFolderId = null) {
+      const res = await socialAPI.deleteFavoriteFolder(id, { move_to_folder_id: moveToFolderId })
+      this.favoriteFolders = this.favoriteFolders.filter(f => f.id !== id)
+      return res
+    },
+
+    async reorderFavoriteFolders(orders) {
+      return await socialAPI.reorderFavoriteFolders(orders)
+    },
+
+    async moveFavoriteToFolder(patchId, folderId) {
+      return await socialAPI.moveFavoriteToFolder(patchId, { folder_id: folderId })
+    },
+
+    async updateFavoriteFolderId(favoriteId, folderId) {
+      return await socialAPI.updateFavoriteFolderId(favoriteId, { folder_id: folderId })
+    },
+
+    async batchMoveFavorites(patchIds, folderId) {
+      return await socialAPI.batchMoveFavorites({ patch_ids: patchIds, folder_id: folderId })
+    },
+
+    async batchDeleteFavorites(patchIds) {
+      return await socialAPI.batchDeleteFavorites({ patch_ids: patchIds })
     },
 
     async fetchMyDrafts(params = {}) {

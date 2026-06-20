@@ -112,7 +112,16 @@ router.get('/me/articles', requireAuth, articleController.getMyArticles);
 
 router.post('/patches/:id/like', requireAuth, socialController.toggleLike);
 router.post('/patches/:id/favorite', requireAuth, socialController.toggleFavorite);
+router.post('/patches/:id/favorite/move', requireAuth, socialController.moveFavoriteToFolder);
 router.get('/me/favorites', requireAuth, socialController.getMyFavorites);
+router.post('/me/favorites/batch-move', requireAuth, socialController.batchMoveFavorites);
+router.post('/me/favorites/batch-delete', requireAuth, socialController.batchDeleteFavorites);
+router.put('/me/favorites/:id/folder', requireAuth, socialController.updateFavoriteFolderId);
+router.get('/me/favorite-folders', requireAuth, socialController.getFavoriteFolders);
+router.post('/me/favorite-folders', requireAuth, socialController.createFavoriteFolder);
+router.put('/me/favorite-folders/:id', requireAuth, socialController.updateFavoriteFolder);
+router.delete('/me/favorite-folders/:id', requireAuth, socialController.deleteFavoriteFolder);
+router.put('/me/favorite-folders/reorder', requireAuth, socialController.reorderFavoriteFolders);
 router.get('/me/patches', requireAuth, socialController.getMyPatches);
 router.get('/me/drafts', requireAuth, socialController.getMyDrafts);
 router.get('/me/scheduled', requireAuth, socialController.getMyScheduled);

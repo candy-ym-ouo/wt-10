@@ -84,10 +84,26 @@ db.exec(`
     user_id INTEGER NOT NULL,
     patch_id INTEGER NOT NULL,
     folder TEXT DEFAULT 'default',
+    folder_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, patch_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE CASCADE
+    FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE CASCADE,
+    FOREIGN KEY (folder_id) REFERENCES favorite_folders(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS favorite_folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    color TEXT DEFAULT '#ffd700',
+    sort_order INTEGER DEFAULT 0,
+    is_default INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, name),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS comments (
@@ -169,6 +185,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_patches_title ON patches(title);
   CREATE INDEX IF NOT EXISTS idx_likes_patch ON likes(patch_id);
   CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
+  CREATE INDEX IF NOT EXISTS idx_favorites_folder ON favorites(folder_id);
+  CREATE INDEX IF NOT EXISTS idx_favorites_user_folder ON favorites(user_id, folder_id);
+  CREATE INDEX IF NOT EXISTS idx_favorite_folders_user ON favorite_folders(user_id, sort_order);
   CREATE INDEX IF NOT EXISTS idx_modules_manufacturer ON modules(manufacturer_id);
   CREATE INDEX IF NOT EXISTS idx_collections_published ON collections(is_published, sort_order);
   CREATE INDEX IF NOT EXISTS idx_collection_patches_collection ON collection_patches(collection_id, sort_order);

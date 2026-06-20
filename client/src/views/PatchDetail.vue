@@ -19,13 +19,49 @@
               <el-icon><Star :fill="patch.is_liked ? '#ffd700' : 'none'" /></el-icon>
               {{ patch.is_liked ? '已点赞' : '点赞' }} ({{ patch.likes_count }})
             </el-button>
-            <el-button
-              :type="patch.is_favorited ? 'success' : 'default'"
-              @click="toggleFavorite"
-            >
-              <el-icon><Collection :fill="patch.is_favorited ? '#67c23a' : 'none'" /></el-icon>
-              {{ patch.is_favorited ? '已收藏' : '收藏' }}
-            </el-button>
+            <el-dropdown trigger="click" @command="handleFavoriteAction" :disabled="!userStore.isLoggedIn">
+              <el-button
+                :type="patch.is_favorited ? 'success' : 'default'"
+              >
+                <el-icon><Collection :fill="patch.is_favorited ? '#67c23a' : 'none'" /></el-icon>
+                {{ patch.is_favorited ? '已收藏' : '收藏' }}
+                <el-icon><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <div class="favorite-dropdown-header" v-if="!patch.is_favorited">
+                    <span>收藏到分组</span>
+                  </div>
+                  <div class="favorite-dropdown-header" v-else>
+                    <span>移动到分组</span>
+                  </div>
+                  <el-dropdown-item 
+                    v-for="folder in favoriteFolders" 
+                    :key="folder.id"
+                    :command="{ action: patch.is_favorited ? 'move' : 'add', folder_id: folder.id }"
+                  >
+                    <el-icon :color="folder.color"><Folder /></el-icon>
+                    <span>{{ getFolderDisplayName(folder) }}</span>
+                    <span class="folder-count">({{ folder.patch_count || folder.count || 0 }})</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item 
+                    v-if="!patch.is_favorited"
+                    :command="{ action: 'add', folder_id: null, new_folder: true }"
+                  >
+                    <el-icon><Plus /></el-icon>
+                    <span>新建分组...</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item 
+                    v-if="patch.is_favorited"
+                    :command="{ action: 'remove' }"
+                    divided
+                  >
+                    <el-icon><Delete /></el-icon>
+                    <span style="color: #f56c6c;">取消收藏</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <el-button type="primary" class="btn-primary" @click="addToCompare">
               <el-icon><SetUp /></el-icon>
               加入对比
@@ -359,6 +395,28 @@
       <p>Patch 不存在</p>
     </div>
 
+    <el-dialog
+      v-model="createFolderDialogVisible"
+      title="新建分组"
+      width="400px"
+    >
+      <el-form :model="newFolderForm" :rules="folderRules" ref="newFolderFormRef" label-width="80px">
+        <el-form-item label="分组名称" prop="name">
+          <el-input v-model="newFolderForm.name" placeholder="请输入分组名称" maxlength="50" show-word-limit />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="newFolderForm.description" type="textarea" :rows="3" placeholder="可选，描述一下这个分组" maxlength="200" show-word-limit />
+        </el-form-item>
+        <el-form-item label="颜色">
+          <el-color-picker v-model="newFolderForm.color" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createFolderDialogVisible = false">取消</el-button>
+        <el-button type="primary" class="btn-primary" @click="handleCreateFolderAndFavorite">确定</el-button>
+      </template>
+    </el-dialog>
+
     <ReportDialog
       v-model="reportDialogVisible"
       :target-type="reportTargetType"
@@ -376,7 +434,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Loading, Warning, ArrowLeft, Star, Collection, SetUp, MoreFilled, Edit, Delete, 
   View, WarningFilled, Lock, Unlock, ShoppingCart, Check, InfoFilled,
-  Headset, Download
+  Headset, Download, Folder, Plus, ArrowDown
 } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
@@ -404,6 +462,21 @@ const reportTargetType = ref('patch')
 const reportTargetId = ref(null)
 const reportTargetDescription = ref('')
 const versionHistoryRef = ref(null)
+const favoriteFolders = ref([])
+const createFolderDialogVisible = ref(false)
+const newFolderForm = ref({
+  name: '',
+  description: '',
+  color: '#ffd700'
+})
+const newFolderFormRef = ref(null)
+
+const folderRules = {
+  name: [
+    { required: true, message: '请输入分组名称', trigger: 'blur' },
+    { max: 50, message: '分组名称不能超过50个字符', trigger: 'blur' }
+  ]
+}
 
 const showVersionHistory = computed(() => {
   return isOwner.value || userStore.isAdmin
@@ -477,12 +550,89 @@ onMounted(async () => {
       product.value = productData
       permission.value = permissionData
     }
+
+    if (userStore.isLoggedIn) {
+      loadFavoriteFolders()
+    }
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
   }
 })
+
+const loadFavoriteFolders = async () => {
+  try {
+    const res = await patchStore.fetchFavoriteFolders()
+    favoriteFolders.value = res.folders || []
+  } catch (e) {
+    console.error('加载收藏分组失败:', e)
+  }
+}
+
+const getFolderDisplayName = (folder) => {
+  if (folder.is_default || folder.name === 'default') return '默认分组'
+  return folder.name
+}
+
+const handleFavoriteAction = async ({ action, folder_id, new_folder }) => {
+  if (action === 'add') {
+    if (new_folder) {
+      newFolderForm.value = {
+        name: '',
+        description: '',
+        color: '#ffd700'
+      }
+      createFolderDialogVisible.value = true
+      return
+    }
+    
+    try {
+      const res = await patchStore.toggleFavorite(patch.value.id, { folder_id })
+      patch.value.is_favorited = res.favorited
+      ElMessage.success('收藏成功')
+      loadFavoriteFolders()
+    } catch (e) {
+      ElMessage.error(e.error || '收藏失败')
+    }
+  } else if (action === 'move') {
+    try {
+      await patchStore.moveFavoriteToFolder(patch.value.id, folder_id)
+      ElMessage.success('移动成功')
+      loadFavoriteFolders()
+    } catch (e) {
+      ElMessage.error(e.error || '移动失败')
+    }
+  } else if (action === 'remove') {
+    try {
+      await ElMessageBox.confirm('确定要取消收藏这个 Patch 吗？', '确认', { type: 'warning' })
+      const res = await patchStore.toggleFavorite(patch.value.id)
+      patch.value.is_favorited = res.favorited
+      ElMessage.success('已取消收藏')
+      loadFavoriteFolders()
+    } catch (e) {}
+  }
+}
+
+const handleCreateFolderAndFavorite = async () => {
+  if (!newFolderFormRef.value) return
+  await newFolderFormRef.value.validate()
+  try {
+    const res = await patchStore.createFavoriteFolder(newFolderForm.value)
+    createFolderDialogVisible.value = false
+    
+    if (patch.value && !patch.value.is_favorited) {
+      await patchStore.toggleFavorite(patch.value.id, { folder_id: res.folder.id })
+      patch.value.is_favorited = true
+      ElMessage.success('收藏成功')
+    } else {
+      ElMessage.success('分组创建成功')
+    }
+    loadFavoriteFolders()
+  } catch (e) {
+    ElMessage.error(e.error || '操作失败')
+  }
+}
 
 const formatDate = (date) => {
   if (!date) return '-'
@@ -533,11 +683,7 @@ const toggleLike = async () => {
   ElMessage.success('操作成功')
 }
 
-const toggleFavorite = async () => {
-  const res = await patchStore.toggleFavorite(patch.value.id)
-  patch.value.is_favorited = res.favorited
-  ElMessage.success(res.favorited ? '已收藏' : '已取消收藏')
-}
+
 
 const addToCompare = async () => {
   try {
@@ -1021,5 +1167,76 @@ const onVersionRollback = async ({ result }) => {
 .module-manu {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.favorite-dropdown-header {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.favorite-dropdown-header span {
+  font-weight: 600;
+}
+
+.folder-count {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+:deep(.el-dropdown-menu__item) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:deep(.el-dialog) {
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:deep(.el-dialog__title) {
+  color: #fff;
+}
+
+:deep(.el-form-item__label) {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-textarea__inner) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+:deep(.el-input__wrapper:hover),
+:deep(.el-textarea__inner:hover) {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:deep(.el-input__wrapper.is-focus),
+:deep(.el-textarea__inner:focus) {
+  border-color: #ffd700;
+}
+
+:deep(.el-input__count) {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+:deep(.el-dropdown-menu) {
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:deep(.el-dropdown-menu__item) {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.el-dropdown-menu__item:hover) {
+  background: rgba(255, 215, 0, 0.1);
+  color: #ffd700;
 }
 </style>

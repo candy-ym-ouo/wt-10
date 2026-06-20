@@ -91,6 +91,15 @@ export const moduleApi = {
 
 export const socialApi = {
   getMyFavorites: (params) => api.get('/me/favorites', { params }),
+  getFavoriteFolders: () => api.get('/me/favorite-folders'),
+  createFavoriteFolder: (data) => api.post('/me/favorite-folders', data),
+  updateFavoriteFolder: (id, data) => api.put(`/me/favorite-folders/${id}`, data),
+  deleteFavoriteFolder: (id, data) => api.delete(`/me/favorite-folders/${id}`, { data }),
+  reorderFavoriteFolders: (orders) => api.put('/me/favorite-folders/reorder', { orders }),
+  moveFavoriteToFolder: (patchId, data) => api.post(`/patches/${patchId}/favorite/move`, data),
+  updateFavoriteFolderId: (favoriteId, data) => api.put(`/me/favorites/${favoriteId}/folder`, data),
+  batchMoveFavorites: (data) => api.post('/me/favorites/batch-move', data),
+  batchDeleteFavorites: (data) => api.post('/me/favorites/batch-delete', data),
   getMyPatches: (params) => api.get('/me/patches', { params }),
   getMyDrafts: (params) => api.get('/me/drafts', { params }),
   getMyScheduled: (params) => api.get('/me/scheduled', { params }),
