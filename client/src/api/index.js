@@ -282,6 +282,21 @@ export const adminReportApi = {
   }
 }
 
+export const contentReportApi = {
+  getCategories: () => api.get('/report/categories'),
+  createReport: (data) => api.post('/reports', data),
+  getMyReports: (params) => api.get('/me/reports', { params })
+}
+
+export const adminContentReportApi = {
+  getList: (params) => api.get('/admin/reports/content', { params }),
+  getDetail: (id) => api.get(`/admin/reports/content/${id}`),
+  handleReport: (id, data) => api.put(`/admin/reports/content/${id}`, data),
+  batchHandle: (data) => api.post('/admin/reports/content/batch', data)
+}
+
 export const downloadAPI = downloadApi
 export const adminDownloadAPI = adminDownloadApi
 export const adminReportAPI = adminReportApi
+export const contentReportAPI = contentReportApi
+export const adminContentReportAPI = adminContentReportApi

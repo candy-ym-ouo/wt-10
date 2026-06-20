@@ -15,6 +15,7 @@ const wikiController = require('./controllers/wikiController');
 const creatorVerificationController = require('./controllers/creatorVerificationController');
 const downloadController = require('./controllers/downloadController');
 const reportController = require('./controllers/reportController');
+const contentReportController = require('./controllers/contentReportController');
 const moduleRecommendationController = require('./controllers/moduleRecommendationController');
 
 const storage = multer.diskStorage({
@@ -236,5 +237,13 @@ router.get('/admin/reports/patches', requireAdmin, reportController.getPatchStat
 router.get('/admin/reports/modules', requireAdmin, reportController.getModuleStats);
 router.get('/admin/reports/manufacturers', requireAdmin, reportController.getManufacturerStats);
 router.get('/admin/reports/export', requireAdmin, reportController.exportReport);
+
+router.get('/report/categories', contentReportController.getReportCategories);
+router.post('/reports', requireAuth, contentReportController.createReport);
+router.get('/me/reports', requireAuth, contentReportController.getMyReports);
+router.get('/admin/reports/content', requireAdmin, contentReportController.adminGetReports);
+router.get('/admin/reports/content/:id', requireAdmin, contentReportController.adminGetReportDetail);
+router.put('/admin/reports/content/:id', requireAdmin, contentReportController.adminHandleReport);
+router.post('/admin/reports/content/batch', requireAdmin, contentReportController.adminBatchHandleReports);
 
 module.exports = router;

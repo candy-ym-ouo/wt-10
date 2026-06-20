@@ -23,6 +23,16 @@
               @click="showVerifiedInfo"
             />
             <FollowButton :user-id="user.id" size="large" />
+            <el-button
+              v-if="userStore.isLoggedIn && !isMe"
+              type="danger"
+              plain
+              size="small"
+              @click="reportUser"
+            >
+              <el-icon><WarningFilled /></el-icon>
+              举报
+            </el-button>
           </div>
           <p class="bio">{{ user.bio || '这个人很懒，什么都没写~' }}</p>
           <div class="stats">
@@ -102,6 +112,14 @@
       <el-icon class="empty-icon"><User /></el-icon>
       <p>用户不存在</p>
     </div>
+
+    <ReportDialog
+      v-model="reportDialogVisible"
+      :target-type="'user_profile'"
+      :target-id="user?.id"
+      :target-description="reportTargetDescription"
+      @success="onReportSuccess"
+    />
   </div>
 </template>
 
@@ -109,13 +127,14 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Loading, Document, Star, User } from '@element-plus/icons-vue'
+import { Loading, Document, Star, User, WarningFilled } from '@element-plus/icons-vue'
 import { userApi, patchApi } from '@/api'
 import { useUserStore } from '@/stores/userStore'
 import PatchCard from '@/components/PatchCard.vue'
 import FollowButton from '@/components/FollowButton.vue'
 import FollowList from '@/components/FollowList.vue'
 import CreatorBadge from '@/components/CreatorBadge.vue'
+import ReportDialog from '@/components/ReportDialog.vue'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -124,6 +143,8 @@ const loading = ref(true)
 const user = ref(null)
 const userPatches = ref([])
 const activeTab = ref('patches')
+const reportDialogVisible = ref(false)
+const reportTargetDescription = ref('')
 
 const isMe = computed(() => userStore.user?.id === parseInt(route.params.id))
 const patchCount = computed(() => userPatches.value.length)
@@ -137,6 +158,14 @@ const showVerifiedInfo = () => {
   if (user.value?.creator_verified_at) {
     ElMessage.success(`创作者认证 · ${formatDate(user.value.creator_verified_at)} 通过认证`)
   }
+}
+
+const reportUser = () => {
+  reportTargetDescription.value = `用户资料：${user.value.username}`
+  reportDialogVisible.value = true
+}
+
+const onReportSuccess = () => {
 }
 
 const fetchUser = async () => {

@@ -30,7 +30,7 @@
               <el-icon><SetUp /></el-icon>
               加入对比
             </el-button>
-            <el-dropdown v-if="isOwner || userStore.isAdmin" @command="handleAction">
+            <el-dropdown v-if="userStore.isLoggedIn" @command="handleAction">
               <el-button>
                 <el-icon><MoreFilled /></el-icon>
                 更多
@@ -38,11 +38,14 @@
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="edit" v-if="isOwner">
+                  <el-dropdown-item v-if="isOwner" command="edit">
                     <el-icon><Edit /></el-icon> 编辑
                   </el-dropdown-item>
-                  <el-dropdown-item command="delete">
+                  <el-dropdown-item v-if="isOwner || userStore.isAdmin" command="delete">
                     <el-icon><Delete /></el-icon> 删除
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="!isOwner" command="report">
+                    <el-icon><WarningFilled /></el-icon> 举报
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -153,6 +156,14 @@
                       >
                         <el-icon><Delete /></el-icon> 删除
                       </el-button>
+                      <el-button
+                        v-if="userStore.isLoggedIn && userStore.user?.id !== comment.user_id"
+                        type="text"
+                        size="small"
+                        @click="reportComment(comment)"
+                      >
+                        <el-icon><WarningFilled /></el-icon> 举报
+                      </el-button>
                     </div>
                     <div class="comment-text">{{ comment.content }}</div>
                   </div>
@@ -214,6 +225,14 @@
       <el-icon class="empty-icon"><Warning /></el-icon>
       <p>Patch 不存在</p>
     </div>
+
+    <ReportDialog
+      v-model="reportDialogVisible"
+      :target-type="reportTargetType"
+      :target-id="reportTargetId"
+      :target-description="reportTargetDescription"
+      @success="onReportSuccess"
+    />
   </div>
 </template>
 
@@ -221,10 +240,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Loading, Warning, ArrowLeft, Star, Collection, SetUp, MoreFilled, Edit, Delete, View } from '@element-plus/icons-vue'
+import { Loading, Warning, ArrowLeft, Star, Collection, SetUp, MoreFilled, Edit, Delete, View, WarningFilled } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
 import { moduleAPI } from '@/api'
+import ReportDialog from '@/components/ReportDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -236,6 +256,10 @@ const commentLoading = ref(false)
 const patch = ref(null)
 const newComment = ref('')
 const moduleList = ref([])
+const reportDialogVisible = ref(false)
+const reportTargetType = ref('patch')
+const reportTargetId = ref(null)
+const reportTargetDescription = ref('')
 
 const paramLabels = {
   oscillators: '🎹 振荡器',
@@ -343,7 +367,26 @@ const handleAction = async (cmd) => {
       ElMessage.success('删除成功')
       router.push('/patches')
     } catch {}
+  } else if (cmd === 'report') {
+    reportPatch()
   }
+}
+
+const reportPatch = () => {
+  reportTargetType.value = 'patch'
+  reportTargetId.value = patch.value.id
+  reportTargetDescription.value = `Patch：${patch.value.title}`
+  reportDialogVisible.value = true
+}
+
+const reportComment = (comment) => {
+  reportTargetType.value = 'comment'
+  reportTargetId.value = comment.id
+  reportTargetDescription.value = `评论（来自 ${comment.username}）：${comment.content.slice(0, 50)}${comment.content.length > 50 ? '...' : ''}`
+  reportDialogVisible.value = true
+}
+
+const onReportSuccess = () => {
 }
 
 const addComment = async () => {

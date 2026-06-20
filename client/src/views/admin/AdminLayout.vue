@@ -61,6 +61,10 @@
           <el-icon><PieChart /></el-icon>
           <span>数据报表</span>
         </el-menu-item>
+        <el-menu-item index="/admin/reports/content">
+          <el-icon><Warning /></el-icon>
+          <span>内容举报</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -93,7 +97,7 @@ import { ElMessage } from 'element-plus'
 import { 
   Setting, DataAnalysis, User, Document, Box, 
   OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
-  Folder, Histogram, PieChart
+  Folder, Histogram, PieChart, Warning
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 
