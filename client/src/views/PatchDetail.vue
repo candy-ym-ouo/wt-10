@@ -53,7 +53,12 @@
           </div>
         </div>
 
-        <h1 class="detail-title">{{ patch.title }}</h1>
+        <div class="title-row">
+          <h1 class="detail-title">{{ patch.title }}</h1>
+          <el-tag v-if="patch.is_paid" type="danger" size="large" class="paid-tag">
+            <el-icon><Lock /></el-icon> 付费内容
+          </el-tag>
+        </div>
         <p class="detail-desc">{{ patch.description }}</p>
 
         <div class="detail-meta">
@@ -77,9 +82,80 @@
         </div>
       </div>
 
+      <div v-if="patch.is_paid && product && !hasPermission" class="paid-product-card">
+        <div class="product-info">
+          <div class="product-header">
+            <h3>🎵 解锁完整内容</h3>
+            <div class="price-info">
+              <span class="current-price">¥{{ product.price }}</span>
+              <span v-if="product.original_price" class="original-price">
+                ¥{{ product.original_price }}
+              </span>
+              <el-tag v-if="product.is_discount" type="warning" size="small">限时特惠</el-tag>
+            </div>
+          </div>
+          <div class="product-description" v-if="product.description">
+            {{ product.description }}
+          </div>
+          <div class="product-benefits">
+            <div class="benefit-item">
+              <el-icon><Check /></el-icon>
+              <span>完整参数配置</span>
+            </div>
+            <div class="benefit-item">
+              <el-icon><Check /></el-icon>
+              <span>线缆连接图</span>
+            </div>
+            <div class="benefit-item">
+              <el-icon><Check /></el-icon>
+              <span>Patch 文件下载</span>
+            </div>
+            <div class="benefit-item">
+              <el-icon><Check /></el-icon>
+              <span>永久访问权限</span>
+            </div>
+          </div>
+          <div class="product-preview" v-if="patch.preview_content">
+            <h4>预览内容</h4>
+            <div class="preview-text">{{ patch.preview_content }}</div>
+          </div>
+          <div class="purchase-section" v-if="userStore.isLoggedIn">
+            <el-button 
+              type="primary" 
+              size="large" 
+              class="purchase-btn"
+              :loading="purchasing"
+              @click="purchasePatch"
+            >
+              <el-icon><ShoppingCart /></el-icon>
+              立即购买 ¥{{ product.price }}
+            </el-button>
+            <p class="purchase-note">
+              <el-icon><InfoFilled /></el-icon>
+              支持创作者，购买后可永久查看完整内容
+            </p>
+          </div>
+          <div v-else class="login-prompt">
+            <el-button type="primary" @click="$router.push('/login')">
+              登录后购买
+            </el-button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="patch.is_paid && hasPermission" class="permission-banner">
+        <el-icon><Unlock /></el-icon>
+        <span>
+          {{ permission?.permission_type === 'owner' ? '您是该内容的创作者' : '您已购买该内容' }}，可查看完整内容
+        </span>
+        <span v-if="permission?.purchased_at" class="purchase-time">
+          购买时间：{{ formatDate(permission.purchased_at) }}
+        </span>
+      </div>
+
       <el-row :gutter="24">
         <el-col :span="16">
-          <div class="card" v-if="parameters">
+          <div class="card" v-if="hasPermission && parameters">
             <div class="param-section">
               <h3>🎚️ 参数设置</h3>
               <div v-for="(value, key) in parameters" :key="key" class="param-block">
@@ -91,6 +167,23 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="card" v-if="hasPermission && cables">
+            <div class="param-section">
+              <h3>🔌 线缆连接</h3>
+              <div class="cables-content">{{ cables }}</div>
+            </div>
+          </div>
+
+          <div v-else-if="patch.is_paid && !hasPermission" class="card locked-content">
+            <div class="locked-overlay">
+              <el-icon class="locked-icon"><Lock /></el-icon>
+              <p>参数设置为付费内容</p>
+              <el-button type="primary" @click="scrollToProduct">
+                购买解锁完整内容
+              </el-button>
             </div>
           </div>
 
@@ -206,14 +299,37 @@
             </div>
           </div>
 
-          <div class="card" v-if="patch.audio_url || patch.patch_file">
+          <div class="card" v-if="hasPermission && (patch.audio_url || patch.patch_file)">
             <div class="param-section">
               <h3>🔗 资源链接</h3>
               <div v-if="patch.audio_url">
-                <a :href="patch.audio_url" target="_blank">🎵 试听音频</a>
+                <el-button type="primary" link @click="openLink(patch.audio_url)">
+                  <el-icon><Headset /></el-icon> 试听音频
+                </el-button>
               </div>
               <div v-if="patch.patch_file" style="margin-top: 12px;">
-                <a :href="patch.patch_file" target="_blank">📄 Patch 文件</a>
+                <el-button type="success" link @click="openLink(patch.patch_file)">
+                  <el-icon><Download /></el-icon> 下载 Patch 文件
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="patch.is_paid && !hasPermission" class="card locked-content">
+            <div class="locked-overlay">
+              <el-icon class="locked-icon"><Lock /></el-icon>
+              <p>资源链接为付费内容</p>
+            </div>
+          </div>
+
+          <div class="card" v-if="patch.is_paid && product && product.sales_count > 0">
+            <div class="param-section">
+              <h3>👥 销售数据</h3>
+              <div class="sales-info">
+                <div class="sales-item">
+                  <span class="sales-label">已售出</span>
+                  <span class="sales-value">{{ product.sales_count }} 份</span>
+                </div>
               </div>
             </div>
           </div>
@@ -240,9 +356,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Loading, Warning, ArrowLeft, Star, Collection, SetUp, MoreFilled, Edit, Delete, View, WarningFilled } from '@element-plus/icons-vue'
+import { 
+  Loading, Warning, ArrowLeft, Star, Collection, SetUp, MoreFilled, Edit, Delete, 
+  View, WarningFilled, Lock, Unlock, ShoppingCart, Check, InfoFilled,
+  Headset, Download
+} from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
+import { useProductStore } from '@/stores/productStore'
 import { moduleAPI } from '@/api'
 import ReportDialog from '@/components/ReportDialog.vue'
 
@@ -250,10 +371,14 @@ const route = useRoute()
 const router = useRouter()
 const patchStore = usePatchStore()
 const userStore = useUserStore()
+const productStore = useProductStore()
 
 const loading = ref(true)
 const commentLoading = ref(false)
+const purchasing = ref(false)
 const patch = ref(null)
+const product = ref(null)
+const permission = ref(null)
 const newComment = ref('')
 const moduleList = ref([])
 const reportDialogVisible = ref(false)
@@ -285,6 +410,14 @@ const parameters = computed(() => {
   }
 })
 
+const cables = computed(() => {
+  try {
+    return patch.value?.cables || ''
+  } catch {
+    return ''
+  }
+})
+
 const modulesUsed = computed(() => {
   try {
     const ids = JSON.parse(patch.value?.modules_used) || []
@@ -298,6 +431,12 @@ const isOwner = computed(() =>
   userStore.user?.id === patch.value?.user_id
 )
 
+const hasPermission = computed(() => {
+  if (!patch.value?.is_paid) return true
+  if (isOwner.value) return true
+  return permission.value?.has_permission || false
+})
+
 onMounted(async () => {
   try {
     const [patchData, modules] = await Promise.all([
@@ -306,6 +445,15 @@ onMounted(async () => {
     ])
     patch.value = patchData
     moduleList.value = modules.list
+
+    if (patch.value.is_paid) {
+      const [productData, permissionData] = await Promise.all([
+        productStore.getProductByPatchId(patch.value.id).catch(() => null),
+        productStore.checkPermission(patch.value.id).catch(() => ({ has_permission: false }))
+      ])
+      product.value = productData
+      permission.value = permissionData
+    }
   } catch (e) {
     console.error(e)
   } finally {
@@ -412,6 +560,49 @@ const deleteComment = async (commentId) => {
     ElMessage.success('删除成功')
   } catch {}
 }
+
+const purchasePatch = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要以 ¥${product.value.price} 购买 "${patch.value.title}" 吗？`,
+      '确认购买',
+      { type: 'warning' }
+    )
+    
+    purchasing.value = true
+    await productStore.createOrder({
+      patch_id: patch.value.id,
+      product_id: product.value.id
+    })
+    
+    ElMessage.success('购买成功！')
+    
+    const permissionData = await productStore.checkPermission(patch.value.id)
+    permission.value = permissionData
+    
+    if (product.value) {
+      product.value.sales_count++
+    }
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error(err.error || '购买失败')
+      console.error(err)
+    }
+  } finally {
+    purchasing.value = false
+  }
+}
+
+const scrollToProduct = () => {
+  const el = document.querySelector('.paid-product-card')
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+
+const openLink = (url) => {
+  window.open(url, '_blank')
+}
 </script>
 
 <style scoped>
@@ -427,11 +618,22 @@ const deleteComment = async (commentId) => {
   gap: 8px;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .detail-title {
   font-size: 32px;
   font-weight: 700;
   color: #fff;
-  margin-bottom: 12px;
+  margin: 0;
+}
+
+.paid-tag {
+  font-size: 14px;
 }
 
 .detail-desc {
@@ -484,6 +686,203 @@ const deleteComment = async (commentId) => {
   padding: 4px 12px;
   border-radius: 16px;
   font-size: 13px;
+}
+
+.paid-product-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid rgba(245, 108, 108, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.product-info {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.product-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.product-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #fff;
+}
+
+.price-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.current-price {
+  font-size: 32px;
+  font-weight: bold;
+  color: #f56c6c;
+}
+
+.original-price {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: line-through;
+}
+
+.product-description {
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.product-benefits {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.benefit-item .el-icon {
+  color: #67c23a;
+}
+
+.product-preview {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.product-preview h4 {
+  margin: 0 0 8px 0;
+  color: #ffd700;
+  font-size: 14px;
+}
+
+.preview-text {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.purchase-section {
+  text-align: center;
+}
+
+.purchase-btn {
+  width: 100%;
+  max-width: 300px;
+  font-size: 16px;
+  padding: 12px 24px;
+}
+
+.purchase-note {
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.login-prompt {
+  text-align: center;
+  padding: 20px;
+}
+
+.permission-banner {
+  background: linear-gradient(135deg, rgba(103, 194, 58, 0.1) 0%, rgba(103, 194, 58, 0.05) 100%);
+  border: 1px solid rgba(103, 194, 58, 0.3);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #67c23a;
+}
+
+.permission-banner .el-icon {
+  font-size: 20px;
+}
+
+.purchase-time {
+  margin-left: auto;
+  color: rgba(103, 194, 58, 0.7);
+  font-size: 13px;
+}
+
+.locked-content {
+  position: relative;
+  min-height: 200px;
+  overflow: hidden;
+}
+
+.locked-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 10;
+}
+
+.locked-icon {
+  font-size: 48px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.locked-overlay p {
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.cables-content {
+  white-space: pre-wrap;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 16px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: monospace;
+  line-height: 1.8;
+}
+
+.sales-info {
+  display: flex;
+  justify-content: space-around;
+}
+
+.sales-item {
+  text-align: center;
+}
+
+.sales-label {
+  display: block;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.sales-value {
+  display: block;
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffd700;
 }
 
 .param-block {

@@ -313,3 +313,51 @@ export const adminDownloadAPI = adminDownloadApi
 export const adminReportAPI = adminReportApi
 export const contentReportAPI = contentReportApi
 export const adminContentReportAPI = adminContentReportApi
+
+export const productApi = {
+  getList: (params) => api.get('/products', { params }),
+  getDetail: (id) => api.get(`/products/${id}`),
+  getByPatchId: (patchId) => api.get(`/products/patch/${patchId}`)
+}
+
+export const adminProductApi = {
+  getList: (params) => api.get('/admin/products', { params }),
+  getDetail: (id) => api.get(`/admin/products/${id}`),
+  create: (data) => api.post('/admin/products', data),
+  update: (id, data) => api.put(`/admin/products/${id}`, data),
+  delete: (id) => api.delete(`/admin/products/${id}`),
+  toggleActive: (id, is_active) => api.put(`/admin/products/${id}/active`, { is_active })
+}
+
+export const orderApi = {
+  getMyOrders: (params) => api.get('/me/orders', { params }),
+  getMyOrderDetail: (id) => api.get(`/me/orders/${id}`),
+  create: (data) => api.post('/orders', data),
+  checkPermission: (patchId) => api.get(`/patches/${patchId}/permission`),
+  getMyPermissions: (params) => api.get('/me/permissions', { params })
+}
+
+export const adminOrderApi = {
+  getList: (params) => api.get('/admin/orders', { params }),
+  getStats: () => api.get('/admin/orders/stats')
+}
+
+export const earningsApi = {
+  getMyEarnings: (params) => api.get('/me/earnings', { params }),
+  getEarningsOverview: () => api.get('/me/earnings/overview'),
+  createWithdrawal: (data) => api.post('/me/withdrawals', data),
+  getMyWithdrawals: (params) => api.get('/me/withdrawals', { params })
+}
+
+export const adminEarningsApi = {
+  getStats: () => api.get('/admin/earnings/stats'),
+  getWithdrawals: (params) => api.get('/admin/withdrawals', { params }),
+  reviewWithdrawal: (id, data) => api.put(`/admin/withdrawals/${id}/review`, data)
+}
+
+export const productAPI = productApi
+export const adminProductAPI = adminProductApi
+export const orderAPI = orderApi
+export const adminOrderAPI = adminOrderApi
+export const earningsAPI = earningsApi
+export const adminEarningsAPI = adminEarningsApi

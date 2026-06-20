@@ -65,6 +65,24 @@
           <el-icon><Warning /></el-icon>
           <span>内容举报</span>
         </el-menu-item>
+        <el-sub-menu index="earnings">
+          <template #title>
+            <el-icon><Money /></el-icon>
+            <span>收益管理</span>
+          </template>
+          <el-menu-item index="/admin/products">
+            <el-icon><Goods /></el-icon>
+            <span>商品管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/orders">
+            <el-icon><ShoppingCart /></el-icon>
+            <span>订单管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/withdrawals">
+            <el-icon><Money /></el-icon>
+            <span>提现管理</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
     <el-container>
@@ -97,7 +115,7 @@ import { ElMessage } from 'element-plus'
 import { 
   Setting, DataAnalysis, User, Document, Box, 
   OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
-  Folder, Histogram, PieChart, Warning
+  Folder, Histogram, PieChart, Warning, Goods, ShoppingCart, Money
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 

@@ -140,6 +140,38 @@
           <el-switch v-model="form.is_public" active-text="公开" inactive-text="私有" />
         </el-form-item>
 
+        <el-divider content-position="left">💰 付费设置</el-divider>
+
+        <el-form-item label="付费内容">
+          <el-switch v-model="form.is_paid" active-text="开启" inactive-text="关闭" />
+          <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+            开启后，您可以设置价格，用户购买后才能查看完整内容
+          </div>
+        </el-form-item>
+
+        <template v-if="form.is_paid">
+          <el-form-item label="售价" prop="price">
+            <el-input-number 
+              v-model="form.price" 
+              :min="0" 
+              :precision="2"
+              placeholder="请输入售价（元）"
+              style="width: 100%; max-width: 300px;"
+            />
+          </el-form-item>
+          <el-form-item label="预览内容">
+            <el-input 
+              v-model="form.preview_content" 
+              type="textarea" 
+              :rows="3" 
+              placeholder="输入部分预览内容，吸引用户购买完整内容"
+            />
+            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+              这部分内容对所有用户可见，用于展示内容价值
+            </div>
+          </el-form-item>
+        </template>
+
         <el-form-item>
           <el-button type="primary" size="large" class="btn-primary" @click="submit" :loading="loading">
             发布 Patch
@@ -175,6 +207,9 @@ const form = reactive({
   audio_url: '',
   patch_file: '',
   is_public: true,
+  is_paid: false,
+  price: 0,
+  preview_content: '',
   parameters: {
     oscillators: [{ type: 'saw', detune: 0, octave: 0 }],
     filter: { cutoff: 5000, resonance: 0.3, envAmount: 0.5 },
@@ -184,7 +219,19 @@ const form = reactive({
 })
 
 const rules = {
-  title: [{ required: true, message: '请输入标题', trigger: 'blur' }]
+  title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+  price: [
+    { 
+      validator: (rule, value, callback) => {
+        if (form.is_paid && (!value || value <= 0)) {
+          callback(new Error('请输入有效的价格'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
 }
 
 onMounted(async () => {

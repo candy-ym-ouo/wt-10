@@ -150,6 +150,24 @@ const routes = [
     component: () => import('@/views/DownloadDetail.vue')
   },
   {
+    path: '/my-orders',
+    name: 'MyOrders',
+    component: () => import('@/views/MyOrders.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/my-permissions',
+    name: 'MyPermissions',
+    component: () => import('@/views/MyPermissions.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/creator-earnings',
+    name: 'CreatorEarnings',
+    component: () => import('@/views/CreatorEarnings.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'Admin',
     component: () => import('@/views/admin/AdminLayout.vue'),
@@ -234,6 +252,21 @@ const routes = [
         path: 'reports/content',
         name: 'AdminContentReports',
         component: () => import('@/views/admin/ContentReports.vue')
+      },
+      {
+        path: 'products',
+        name: 'AdminProducts',
+        component: () => import('@/views/admin/AdminProducts.vue')
+      },
+      {
+        path: 'orders',
+        name: 'AdminOrders',
+        component: () => import('@/views/admin/AdminOrders.vue')
+      },
+      {
+        path: 'withdrawals',
+        name: 'AdminWithdrawals',
+        component: () => import('@/views/admin/AdminWithdrawals.vue')
       }
     ]
   },

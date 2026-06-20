@@ -99,6 +99,15 @@
               <el-dropdown-item command="favorites">
                 <el-icon><Star /></el-icon>我的收藏
               </el-dropdown-item>
+              <el-dropdown-item command="my-orders">
+                <el-icon><ShoppingCart /></el-icon>我的订单
+              </el-dropdown-item>
+              <el-dropdown-item command="my-permissions">
+                <el-icon><Key /></el-icon>已购内容
+              </el-dropdown-item>
+              <el-dropdown-item command="creator-earnings">
+                <el-icon><Money /></el-icon>创作者收益
+              </el-dropdown-item>
               <el-dropdown-item v-if="userStore.isAdmin" command="admin">
                 <el-icon><Setting /></el-icon>后台管理
               </el-dropdown-item>
@@ -126,7 +135,7 @@ import {
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
   Odometer, CollectionTag, TrendCharts, Present, Trophy, Bell,
-  Folder
+  Folder, ShoppingCart, Key, Money
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
@@ -187,6 +196,15 @@ const handleCommand = (command) => {
       break
     case 'favorites':
       router.push('/favorites')
+      break
+    case 'my-orders':
+      router.push('/my-orders')
+      break
+    case 'my-permissions':
+      router.push('/my-permissions')
+      break
+    case 'creator-earnings':
+      router.push('/creator-earnings')
       break
     case 'admin':
       router.push('/admin')

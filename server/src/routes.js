@@ -17,6 +17,9 @@ const downloadController = require('./controllers/downloadController');
 const reportController = require('./controllers/reportController');
 const contentReportController = require('./controllers/contentReportController');
 const moduleRecommendationController = require('./controllers/moduleRecommendationController');
+const productController = require('./controllers/productController');
+const orderController = require('./controllers/orderController');
+const earningsController = require('./controllers/earningsController');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -245,5 +248,38 @@ router.get('/admin/reports/content', requireAdmin, contentReportController.admin
 router.get('/admin/reports/content/:id', requireAdmin, contentReportController.adminGetReportDetail);
 router.put('/admin/reports/content/:id', requireAdmin, contentReportController.adminHandleReport);
 router.post('/admin/reports/content/batch', requireAdmin, contentReportController.adminBatchHandleReports);
+
+router.get('/products', productController.getProductList);
+router.get('/products/:id', productController.getProductDetail);
+router.get('/products/patch/:patchId', productController.getProductByPatchId);
+router.post('/products', requireAdmin, productController.createProduct);
+router.put('/products/:id', requireAdmin, productController.updateProduct);
+router.delete('/products/:id', requireAdmin, productController.deleteProduct);
+router.put('/products/:id/active', requireAdmin, productController.toggleProductActive);
+
+router.get('/admin/products', requireAdmin, productController.getProductList);
+router.get('/admin/products/:id', requireAdmin, productController.getProductDetail);
+router.post('/admin/products', requireAdmin, productController.createProduct);
+router.put('/admin/products/:id', requireAdmin, productController.updateProduct);
+router.delete('/admin/products/:id', requireAdmin, productController.deleteProduct);
+router.put('/admin/products/:id/active', requireAdmin, productController.toggleProductActive);
+
+router.get('/me/orders', requireAuth, orderController.getMyOrders);
+router.get('/me/orders/:id', requireAuth, orderController.getOrderDetail);
+router.post('/orders', requireAuth, orderController.createOrder);
+router.get('/patches/:patchId/permission', orderController.checkPermission);
+router.get('/me/permissions', requireAuth, orderController.getMyPermissions);
+
+router.get('/admin/orders', requireAdmin, orderController.getAllOrders);
+router.get('/admin/orders/stats', requireAdmin, orderController.getOrderStats);
+
+router.get('/me/earnings', requireAuth, earningsController.getMyEarnings);
+router.get('/me/earnings/overview', requireAuth, earningsController.getEarningsOverview);
+router.post('/me/withdrawals', requireAuth, earningsController.createWithdrawal);
+router.get('/me/withdrawals', requireAuth, earningsController.getMyWithdrawals);
+
+router.get('/admin/earnings/stats', requireAdmin, earningsController.getEarningsStats);
+router.get('/admin/withdrawals', requireAdmin, earningsController.getAllWithdrawals);
+router.put('/admin/withdrawals/:id/review', requireAdmin, earningsController.reviewWithdrawal);
 
 module.exports = router;

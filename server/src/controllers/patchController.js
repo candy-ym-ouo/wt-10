@@ -131,7 +131,8 @@ exports.getPatchDetail = async (ctx) => {
 exports.createPatch = async (ctx) => {
   const {
     title, description, modules_used, parameters,
-    cables, audio_url, image_url, patch_file, tags, is_public
+    cables, audio_url, image_url, patch_file, tags, is_public,
+    is_paid, price, preview_content
   } = ctx.request.body;
 
   if (!title) {
@@ -140,10 +141,14 @@ exports.createPatch = async (ctx) => {
     return;
   }
 
+  const isPaid = is_paid ? 1 : 0;
+  const patchPrice = isPaid ? (price || 0) : 0;
+
   const stmt = db.prepare(`
     INSERT INTO patches (title, description, user_id, modules_used, parameters,
-                         cables, audio_url, image_url, patch_file, tags, is_public)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         cables, audio_url, image_url, patch_file, tags, is_public,
+                         is_paid, price, preview_content)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const isPublic = is_public ? 1 : 0;
@@ -154,8 +159,22 @@ exports.createPatch = async (ctx) => {
     JSON.stringify(cables || []),
     audio_url, image_url, patch_file,
     JSON.stringify(tags || []),
-    isPublic
+    isPublic,
+    isPaid,
+    patchPrice,
+    preview_content || null
   );
+
+  const patchId = result.lastInsertRowid;
+
+  if (isPaid && patchPrice > 0) {
+    const productStmt = db.prepare(`
+      INSERT OR IGNORE INTO patch_products 
+      (patch_id, name, price, is_active)
+      VALUES (?, ?, ?, 1)
+    `);
+    productStmt.run(patchId, title, patchPrice);
+  }
 
   if (isPublic) {
     const user = db.prepare('SELECT username FROM users WHERE id = ?').get(ctx.state.user.id);
@@ -168,17 +187,18 @@ exports.createPatch = async (ctx) => {
         follower.follower_id,
         'new_patch',
         ctx.state.user.id,
+        patchId,
         result.lastInsertRowid,
-        `${user?.username || '用户'} 发布了新 Patch "${title}"`,
-        {
-          category: 'follow',
-          linkUrl: `/patches/${result.lastInsertRowid}`
-        }
+        `${user.username} 发布了新 Patch：${title}`,
+        { linkUrl: `/patches/${patchId}` }
       );
     });
   }
 
-  ctx.body = { id: result.lastInsertRowid };
+  ctx.body = {
+    id: patchId,
+    message: '创建成功'
+  };
 };
 
 exports.updatePatch = async (ctx) => {
@@ -199,7 +219,8 @@ exports.updatePatch = async (ctx) => {
 
   const {
     title, description, modules_used, parameters,
-    cables, audio_url, image_url, patch_file, tags, is_public
+    cables, audio_url, image_url, patch_file, tags, is_public,
+    is_paid, price, preview_content
   } = ctx.request.body;
 
   const stmt = db.prepare(`
@@ -214,9 +235,15 @@ exports.updatePatch = async (ctx) => {
       patch_file = COALESCE(?, patch_file),
       tags = COALESCE(?, tags),
       is_public = COALESCE(?, is_public),
+      is_paid = COALESCE(?, is_paid),
+      price = COALESCE(?, price),
+      preview_content = COALESCE(?, preview_content),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `);
+
+  const isPaid = is_paid !== undefined ? (is_paid ? 1 : 0) : undefined;
+  const patchPrice = isPaid === 1 ? (price || 0) : (isPaid === 0 ? 0 : price);
 
   stmt.run(
     title, description,
@@ -226,8 +253,35 @@ exports.updatePatch = async (ctx) => {
     audio_url, image_url, patch_file,
     tags ? JSON.stringify(tags) : null,
     is_public !== undefined ? (is_public ? 1 : 0) : null,
+    isPaid,
+    patchPrice,
+    preview_content,
     id
   );
+
+  if (isPaid !== undefined) {
+    if (isPaid && patchPrice > 0) {
+      const productStmt = db.prepare(`
+        INSERT OR REPLACE INTO patch_products 
+        (id, patch_id, name, price, is_active, created_at, updated_at)
+        VALUES (
+          (SELECT id FROM patch_products WHERE patch_id = ?),
+          ?, ?, ?, 1,
+          COALESCE((SELECT created_at FROM patch_products WHERE patch_id = ?), CURRENT_TIMESTAMP),
+          CURRENT_TIMESTAMP
+        )
+      `);
+      productStmt.run(id, id, title || patch.title, patchPrice, id);
+    } else if (isPaid === 0) {
+      db.prepare('DELETE FROM patch_products WHERE patch_id = ?').run(id);
+    }
+  } else if (price !== undefined) {
+    const existingProduct = db.prepare('SELECT * FROM patch_products WHERE patch_id = ?').get(id);
+    if (existingProduct) {
+      db.prepare('UPDATE patch_products SET price = ?, updated_at = CURRENT_TIMESTAMP WHERE patch_id = ?')
+        .run(price, id);
+    }
+  }
 
   ctx.body = { success: true };
 };
