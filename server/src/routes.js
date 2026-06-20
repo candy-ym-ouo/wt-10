@@ -25,6 +25,7 @@ const earningsController = require('./controllers/earningsController');
 const articleController = require('./controllers/articleController');
 const openPlatformController = require('./controllers/openPlatformController');
 const patchLabController = require('./controllers/patchLabController');
+const searchController = require('./controllers/searchController');
 const { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, getRoleLabel, isStaffRole } = require('./constants/permissions');
 
 const storage = multer.diskStorage({
@@ -332,6 +333,22 @@ router.post('/me/lab/experiments/:id/snapshots', requireAuth, patchLabController
 router.put('/me/lab/experiments/:id/snapshots/:snapshotId', requireAuth, patchLabController.updateSnapshot);
 router.delete('/me/lab/experiments/:id/snapshots/:snapshotId', requireAuth, patchLabController.deleteSnapshot);
 router.post('/me/lab/experiments/:id/result', requireAuth, patchLabController.saveResult);
+
+router.get('/search', searchController.globalSearch);
+router.get('/search/hot', searchController.getHotQueries);
+router.get('/search/ads', searchController.getSearchAds);
+router.get('/search/suggest', searchController.suggestSearch);
+router.get('/me/search-history', requireAuth, searchController.getSearchHistory);
+router.delete('/me/search-history', requireAuth, searchController.clearSearchHistory);
+
+router.get('/admin/search/hot-queries', requirePermission(PERMISSIONS.SEARCH_VIEW), searchController.adminGetHotQueries);
+router.post('/admin/search/hot-queries', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminCreateHotQuery);
+router.put('/admin/search/hot-queries/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminUpdateHotQuery);
+router.delete('/admin/search/hot-queries/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminDeleteHotQuery);
+router.get('/admin/search/ad-placements', requirePermission(PERMISSIONS.SEARCH_VIEW), searchController.adminGetAdPlacements);
+router.post('/admin/search/ad-placements', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminCreateAdPlacement);
+router.put('/admin/search/ad-placements/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminUpdateAdPlacement);
+router.delete('/admin/search/ad-placements/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminDeleteAdPlacement);
 
 router.get('/admin/roles', requireAdmin, async (ctx) => {
   ctx.body = {

@@ -437,3 +437,26 @@ export const patchLabApi = {
 }
 
 export const patchLabAPI = patchLabApi
+
+export const searchApi = {
+  globalSearch: (params) => api.get('/search', { params }),
+  getHotQueries: (params) => api.get('/search/hot', { params }),
+  getSearchAds: (params) => api.get('/search/ads', { params }),
+  getSuggestions: (params) => api.get('/search/suggest', { params }),
+  getMyHistory: (params) => api.get('/me/search-history', { params }),
+  clearMyHistory: () => api.delete('/me/search-history')
+}
+
+export const adminSearchApi = {
+  getHotQueries: (params) => api.get('/admin/search/hot-queries', { params }),
+  createHotQuery: (data) => api.post('/admin/search/hot-queries', data),
+  updateHotQuery: (id, data) => api.put(`/admin/search/hot-queries/${id}`, data),
+  deleteHotQuery: (id) => api.delete(`/admin/search/hot-queries/${id}`),
+  getAdPlacements: (params) => api.get('/admin/search/ad-placements', { params }),
+  createAdPlacement: (data) => api.post('/admin/search/ad-placements', data),
+  updateAdPlacement: (id, data) => api.put(`/admin/search/ad-placements/${id}`, data),
+  deleteAdPlacement: (id) => api.delete(`/admin/search/ad-placements/${id}`)
+}
+
+export const searchAPI = searchApi
+export const adminSearchAPI = adminSearchApi

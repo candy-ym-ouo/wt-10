@@ -59,6 +59,11 @@
       </nav>
 
       <div class="header-right">
+        <div class="global-search-btn" @click="showSearchDialog = true" :class="{ active: $route.path === '/search' }">
+          <el-icon><Search /></el-icon>
+          <span class="search-shortcut">⌘K</span>
+        </div>
+
         <div 
           v-if="userStore.isLoggedIn" 
           class="notification-btn"
@@ -141,6 +146,54 @@
         </div>
       </div>
     </div>
+
+    <el-dialog
+      v-model="showSearchDialog"
+      :show-close="false"
+      width="640px"
+      top="10vh"
+      class="global-search-dialog"
+      :append-to-body="true"
+      @opened="onDialogOpened"
+    >
+      <div class="dialog-search-box">
+        <el-input
+          ref="dialogSearchInput"
+          v-model="dialogKeyword"
+          placeholder="搜索全站：Patch、模块、厂商、用户、专题..."
+          size="large"
+          :prefix-icon="Search"
+          @keyup.enter="goSearch"
+          clearable
+        >
+          <template #append>
+            <el-button @click="goSearch" type="primary" class="btn-primary">搜索</el-button>
+          </template>
+        </el-input>
+      </div>
+      <div v-if="dialogSuggestions.length > 0" class="dialog-suggestions">
+        <div
+          v-for="s in dialogSuggestions"
+          :key="s"
+          class="dialog-suggestion-item"
+          @click="dialogKeyword = s; goSearch()"
+        >
+          <el-icon><Search /></el-icon>
+          {{ s }}
+        </div>
+      </div>
+      <div v-else class="dialog-quick-links">
+        <div class="dialog-section-title">🔥 热门搜索</div>
+        <div class="dialog-hot-tags">
+          <span
+            v-for="item in dialogHotQueries"
+            :key="item.keyword"
+            class="dialog-hot-tag"
+            @click="dialogKeyword = item.keyword; goSearch()"
+          >{{ item.keyword }}</span>
+        </div>
+      </div>
+    </el-dialog>
   </header>
 </template>
 
@@ -152,12 +205,12 @@ import {
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
   Odometer, CollectionTag, TrendCharts, Present, Trophy, Bell,
-  Folder, ShoppingCart, Key, Money, Reading
+  Folder, ShoppingCart, Key, Money, Reading, Search
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
 import { useNotificationStore } from '@/stores/notificationStore'
-import { socialAPI } from '@/api'
+import { socialAPI, searchAPI } from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -165,6 +218,61 @@ const patchStore = usePatchStore()
 const notificationStore = useNotificationStore()
 
 const unreadCount = ref(0)
+const showSearchDialog = ref(false)
+const dialogKeyword = ref('')
+const dialogSearchInput = ref(null)
+const dialogHotQueries = ref([])
+const dialogSuggestions = ref([])
+let dialogSuggestTimer = null
+
+const onDialogOpened = () => {
+  setTimeout(() => {
+    dialogSearchInput.value?.focus()
+  }, 100)
+  if (dialogHotQueries.value.length === 0) {
+    fetchDialogHotQueries()
+  }
+}
+
+const fetchDialogHotQueries = async () => {
+  try {
+    const res = await searchAPI.getHotQueries({ limit: 8 })
+    dialogHotQueries.value = res.list || []
+  } catch (e) { /* ignore */ }
+}
+
+const goSearch = () => {
+  if (!dialogKeyword.value.trim()) return
+  showSearchDialog.value = false
+  router.push({ path: '/search', query: { q: dialogKeyword.value.trim() } })
+  dialogKeyword.value = ''
+  dialogSuggestions.value = []
+}
+
+watch(dialogKeyword, (val) => {
+  if (dialogSuggestTimer) clearTimeout(dialogSuggestTimer)
+  if (!val.trim()) {
+    dialogSuggestions.value = []
+    return
+  }
+  dialogSuggestTimer = setTimeout(async () => {
+    try {
+      const res = await searchAPI.getSuggestions({ keyword: val.trim(), limit: 5 })
+      dialogSuggestions.value = res.suggestions || []
+    } catch (e) {
+      dialogSuggestions.value = []
+    }
+  }, 300)
+})
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault()
+      showSearchDialog.value = true
+    }
+  })
+}
 
 const fetchUnreadCount = async () => {
   if (!userStore.isLoggedIn) {
@@ -320,6 +428,40 @@ const handleCommand = (command) => {
   margin-left: 4px;
 }
 
+.global-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.global-search-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.global-search-btn.active {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.search-shortcut {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -406,5 +548,84 @@ const handleCommand = (command) => {
   .nav-links {
     display: none;
   }
+  .search-shortcut {
+    display: none;
+  }
+}
+
+:deep(.global-search-dialog) {
+  .el-dialog {
+    background: #2a2a3e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .el-dialog__header {
+    display: none;
+  }
+  .el-dialog__body {
+    padding: 0;
+  }
+}
+
+.dialog-search-box {
+  padding: 16px;
+}
+
+.dialog-suggestions {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dialog-suggestion-item {
+  padding: 10px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.dialog-suggestion-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dialog-suggestion-item .el-icon {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.dialog-quick-links {
+  padding: 16px 20px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dialog-section-title {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 12px;
+}
+
+.dialog-hot-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dialog-hot-tag {
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.dialog-hot-tag:hover {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: #ffd700;
 }
 </style>

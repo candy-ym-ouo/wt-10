@@ -203,6 +203,11 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/search',
+    name: 'SearchCenter',
+    component: () => import('@/views/SearchCenter.vue')
+  },
+  {
     path: '/open-platform',
     name: 'OpenPlatform',
     component: () => import('@/views/OpenPlatform.vue'),
@@ -351,6 +356,12 @@ const routes = [
         name: 'AdminAuditLogs',
         component: () => import('@/views/admin/AdminAuditLogs.vue'),
         meta: { permission: PERMISSIONS.AUDIT_LOG_VIEW }
+      },
+      {
+        path: 'search',
+        name: 'AdminSearch',
+        component: () => import('@/views/admin/AdminSearch.vue'),
+        meta: { permission: PERMISSIONS.SEARCH_VIEW }
       }
     ]
   },

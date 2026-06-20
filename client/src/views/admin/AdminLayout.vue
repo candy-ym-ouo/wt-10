@@ -111,6 +111,10 @@
           <el-icon><List /></el-icon>
           <span>操作审计</span>
         </el-menu-item>
+        <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.SEARCH_VIEW)" index="/admin/search">
+          <el-icon><Search /></el-icon>
+          <span>搜索运营</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -147,7 +151,7 @@ import {
   Setting, DataAnalysis, User, Document, Box, 
   OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
   Folder, Histogram, PieChart, Warning, Goods, ShoppingCart, Money, Key, Lock,
-  Crown, Operation, CircleCheck, List
+  Crown, Operation, CircleCheck, List, Search
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { PERMISSIONS, ROLES } from '@/constants/permissions'
