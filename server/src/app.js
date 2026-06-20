@@ -6,7 +6,7 @@ const db = require('./db');
 
 const { authMiddleware } = require('./middleware/auth');
 const { apiKeyAuth } = require('./middleware/apiKeyAuth');
-const { initAuditTables } = require('./middleware/audit');
+const { initAuditTables, globalAuditMiddleware } = require('./middleware/audit');
 const router = require('./routes');
 
 const app = new Koa();
@@ -641,8 +641,7 @@ app.use(bodyParser({
   jsonLimit: '10mb'
 }));
 
-app.use(authMiddleware);
-app.use(apiKeyAuth);
+app.use(globalAuditMiddleware);
 
 app.use(async (ctx, next) => {
   try {
@@ -656,6 +655,9 @@ app.use(async (ctx, next) => {
     ctx.body = { error: err.message || '服务器内部错误' };
   }
 });
+
+app.use(authMiddleware);
+app.use(apiKeyAuth);
 
 app.use(router.routes());
 app.use(router.allowedMethods());
