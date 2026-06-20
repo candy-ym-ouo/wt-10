@@ -92,14 +92,14 @@ exports.globalSearch = async (ctx) => {
     const users = db.prepare(`
       SELECT id, username, avatar, bio, is_creator_verified, creator_verified_at
       FROM users
-      WHERE role NOT IN ('banned', 'suspended')
+      WHERE role != 'banned'
         AND (username LIKE ? OR bio LIKE ?)
       ORDER BY is_creator_verified DESC, id
       LIMIT ? OFFSET ?
     `).all(likeKw, likeKw, limitNum, offset);
     const userCount = db.prepare(`
       SELECT COUNT(*) as count FROM users
-      WHERE role NOT IN ('banned', 'suspended')
+      WHERE role != 'banned'
         AND (username LIKE ? OR bio LIKE ?)
     `).get(likeKw, likeKw);
     results.users = { list: users, total: userCount.count };
@@ -108,18 +108,19 @@ exports.globalSearch = async (ctx) => {
 
   if (searchCollection) {
     const collections = db.prepare(`
-      SELECT c.id, c.title, c.description, c.cover_image, c.patches_count,
-             u.username, u.avatar
+      SELECT c.id, c.title, c.description, c.cover_url,
+             COUNT(cp.id) as patch_count
       FROM collections c
-      LEFT JOIN users u ON c.created_by = u.id
-      WHERE c.is_public = 1
+      LEFT JOIN collection_patches cp ON c.id = cp.collection_id
+      WHERE c.is_published = 1
         AND (c.title LIKE ? OR c.description LIKE ?)
-      ORDER BY c.patches_count DESC
+      GROUP BY c.id
+      ORDER BY patch_count DESC
       LIMIT ? OFFSET ?
     `).all(likeKw, likeKw, limitNum, offset);
     const collCount = db.prepare(`
       SELECT COUNT(*) as count FROM collections
-      WHERE is_public = 1 AND (title LIKE ? OR description LIKE ?)
+      WHERE is_published = 1 AND (title LIKE ? OR description LIKE ?)
     `).get(likeKw, likeKw);
     results.collections = { list: collections, total: collCount.count };
     totalResults += collCount.count;

@@ -299,6 +299,45 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_reports_target_user ON content_reports(target_user_id);
   CREATE INDEX IF NOT EXISTS idx_punishments_user ON report_punishments(target_user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_punishments_target ON report_punishments(target_type, target_id);
+
+  CREATE TABLE IF NOT EXISTS search_hot_queries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword TEXT NOT NULL,
+    search_count INTEGER DEFAULT 1,
+    is_pinned INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(keyword)
+  );
+
+  CREATE TABLE IF NOT EXISTS search_ad_placements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    link_url TEXT NOT NULL,
+    link_type TEXT DEFAULT 'internal',
+    position TEXT DEFAULT 'search_top',
+    sort_order INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    start_time DATETIME,
+    end_time DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS search_histories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    keyword TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_hot_queries_active ON search_hot_queries(is_active, is_pinned, search_count DESC);
+  CREATE INDEX IF NOT EXISTS idx_ad_placements_active ON search_ad_placements(is_active, position, sort_order);
+  CREATE INDEX IF NOT EXISTS idx_search_histories_user ON search_histories(user_id, created_at DESC);
 `);
 
 console.log('数据库表创建完成！');
@@ -333,4 +372,53 @@ console.log('管理员账户创建完成！用户名: admin, 密码: admin123');
 console.log('运营账户创建完成！用户名: operator, 密码: operator123');
 console.log('审核员账户创建完成！用户名: auditor, 密码: auditor123');
 console.log(`已为 ${allUsers.length} 个用户初始化订阅设置`);
+
+const searchHotCount = db.prepare('SELECT COUNT(*) as cnt FROM search_hot_queries').get().cnt;
+if (searchHotCount === 0) {
+  const hotKeywords = [
+    ['Moog', 128, 1],
+    ['氛围 Pad', 96, 0],
+    ['贝斯 Bass', 87, 0],
+    ['Mother-32', 74, 0],
+    ['Mutable Instruments', 65, 0],
+    ['鼓点 Rhythm', 58, 0],
+    ['主奏 Lead', 52, 0],
+    ['Make Noise', 45, 0],
+    ['Clouds', 38, 0],
+    ['夏日合成器', 31, 0]
+  ];
+  const insertHot = db.prepare(`
+    INSERT INTO search_hot_queries (keyword, search_count, is_pinned, is_active) VALUES (?, ?, ?, 1)
+  `);
+  hotKeywords.forEach(([kw, cnt, pinned]) => insertHot.run(kw, cnt, pinned));
+  console.log(`已初始化 ${hotKeywords.length} 条默认热搜词`);
+}
+
+const searchAdsCount = db.prepare('SELECT COUNT(*) as cnt FROM search_ad_placements').get().cnt;
+if (searchAdsCount === 0) {
+  const insertAd = db.prepare(`
+    INSERT INTO search_ad_placements (title, description, image_url, link_url, link_type, position, sort_order, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+  `);
+  insertAd.run(
+    '🎹 探索精选合成器 Patch',
+    '浏览社区最受欢迎的音色预设，激发你的创作灵感',
+    'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400',
+    '/patches',
+    'internal',
+    'search_top',
+    0
+  );
+  insertAd.run(
+    '🔥 夏日氛围合成器专题',
+    '精选适合夏日聆听的氛围合成器 Patch 合集',
+    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400',
+    '/collections/1',
+    'internal',
+    'search_top',
+    1
+  );
+  console.log('已初始化 2 条默认搜索运营位');
+}
+
 console.log('数据库初始化完成！');

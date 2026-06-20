@@ -242,14 +242,14 @@
               @click="$router.push(`/collections/${item.id}`)"
             >
               <div class="result-thumb">
-                <img v-if="item.cover_image" :src="item.cover_image" />
+                <img v-if="item.cover_url" :src="item.cover_url" />
                 <span v-else>🎯</span>
               </div>
               <div class="result-body">
                 <div class="result-title" v-html="highlight(item.title)"></div>
                 <div class="result-desc" v-if="item.description" v-html="highlight(truncate(item.description, 80))"></div>
                 <div class="result-meta">
-                  <span>{{ item.patches_count || 0 }} 个 Patch</span>
+                  <span>{{ item.patch_count || 0 }} 个 Patch</span>
                 </div>
               </div>
             </div>
