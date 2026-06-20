@@ -28,9 +28,23 @@ const createNotification = (userId, type, fromUserId, articleId, content, option
 exports.getArticles = async (ctx) => {
   const { page = 1, limit = 12, search, tag, user_id, sort = 'newest' } = ctx.query;
   const offset = (page - 1) * limit;
+  const currentUserId = ctx.state.user?.id || 0;
+  const targetUserId = user_id ? parseInt(user_id) : 0;
+  const isViewingOwn = targetUserId > 0 && targetUserId === currentUserId;
+  const isAdmin = ctx.state.user?.role === 'admin';
 
-  let where = ['a.is_public = 1', "a.status = 'approved'"];
+  let where = [];
   let params = [];
+
+  if (isViewingOwn || isAdmin) {
+    if (isAdmin && !isViewingOwn) {
+      where.push("(a.status = 'approved' OR a.status = 'pending' OR a.status = 'rejected')");
+      where.push('(a.is_public = 1 OR a.is_public = 0)');
+    }
+  } else {
+    where.push('a.is_public = 1');
+    where.push("a.status = 'approved'");
+  }
 
   if (search) {
     where.push('(a.title LIKE ? OR a.summary LIKE ? OR a.content LIKE ?)');
@@ -45,14 +59,14 @@ exports.getArticles = async (ctx) => {
     params.push(parseInt(user_id));
   }
 
-  const whereSql = 'WHERE ' + where.join(' AND ');
+  const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
 
   let orderSql = 'ORDER BY a.created_at DESC';
   if (sort === 'popular') orderSql = 'ORDER BY a.views_count DESC, a.likes_count DESC';
   if (sort === 'likes') orderSql = 'ORDER BY a.likes_count DESC';
   if (sort === 'comments') orderSql = 'ORDER BY a.comments_count DESC';
 
-  const userId = ctx.state.user?.id || 0;
+  const userId = currentUserId;
 
   const articles = db.prepare(`
     SELECT a.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
@@ -88,8 +102,6 @@ exports.getArticleDetail = async (ctx) => {
   const id = parseInt(ctx.params.id);
   const userId = ctx.state.user?.id || 0;
 
-  db.prepare('UPDATE articles SET views_count = views_count + 1 WHERE id = ?').run(id);
-
   const article = db.prepare(`
     SELECT a.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
            COUNT(al.id) as real_likes,
@@ -108,11 +120,22 @@ exports.getArticleDetail = async (ctx) => {
     return;
   }
 
-  if (article.status !== 'approved' && article.user_id !== userId && ctx.state.user?.role !== 'admin') {
+  const isAuthor = article.user_id === userId;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (article.is_public === 0 && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '该文章为私密文章' };
+    return;
+  }
+
+  if (article.status !== 'approved' && !isAuthor && !isAdmin) {
     ctx.status = 403;
     ctx.body = { error: '文章尚未审核通过' };
     return;
   }
+
+  db.prepare('UPDATE articles SET views_count = views_count + 1 WHERE id = ?').run(id);
 
   const moduleRefs = db.prepare(`
     SELECT amr.*, m.name as module_name, m.image as module_image, m.type as module_type,
@@ -280,6 +303,28 @@ exports.toggleLike = async (ctx) => {
   const articleId = parseInt(ctx.params.id);
   const userId = ctx.state.user.id;
 
+  const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
+  if (!article) {
+    ctx.status = 404;
+    ctx.body = { error: '文章不存在' };
+    return;
+  }
+
+  const isAuthor = article.user_id === userId;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (article.is_public === 0 && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '该文章为私密文章' };
+    return;
+  }
+
+  if (article.status !== 'approved' && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '文章尚未审核通过' };
+    return;
+  }
+
   const existing = db.prepare('SELECT * FROM article_likes WHERE user_id = ? AND article_id = ?').get(userId, articleId);
 
   if (existing) {
@@ -292,8 +337,7 @@ exports.toggleLike = async (ctx) => {
     db.prepare('UPDATE articles SET likes_count = likes_count + 1 WHERE id = ?').run(articleId);
     const count = db.prepare('SELECT likes_count FROM articles WHERE id = ?').get(articleId).likes_count;
     
-    const article = db.prepare('SELECT user_id, title FROM articles WHERE id = ?').get(articleId);
-    if (article && article.user_id !== userId) {
+    if (article.user_id !== userId) {
       const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
       createNotification(
         article.user_id,
@@ -313,6 +357,28 @@ exports.toggleFavorite = async (ctx) => {
   const articleId = parseInt(ctx.params.id);
   const userId = ctx.state.user.id;
   const { folder = 'default' } = ctx.request.body;
+
+  const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
+  if (!article) {
+    ctx.status = 404;
+    ctx.body = { error: '文章不存在' };
+    return;
+  }
+
+  const isAuthor = article.user_id === userId;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (article.is_public === 0 && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '该文章为私密文章' };
+    return;
+  }
+
+  if (article.status !== 'approved' && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '文章尚未审核通过' };
+    return;
+  }
 
   const existing = db.prepare('SELECT * FROM article_favorites WHERE user_id = ? AND article_id = ?').get(userId, articleId);
 
@@ -338,10 +404,25 @@ exports.addComment = async (ctx) => {
     return;
   }
 
-  const article = db.prepare('SELECT user_id, title FROM articles WHERE id = ?').get(id);
+  const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(id);
   if (!article) {
     ctx.status = 404;
     ctx.body = { error: '文章不存在' };
+    return;
+  }
+
+  const isAuthor = article.user_id === userId;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (article.is_public === 0 && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '该文章为私密文章' };
+    return;
+  }
+
+  if (article.status !== 'approved' && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '文章尚未审核通过' };
     return;
   }
 
@@ -429,6 +510,29 @@ exports.getMyArticles = async (ctx) => {
 
 exports.getModuleRefs = async (ctx) => {
   const id = parseInt(ctx.params.id);
+  const userId = ctx.state.user?.id || 0;
+
+  const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(id);
+  if (!article) {
+    ctx.status = 404;
+    ctx.body = { error: '文章不存在' };
+    return;
+  }
+
+  const isAuthor = article.user_id === userId;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (article.is_public === 0 && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '该文章为私密文章' };
+    return;
+  }
+
+  if (article.status !== 'approved' && !isAuthor && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '文章尚未审核通过' };
+    return;
+  }
 
   const refs = db.prepare(`
     SELECT amr.*, m.name as module_name, m.image as module_image, m.type as module_type,
