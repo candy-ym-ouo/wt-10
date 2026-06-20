@@ -81,7 +81,7 @@ exports.getExperimentDetail = async (ctx) => {
 
 exports.createExperiment = async (ctx) => {
   const userId = ctx.state.user.id;
-  const { name, description, patch_id, status } = ctx.request.body;
+  const { name, description, patch_id, status, create_default_snapshots } = ctx.request.body;
 
   if (!name || !name.trim()) {
     ctx.status = 400;
@@ -94,7 +94,52 @@ exports.createExperiment = async (ctx) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(userId, name.trim(), description || '', patch_id || null, status || 'draft');
 
-  ctx.body = { id: result.lastInsertRowid, message: '创建成功' };
+  const experimentId = result.lastInsertRowid;
+
+  if (create_default_snapshots) {
+    const defaultParamsA = {
+      osc_type: 'saw',
+      osc_detune: 0,
+      osc_octave: 0,
+      filter_cutoff: 5000,
+      filter_resonance: 0.3,
+      filter_env: 0.5,
+      env_attack: 10,
+      env_decay: 200,
+      env_sustain: 0.7,
+      env_release: 500,
+      lfo_rate: 4,
+      lfo_depth: 20,
+      lfo_wave: 'sine'
+    };
+    const defaultParamsB = {
+      osc_type: 'square',
+      osc_detune: 5,
+      osc_octave: 0,
+      filter_cutoff: 3000,
+      filter_resonance: 0.5,
+      filter_env: 0.7,
+      env_attack: 20,
+      env_decay: 400,
+      env_sustain: 0.5,
+      env_release: 800,
+      lfo_rate: 6,
+      lfo_depth: 30,
+      lfo_wave: 'triangle'
+    };
+
+    db.prepare(`
+      INSERT INTO patch_lab_snapshots (experiment_id, label, parameters, notes)
+      VALUES (?, ?, ?, ?)
+    `).run(experimentId, '方案 A', JSON.stringify(defaultParamsA), '明亮锯齿波音色');
+
+    db.prepare(`
+      INSERT INTO patch_lab_snapshots (experiment_id, label, parameters, notes)
+      VALUES (?, ?, ?, ?)
+    `).run(experimentId, '方案 B', JSON.stringify(defaultParamsB), '温暖方波音色');
+  }
+
+  ctx.body = { id: experimentId, message: '创建成功' };
 };
 
 exports.updateExperiment = async (ctx) => {

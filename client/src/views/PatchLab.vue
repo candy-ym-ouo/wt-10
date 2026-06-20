@@ -51,7 +51,16 @@
       <div v-if="experiments.length === 0" class="empty-state">
         <el-icon class="empty-icon"><Cpu /></el-icon>
         <p>还没有实验记录</p>
-        <el-button type="primary" class="btn-primary" @click="openCreateDialog">创建第一个实验</el-button>
+        <div class="empty-actions">
+          <el-button type="primary" class="btn-primary" @click="quickStart">
+            <el-icon><Lightning /></el-icon>
+            快速开始（预置 A/B 方案）
+          </el-button>
+          <el-button @click="openCreateDialog">
+            <el-icon><Plus /></el-icon>
+            手动创建
+          </el-button>
+        </div>
       </div>
 
       <div v-for="exp in experiments" :key="exp.id" class="experiment-card" @click="openExperiment(exp)">
@@ -222,6 +231,12 @@
         <el-form-item label="关联 Patch">
           <el-input v-model="createForm.patch_id" placeholder="输入 Patch ID（可选）" />
         </el-form-item>
+        <el-form-item v-if="!editingExperiment" label="预置方案">
+          <el-switch v-model="createForm.create_default_snapshots" active-text="自动创建 A/B 对比方案" />
+          <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+            开启后将自动创建「方案 A」和「方案 B」两个快照，可直接开始对比
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
@@ -315,7 +330,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Search, ArrowLeft, Edit, Delete, More, Cpu
+  Plus, Search, ArrowLeft, Edit, Delete, More, Cpu, Lightning
 } from '@element-plus/icons-vue'
 import { patchLabAPI } from '@/api'
 
@@ -337,7 +352,8 @@ const createFormRef = ref(null)
 const createForm = reactive({
   name: '',
   description: '',
-  patch_id: ''
+  patch_id: '',
+  create_default_snapshots: true
 })
 const createRules = {
   name: [{ required: true, message: '请输入实验名称', trigger: 'blur' }]
@@ -438,8 +454,36 @@ const fetchExperiments = async () => {
 
 const openCreateDialog = () => {
   editingExperiment.value = false
-  Object.assign(createForm, { name: '', description: '', patch_id: '' })
+  Object.assign(createForm, {
+    name: '',
+    description: '',
+    patch_id: '',
+    create_default_snapshots: true
+  })
   createDialogVisible.value = true
+}
+
+const quickStart = async () => {
+  try {
+    submitting.value = true
+    const payload = {
+      name: '我的第一个实验',
+      description: 'A/B 参数对比试验',
+      create_default_snapshots: true
+    }
+    const res = await patchLabAPI.create(payload)
+    ElMessage.success('实验创建成功，已预置 A/B 方案')
+    createDialogVisible.value = false
+    await fetchExperiments()
+    await fetchStats()
+    await openExperiment({ id: res.id })
+  } catch (e) {
+    if (e !== false) {
+      ElMessage.error(e.error || '创建失败')
+    }
+  } finally {
+    submitting.value = false
+  }
 }
 
 const openEditDialog = (exp) => {
@@ -465,6 +509,10 @@ const submitCreate = async () => {
       patch_id: createForm.patch_id ? parseInt(createForm.patch_id) : null
     }
 
+    if (!editingExperiment.value) {
+      payload.create_default_snapshots = createForm.create_default_snapshots
+    }
+
     if (editingExperiment.value) {
       await patchLabAPI.update(createForm.id, payload)
       ElMessage.success('更新成功')
@@ -472,8 +520,13 @@ const submitCreate = async () => {
         await openExperiment({ id: createForm.id })
       }
     } else {
-      await patchLabAPI.create(payload)
-      ElMessage.success('创建成功')
+      const res = await patchLabAPI.create(payload)
+      ElMessage.success(payload.create_default_snapshots ? '创建成功，已预置 A/B 方案' : '创建成功')
+      createDialogVisible.value = false
+      await fetchExperiments()
+      await fetchStats()
+      await openExperiment({ id: res.id })
+      return
     }
 
     createDialogVisible.value = false
@@ -527,36 +580,32 @@ const closeExperiment = () => {
 
 const openSnapshotDialog = () => {
   editingSnapshot.value = null
-  Object.assign(snapshotForm, {
-    label: '',
-    parameters: {
-      osc_type: 'saw',
-      osc_detune: 0,
-      osc_octave: 0,
-      filter_cutoff: 5000,
-      filter_resonance: 0.3,
-      filter_env: 0.5,
-      env_attack: 10,
-      env_decay: 200,
-      env_sustain: 0.7,
-      env_release: 500,
-      lfo_rate: 4,
-      lfo_depth: 20,
-      lfo_wave: 'sine'
-    },
-    notes: ''
-  })
+  snapshotForm.label = ''
+  snapshotForm.parameters = {
+    osc_type: 'saw',
+    osc_detune: 0,
+    osc_octave: 0,
+    filter_cutoff: 5000,
+    filter_resonance: 0.3,
+    filter_env: 0.5,
+    env_attack: 10,
+    env_decay: 200,
+    env_sustain: 0.7,
+    env_release: 500,
+    lfo_rate: 4,
+    lfo_depth: 20,
+    lfo_wave: 'sine'
+  }
+  snapshotForm.notes = ''
   snapshotDialogVisible.value = true
 }
 
 const handleSnapshotCommand = (cmd, snap) => {
   if (cmd === 'edit') {
     editingSnapshot.value = snap
-    Object.assign(snapshotForm, {
-      label: snap.label,
-      parameters: { ...snap.parameters },
-      notes: snap.notes || ''
-    })
+    snapshotForm.label = snap.label
+    snapshotForm.parameters = { ...snap.parameters }
+    snapshotForm.notes = snap.notes || ''
     snapshotDialogVisible.value = true
   } else if (cmd === 'delete') {
     deleteSnapshot(snap)
@@ -971,5 +1020,12 @@ onMounted(async () => {
 
 :deep(.el-form-item__label) {
   color: rgba(255, 255, 255, 0.7);
+}
+
+.empty-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
 }
 </style>
