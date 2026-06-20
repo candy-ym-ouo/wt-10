@@ -59,6 +59,8 @@
       </nav>
 
       <div class="header-right">
+        <LanguageSwitcher />
+
         <div class="global-search-btn" @click="showSearchDialog = true" :class="{ active: $route.path === '/search' }">
           <el-icon><Search /></el-icon>
           <span class="search-shortcut">⌘K</span>
@@ -211,6 +213,7 @@ import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { socialAPI, searchAPI } from '@/api'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const userStore = useUserStore()

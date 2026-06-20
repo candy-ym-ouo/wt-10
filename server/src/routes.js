@@ -4,6 +4,7 @@ const path = require('path');
 const { requireAuth, requireAdmin, requireSuperAdmin, requirePermission, requireAnyPermission } = require('./middleware/auth');
 const { PERMISSIONS } = require('./constants/permissions');
 const { getAuditLogs, getAuditLogById } = require('./middleware/audit');
+const { i18nMiddleware } = require('./middleware/i18n');
 
 const userController = require('./controllers/userController');
 const moduleController = require('./controllers/moduleController');
@@ -26,6 +27,7 @@ const articleController = require('./controllers/articleController');
 const openPlatformController = require('./controllers/openPlatformController');
 const patchLabController = require('./controllers/patchLabController');
 const searchController = require('./controllers/searchController');
+const i18nController = require('./controllers/i18nController');
 const { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, getRoleLabel, isStaffRole } = require('./constants/permissions');
 
 const storage = multer.diskStorage({
@@ -44,9 +46,23 @@ const upload = multer({ storage: storage });
 
 const router = new Router({ prefix: '/api' });
 
+router.use(i18nMiddleware);
+
 router.get('/', (ctx) => {
   ctx.body = { message: 'Patch Vault API v1.0', status: 'running' };
 });
+
+router.get('/i18n/translations', i18nController.getAllTranslations);
+router.get('/i18n/categories', i18nController.getCategories);
+router.get('/i18n/sync', i18nController.syncWithDatabase);
+router.get('/i18n/export', requirePermission(PERMISSIONS.I18N_VIEW), i18nController.exportTranslations);
+router.get('/admin/i18n', requirePermission(PERMISSIONS.I18N_VIEW), i18nController.getTranslationList);
+router.get('/admin/i18n/:id', requirePermission(PERMISSIONS.I18N_VIEW), i18nController.getTranslationById);
+router.post('/admin/i18n', requirePermission(PERMISSIONS.I18N_MANAGE), i18nController.createTranslation);
+router.put('/admin/i18n/:id', requirePermission(PERMISSIONS.I18N_MANAGE), i18nController.updateTranslation);
+router.delete('/admin/i18n/:id', requirePermission(PERMISSIONS.I18N_MANAGE), i18nController.deleteTranslation);
+router.put('/admin/i18n/:id/active', requirePermission(PERMISSIONS.I18N_MANAGE), i18nController.toggleActive);
+router.post('/admin/i18n/batch-import', requirePermission(PERMISSIONS.I18N_MANAGE), i18nController.batchImport);
 
 router.post('/auth/register', userController.register);
 router.post('/auth/login', userController.login);

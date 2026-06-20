@@ -6,9 +6,9 @@
         <span>Patch Vault 后台</span>
       </div>
       <div class="role-badge" :class="roleClass">
-        <el-icon v-if="userStore.isAdmin"><Crown /></el-icon>
-        <el-icon v-else-if="userStore.isOperator"><Operation /></el-icon>
-        <el-icon v-else-if="userStore.isAuditor"><CircleCheck /></el-icon>
+        <span class="role-icon-emoji" v-if="userStore.isAdmin">👑</span>
+        <span class="role-icon-emoji" v-else-if="userStore.isOperator">⚙️</span>
+        <span class="role-icon-emoji" v-else-if="userStore.isAuditor">✅</span>
         <span>{{ userStore.roleLabel }}</span>
       </div>
       <el-menu
@@ -115,6 +115,10 @@
           <el-icon><Search /></el-icon>
           <span>搜索运营</span>
         </el-menu-item>
+        <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.I18N_VIEW)" index="/admin/i18n">
+          <span class="menu-icon-emoji">🌍</span>
+          <span>国际化管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -126,6 +130,7 @@
           </el-tag>
         </div>
         <div class="header-right">
+          <LanguageSwitcher />
           <el-button @click="goFront">
             <el-icon><HomeFilled /></el-icon>
             前台首页
@@ -155,6 +160,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { PERMISSIONS, ROLES } from '@/constants/permissions'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -243,6 +249,11 @@ const logout = () => {
   font-weight: 500;
 }
 
+.role-icon-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .role-badge.role-admin {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
@@ -289,6 +300,16 @@ const logout = () => {
 .admin-menu .el-sub-menu :deep(.el-menu-item) {
   margin: 0.125rem 0.75rem 0.125rem 1.5rem;
   padding-left: 1rem !important;
+}
+
+.menu-icon-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .admin-header {

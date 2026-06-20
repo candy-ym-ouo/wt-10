@@ -633,6 +633,131 @@ try {
 
 try {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS i18n_translations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      translation_key TEXT NOT NULL UNIQUE,
+      zh_cn TEXT,
+      en_us TEXT,
+      category TEXT DEFAULT 'general',
+      description TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_i18n_key ON i18n_translations(translation_key);
+    CREATE INDEX IF NOT EXISTS idx_i18n_category ON i18n_translations(category);
+    CREATE INDEX IF NOT EXISTS idx_i18n_active ON i18n_translations(is_active);
+  `);
+  console.log('i18n_translations 表检查/创建完成');
+
+  const defaultTranslations = [
+    ['common.submit', '提交', 'Submit', 'common', '通用提交按钮'],
+    ['common.cancel', '取消', 'Cancel', 'common', '通用取消按钮'],
+    ['common.confirm', '确认', 'Confirm', 'common', '通用确认按钮'],
+    ['common.delete', '删除', 'Delete', 'common', '通用删除按钮'],
+    ['common.edit', '编辑', 'Edit', 'common', '通用编辑按钮'],
+    ['common.save', '保存', 'Save', 'common', '通用保存按钮'],
+    ['common.search', '搜索', 'Search', 'common', '通用搜索'],
+    ['common.reset', '重置', 'Reset', 'common', '通用重置'],
+    ['common.add', '新增', 'Add', 'common', '通用新增'],
+    ['common.export', '导出', 'Export', 'common', '通用导出'],
+    ['common.import', '导入', 'Import', 'common', '通用导入'],
+    ['common.refresh', '刷新', 'Refresh', 'common', '通用刷新'],
+    ['common.back', '返回', 'Back', 'common', '通用返回'],
+    ['common.close', '关闭', 'Close', 'common', '通用关闭'],
+    ['common.loading', '加载中...', 'Loading...', 'common', '通用加载提示'],
+    ['common.success', '操作成功', 'Success', 'common', '通用成功提示'],
+    ['common.error', '操作失败', 'Error', 'common', '通用错误提示'],
+    ['common.warning', '警告', 'Warning', 'common', '通用警告'],
+    ['common.info', '提示', 'Info', 'common', '通用信息提示'],
+    ['common.confirm_delete', '确定要删除吗？', 'Are you sure you want to delete?', 'common', '删除确认提示'],
+    ['common.no_data', '暂无数据', 'No Data', 'common', '空数据提示'],
+    ['common.total', '共', 'Total', 'common', '总数前缀'],
+    ['common.items', '条', 'items', 'common', '数量单位'],
+    ['common.actions', '操作', 'Actions', 'common', '表格操作列'],
+    ['common.status', '状态', 'Status', 'common', '通用状态'],
+    ['common.created_at', '创建时间', 'Created At', 'common', '创建时间'],
+    ['common.updated_at', '更新时间', 'Updated At', 'common', '更新时间'],
+    ['common.active', '启用', 'Active', 'common', '启用状态'],
+    ['common.inactive', '禁用', 'Inactive', 'common', '禁用状态'],
+    ['common.yes', '是', 'Yes', 'common', '是'],
+    ['common.no', '否', 'No', 'common', '否'],
+    ['common.all', '全部', 'All', 'common', '全部'],
+    ['common.unknown', '未知', 'Unknown', 'common', '未知'],
+    ['common.optional', '可选', 'Optional', 'common', '可选'],
+    ['common.required', '必填', 'Required', 'common', '必填'],
+    ['common.select', '请选择', 'Please Select', 'common', '选择提示'],
+    ['common.input', '请输入', 'Please Input', 'common', '输入提示'],
+    ['common.operation_success', '操作成功', 'Operation Successful', 'common', '操作成功'],
+    ['common.operation_failed', '操作失败', 'Operation Failed', 'common', '操作失败'],
+    ['common.network_error', '网络错误，请稍后重试', 'Network error, please try again later', 'common', '网络错误'],
+    ['common.server_error', '服务器错误', 'Server Error', 'common', '服务器错误'],
+    ['common.permission_denied', '权限不足', 'Permission Denied', 'common', '权限不足'],
+    ['common.not_found', '资源不存在', 'Not Found', 'common', '资源不存在'],
+    ['common.unauthorized', '未授权，请先登录', 'Unauthorized, please login first', 'common', '未授权'],
+    ['admin.dashboard', '仪表盘', 'Dashboard', 'admin', '仪表盘'],
+    ['admin.user_management', '用户管理', 'User Management', 'admin', '用户管理'],
+    ['admin.patch_management', 'Patch 管理', 'Patch Management', 'admin', 'Patch 管理'],
+    ['admin.module_management', '模块管理', 'Module Management', 'admin', '模块管理'],
+    ['admin.article_management', '专栏管理', 'Article Management', 'admin', '专栏管理'],
+    ['admin.manufacturer_management', '厂商管理', 'Manufacturer Management', 'admin', '厂商管理'],
+    ['admin.collection_management', '专题策展', 'Collection Management', 'admin', '专题策展'],
+    ['admin.activity_management', '活动管理', 'Activity Management', 'admin', '活动管理'],
+    ['admin.challenge_management', '挑战赛管理', 'Challenge Management', 'admin', '挑战赛管理'],
+    ['admin.i18n_management', '国际化管理', 'I18n Management', 'admin', '国际化管理'],
+    ['i18n.translation_key', '翻译 Key', 'Translation Key', 'i18n', '翻译键名'],
+    ['i18n.chinese', '中文', 'Chinese', 'i18n', '中文翻译'],
+    ['i18n.english', '英文', 'English', 'i18n', '英文翻译'],
+    ['i18n.category', '分类', 'Category', 'i18n', '翻译分类'],
+    ['i18n.description', '描述', 'Description', 'i18n', '翻译描述'],
+    ['i18n.add_translation', '新增翻译', 'Add Translation', 'i18n', '新增翻译'],
+    ['i18n.edit_translation', '编辑翻译', 'Edit Translation', 'i18n', '编辑翻译'],
+    ['i18n.batch_import', '批量导入', 'Batch Import', 'i18n', '批量导入'],
+    ['i18n.export_all', '导出全部', 'Export All', 'i18n', '导出全部'],
+    ['i18n.search_key', '搜索 Key 或内容', 'Search Key or Content', 'i18n', '搜索翻译'],
+    ['i18n.filter_category', '分类筛选', 'Filter by Category', 'i18n', '分类筛选'],
+    ['i18n.category_general', '通用', 'General', 'i18n', '通用分类'],
+    ['i18n.category_admin', '后台', 'Admin', 'i18n', '后台分类'],
+    ['i18n.category_front', '前台', 'Frontend', 'i18n', '前台分类'],
+    ['i18n.category_validation', '校验', 'Validation', 'i18n', '校验分类'],
+    ['i18n.category_i18n', '国际化', 'I18n', 'i18n', '国际化分类'],
+    ['i18n.missing_translation', '翻译缺失', 'Missing Translation', 'i18n', '翻译缺失'],
+    ['i18n.auto_generate', '自动生成', 'Auto Generate', 'i18n', '自动生成'],
+    ['user.login', '登录', 'Login', 'auth', '登录'],
+    ['user.register', '注册', 'Register', 'auth', '注册'],
+    ['user.logout', '退出登录', 'Logout', 'auth', '退出登录'],
+    ['user.username', '用户名', 'Username', 'auth', '用户名'],
+    ['user.email', '邮箱', 'Email', 'auth', '邮箱'],
+    ['user.password', '密码', 'Password', 'auth', '密码'],
+    ['user.confirm_password', '确认密码', 'Confirm Password', 'auth', '确认密码'],
+    ['user.remember_me', '记住我', 'Remember Me', 'auth', '记住我'],
+    ['user.forgot_password', '忘记密码', 'Forgot Password', 'auth', '忘记密码'],
+    ['user.login_success', '登录成功', 'Login Successful', 'auth', '登录成功'],
+    ['user.register_success', '注册成功', 'Registration Successful', 'auth', '注册成功'],
+    ['user.logout_success', '已退出登录', 'Logged Out Successfully', 'auth', '已退出登录'],
+    ['user.welcome_back', '欢迎回来', 'Welcome Back', 'auth', '欢迎回来'],
+    ['validation.required', '该项为必填项', 'This field is required', 'validation', '必填校验'],
+    ['validation.email', '请输入有效的邮箱地址', 'Please enter a valid email', 'validation', '邮箱校验'],
+    ['validation.min_length', '最少需要 {min} 个字符', 'Minimum {min} characters required', 'validation', '最小长度校验'],
+    ['validation.max_length', '最多允许 {max} 个字符', 'Maximum {max} characters allowed', 'validation', '最大长度校验'],
+    ['validation.password_match', '两次密码输入不一致', 'Passwords do not match', 'validation', '密码匹配校验'],
+    ['validation.username_exists', '用户名已存在', 'Username already exists', 'validation', '用户名已存在'],
+    ['validation.email_exists', '邮箱已注册', 'Email already registered', 'validation', '邮箱已注册'],
+    ['validation.invalid_credentials', '用户名或密码错误', 'Invalid username or password', 'validation', '凭据错误']
+  ];
+
+  const insertTranslation = db.prepare(`
+    INSERT OR IGNORE INTO i18n_translations (translation_key, zh_cn, en_us, category, description, is_active)
+    VALUES (?, ?, ?, ?, ?, 1)
+  `);
+  defaultTranslations.forEach(t => insertTranslation.run(...t));
+  console.log(`已初始化 ${defaultTranslations.length} 条默认翻译条目`);
+} catch (e) {
+  console.error('创建 i18n 翻译表失败:', e);
+}
+
+try {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS search_hot_queries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       keyword TEXT NOT NULL,

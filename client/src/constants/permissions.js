@@ -48,7 +48,9 @@ export const PERMISSIONS = {
   ROLE_MANAGE: 'role:manage',
   AUDIT_LOG_VIEW: 'audit_log:view',
   SEARCH_MANAGE: 'search:manage',
-  SEARCH_VIEW: 'search:view'
+  SEARCH_VIEW: 'search:view',
+  I18N_MANAGE: 'i18n:manage',
+  I18N_VIEW: 'i18n:view'
 }
 
 export const ROLE_PERMISSIONS = {

@@ -460,3 +460,19 @@ export const adminSearchApi = {
 
 export const searchAPI = searchApi
 export const adminSearchAPI = adminSearchApi
+
+export const i18nApi = {
+  getTranslations: (params) => api.get('/i18n/translations', { params }),
+  getCategories: () => api.get('/i18n/categories'),
+  syncTranslations: (data) => api.post('/i18n/sync', data || {}),
+  exportTranslations: (params) => api.get('/i18n/export', { params }),
+  adminGetList: (params) => api.get('/admin/i18n', { params }),
+  adminGetById: (id) => api.get(`/admin/i18n/${id}`),
+  adminCreate: (data) => api.post('/admin/i18n', data),
+  adminUpdate: (id, data) => api.put(`/admin/i18n/${id}`, data),
+  adminDelete: (id) => api.delete(`/admin/i18n/${id}`),
+  adminToggleActive: (id, is_active) => api.put(`/admin/i18n/${id}/active`, { is_active }),
+  adminBatchImport: (data) => api.post('/admin/i18n/batch-import', data)
+}
+
+export const i18nAPI = i18nApi
