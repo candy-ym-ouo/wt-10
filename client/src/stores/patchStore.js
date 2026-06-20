@@ -114,6 +114,22 @@ export const usePatchStore = defineStore('patch', {
 
     async comparePatches(ids) {
       return await socialAPI.comparePatches(ids.join(','))
+    },
+
+    async fetchVersions(id, params = {}) {
+      return await patchAPI.getVersions(id, params)
+    },
+
+    async fetchVersionDetail(id, versionId) {
+      return await patchAPI.getVersionDetail(id, versionId)
+    },
+
+    async fetchVersionDiff(id, params = {}) {
+      return await patchAPI.getVersionDiff(id, params)
+    },
+
+    async rollbackVersion(id, versionId) {
+      return await patchAPI.rollbackVersion(id, versionId)
     }
   }
 })

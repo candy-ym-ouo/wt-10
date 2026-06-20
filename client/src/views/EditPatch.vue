@@ -220,6 +220,16 @@
         </el-form-item>
       </el-form>
     </div>
+
+    <div class="card" style="margin-top: 24px;">
+      <PatchVersionHistory
+        ref="versionHistoryRef"
+        :patch-id="route.params.id"
+        :can-rollback="true"
+        :page-size="5"
+        @rollback="onVersionRollback"
+      />
+    </div>
   </div>
 </template>
 
@@ -230,6 +240,7 @@ import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { moduleAPI } from '@/api'
+import PatchVersionHistory from '@/components/PatchVersionHistory.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -243,6 +254,7 @@ const scheduling = ref(false)
 const moduleList = ref([])
 const useScheduled = ref(false)
 const patchStatus = ref('')
+const versionHistoryRef = ref(null)
 
 const commonTags = ['bass', 'pad', 'lead', 'drums', 'ambient', 'techno', 'house', 'experimental', 'classic', 'modern']
 
@@ -386,6 +398,39 @@ const schedulePublish = async () => {
     ElMessage.error(e.error || '设置定时发布失败')
   } finally {
     scheduling.value = false
+  }
+}
+
+const onVersionRollback = async ({ version }) => {
+  try {
+    const patchData = await patchStore.fetchPatchDetail(route.params.id)
+    patchStatus.value = patchData.status || ''
+    form.title = patchData.title
+    form.description = patchData.description || ''
+    form.tags = JSON.parse(patchData.tags || '[]')
+    form.modules_used = JSON.parse(patchData.modules_used || '[]')
+    form.audio_url = patchData.audio_url || ''
+    form.patch_file = patchData.patch_file || ''
+    form.is_public = patchData.is_public ? true : false
+    form.is_paid = patchData.is_paid ? true : false
+    form.price = patchData.price || 0
+    form.preview_content = patchData.preview_content || ''
+    form.scheduled_at = patchData.scheduled_at || null
+    if (patchData.status === 'scheduled') {
+      useScheduled.value = true
+    }
+
+    if (patchData.parameters) {
+      const params = JSON.parse(patchData.parameters)
+      if (params.oscillators) form.parameters.oscillators = params.oscillators
+      if (params.filter) form.parameters.filter = params.filter
+      if (params.envelope) form.parameters.envelope = params.envelope
+      if (params.lfo) form.parameters.lfo = params.lfo
+    }
+
+    ElMessage.success(`已回滚到版本 v${version.version}，表单数据已更新`)
+  } catch (err) {
+    console.error('刷新表单数据失败:', err)
   }
 }
 </script>

@@ -31,6 +31,10 @@
           <el-icon><Document /></el-icon>
           <span>Patch 管理</span>
         </el-menu-item>
+        <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.PATCH_VIEW)" index="/admin/patch-versions">
+          <el-icon><Clock /></el-icon>
+          <span>版本审计</span>
+        </el-menu-item>
         <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.MODULE_VIEW)" index="/admin/modules">
           <el-icon><Box /></el-icon>
           <span>模块管理</span>
@@ -156,7 +160,7 @@ import {
   Setting, DataAnalysis, User, Document, Box, 
   OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
   Folder, Histogram, PieChart, Warning, Goods, ShoppingCart, Money, Key, Lock,
-  List, Search
+  List, Search, Clock
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { PERMISSIONS, ROLES } from '@/constants/permissions'

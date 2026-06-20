@@ -272,6 +272,15 @@
               </div>
             </div>
           </div>
+
+          <div v-if="showVersionHistory" class="card" style="margin-top: 24px;">
+            <PatchVersionHistory
+              ref="versionHistoryRef"
+              :patch-id="patch.id"
+              :can-rollback="isOwner || userStore.isAdmin"
+              @rollback="onVersionRollback"
+            />
+          </div>
         </el-col>
 
         <el-col :span="8">
@@ -374,6 +383,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useProductStore } from '@/stores/productStore'
 import { moduleAPI } from '@/api'
 import ReportDialog from '@/components/ReportDialog.vue'
+import PatchVersionHistory from '@/components/PatchVersionHistory.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -393,6 +403,11 @@ const reportDialogVisible = ref(false)
 const reportTargetType = ref('patch')
 const reportTargetId = ref(null)
 const reportTargetDescription = ref('')
+const versionHistoryRef = ref(null)
+
+const showVersionHistory = computed(() => {
+  return isOwner.value || userStore.isAdmin
+})
 
 const paramLabels = {
   oscillators: '🎹 振荡器',
@@ -632,6 +647,16 @@ const scrollToProduct = () => {
 
 const openLink = (url) => {
   window.open(url, '_blank')
+}
+
+const onVersionRollback = async ({ result }) => {
+  try {
+    const patchData = await patchStore.fetchPatchDetail(patch.value.id)
+    patch.value = patchData
+    ElMessage.success(result?.message || '回滚成功')
+  } catch (err) {
+    console.error('刷新 Patch 数据失败:', err)
+  }
 }
 </script>
 

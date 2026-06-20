@@ -64,7 +64,11 @@ export const patchApi = {
   addComment: (id, content) => api.post(`/patches/${id}/comments`, { content }),
   deleteComment: (id, commentId) => api.delete(`/patches/${id}/comments/${commentId}`),
   toggleLike: (id) => api.post(`/patches/${id}/like`),
-  toggleFavorite: (id, folder) => api.post(`/patches/${id}/favorite`, { folder })
+  toggleFavorite: (id, folder) => api.post(`/patches/${id}/favorite`, { folder }),
+  getVersions: (id, params) => api.get(`/patches/${id}/versions`, { params }),
+  getVersionDetail: (id, versionId) => api.get(`/patches/${id}/versions/${versionId}`),
+  getVersionDiff: (id, params) => api.get(`/patches/${id}/versions/diff`, { params }),
+  rollbackVersion: (id, versionId) => api.post(`/patches/${id}/versions/${versionId}/rollback`)
 }
 
 export const moduleApi = {
@@ -151,6 +155,7 @@ export const adminApi = {
   removeRecommendedPatch: (moduleId, recId) => api.delete(`/admin/modules/${moduleId}/recommended-patches/${recId}`),
   reorderRecommendedPatches: (moduleId, orders) => api.put(`/admin/modules/${moduleId}/recommended-patches/reorder`, { orders }),
   searchPatches: (keyword) => api.get('/admin/patches/search', { params: { keyword } }),
+  getPatchVersions: (params) => api.get('/admin/patches/versions', { params }),
   getManufacturers: (params) => api.get('/admin/manufacturers', { params }),
   createManufacturer: (data) => api.post('/admin/manufacturers', data),
   updateManufacturer: (id, data) => api.put(`/admin/manufacturers/${id}`, data),

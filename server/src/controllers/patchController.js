@@ -1,5 +1,107 @@
 const db = require('../db');
 
+const VERSION_FIELDS = [
+  'title', 'description', 'modules_used', 'parameters', 'cables',
+  'audio_url', 'image_url', 'patch_file', 'tags', 'is_public',
+  'is_paid', 'price', 'preview_content', 'status', 'scheduled_at'
+];
+
+const FIELD_LABELS = {
+  title: '标题',
+  description: '描述',
+  modules_used: '使用模块',
+  parameters: '参数配置',
+  cables: '线缆连接',
+  audio_url: '音频链接',
+  image_url: '图片链接',
+  patch_file: 'Patch 文件',
+  tags: '标签',
+  is_public: '公开状态',
+  is_paid: '付费状态',
+  price: '价格',
+  preview_content: '预览内容',
+  status: '状态',
+  scheduled_at: '定时发布时间'
+};
+
+const createPatchVersion = (patchId, userId, changeSummary = null) => {
+  try {
+    const patch = db.prepare(`
+      SELECT ${VERSION_FIELDS.join(', ')} FROM patches WHERE id = ?
+    `).get(patchId);
+
+    if (!patch) return null;
+
+    const maxVersion = db.prepare(`
+      SELECT COALESCE(MAX(version), 0) as max_ver FROM patch_versions WHERE patch_id = ?
+    `).get(patchId);
+
+    const nextVersion = maxVersion.max_ver + 1;
+
+    const stmt = db.prepare(`
+      INSERT INTO patch_versions (
+        patch_id, version, title, description, modules_used, parameters,
+        cables, audio_url, image_url, patch_file, tags, is_public, is_paid,
+        price, preview_content, status, scheduled_at, change_summary, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      patchId,
+      nextVersion,
+      patch.title,
+      patch.description,
+      patch.modules_used,
+      patch.parameters,
+      patch.cables,
+      patch.audio_url,
+      patch.image_url,
+      patch.patch_file,
+      patch.tags,
+      patch.is_public,
+      patch.is_paid,
+      patch.price,
+      patch.preview_content,
+      patch.status,
+      patch.scheduled_at,
+      changeSummary,
+      userId
+    );
+
+    return result.lastInsertRowid;
+  } catch (err) {
+    console.error('[VERSION] 创建版本记录失败:', err.message);
+    return null;
+  }
+};
+
+const generateChangeSummary = (oldPatch, newData) => {
+  const changes = [];
+
+  for (const field of VERSION_FIELDS) {
+    if (newData[field] !== undefined && newData[field] !== null) {
+      const oldVal = oldPatch[field];
+      let newVal = newData[field];
+
+      if (['modules_used', 'parameters', 'cables', 'tags'].includes(field)) {
+        newVal = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
+      }
+
+      if (field === 'is_public' || field === 'is_paid') {
+        newVal = newVal ? 1 : 0;
+      }
+
+      if (oldVal !== newVal) {
+        changes.push(FIELD_LABELS[field] || field);
+      }
+    }
+  }
+
+  if (changes.length === 0) return null;
+  if (changes.length <= 3) return `修改了：${changes.join('、')}`;
+  return `修改了：${changes.slice(0, 3).join('、')} 等 ${changes.length} 项`;
+};
+
 const typeToCategory = {
   'comment': 'comment',
   'like': 'like',
@@ -273,6 +375,8 @@ exports.createPatch = async (ctx) => {
 
   const patchId = result.lastInsertRowid;
 
+  createPatchVersion(patchId, ctx.state.user.id, '初始版本');
+
   if (isPaid && patchPrice > 0) {
     const productStmt = db.prepare(`
       INSERT OR IGNORE INTO patch_products 
@@ -311,15 +415,15 @@ exports.createPatch = async (ctx) => {
 
 exports.updatePatch = async (ctx) => {
   const id = parseInt(ctx.params.id);
-  const patch = db.prepare('SELECT * FROM patches WHERE id = ?').get(id);
+  const oldPatch = db.prepare('SELECT * FROM patches WHERE id = ?').get(id);
 
-  if (!patch) {
+  if (!oldPatch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };
     return;
   }
 
-  if (patch.user_id !== ctx.state.user.id && ctx.state.user.role !== 'admin') {
+  if (oldPatch.user_id !== ctx.state.user.id && ctx.state.user.role !== 'admin') {
     ctx.status = 403;
     ctx.body = { error: '无权限修改' };
     return;
@@ -350,7 +454,7 @@ exports.updatePatch = async (ctx) => {
   if (patchStatus !== undefined && patchStatus !== 'scheduled') {
     scheduledAt = null;
   }
-  if (patchStatus === 'scheduled' && !scheduledAt && !patch.scheduled_at) {
+  if (patchStatus === 'scheduled' && !scheduledAt && !oldPatch.scheduled_at) {
     ctx.status = 400;
     ctx.body = { error: '定时发布需要指定发布时间' };
     return;
@@ -380,8 +484,8 @@ exports.updatePatch = async (ctx) => {
   const isPaid = is_paid !== undefined ? (is_paid ? 1 : 0) : undefined;
   const patchPrice = isPaid === 1 ? (price || 0) : (isPaid === 0 ? 0 : price);
 
-  const isPublicValue = finalIsPublic !== undefined ? (finalIsPublic ? 1 : 0) : patch.is_public;
-  const scheduledAtValue = scheduledAt !== undefined ? scheduledAt : patch.scheduled_at;
+  const isPublicValue = finalIsPublic !== undefined ? (finalIsPublic ? 1 : 0) : oldPatch.is_public;
+  const scheduledAtValue = scheduledAt !== undefined ? scheduledAt : oldPatch.scheduled_at;
 
   stmt.run(
     title, description,
@@ -411,7 +515,7 @@ exports.updatePatch = async (ctx) => {
           CURRENT_TIMESTAMP
         )
       `);
-      productStmt.run(id, id, title || patch.title, patchPrice, id);
+      productStmt.run(id, id, title || oldPatch.title, patchPrice, id);
     } else if (isPaid === 0) {
       db.prepare('DELETE FROM patch_products WHERE patch_id = ?').run(id);
     }
@@ -423,25 +527,28 @@ exports.updatePatch = async (ctx) => {
     }
   }
 
-  if (patchStatus === 'approved' && patch.status !== 'approved') {
-    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(patch.user_id);
+  const changeSummary = generateChangeSummary(oldPatch, ctx.request.body);
+  createPatchVersion(id, ctx.state.user.id, changeSummary);
+
+  if (patchStatus === 'approved' && oldPatch.status !== 'approved') {
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(oldPatch.user_id);
     const followers = db.prepare(`
       SELECT follower_id FROM follows WHERE following_id = ?
-    `).all(patch.user_id);
+    `).all(oldPatch.user_id);
     
     followers.forEach(follower => {
       createNotification(
         follower.follower_id,
         'new_patch',
-        patch.user_id,
+        oldPatch.user_id,
         id,
-        `${user.username} 发布了新 Patch：${title || patch.title}`,
+        `${user.username} 发布了新 Patch：${title || oldPatch.title}`,
         { linkUrl: `/patches/${id}` }
       );
     });
   }
 
-  ctx.body = { success: true, status: patchStatus || patch.status };
+  ctx.body = { success: true, status: patchStatus || oldPatch.status };
 };
 
 exports.deletePatch = async (ctx) => {
@@ -529,4 +636,308 @@ exports.deleteComment = async (ctx) => {
 
   db.prepare('DELETE FROM comments WHERE id = ?').run(commentId);
   ctx.body = { success: true };
+};
+
+exports.getPatchVersions = async (ctx) => {
+  const patchId = parseInt(ctx.params.id);
+  const { page = 1, pageSize = 20 } = ctx.query;
+
+  const patch = db.prepare('SELECT id, user_id FROM patches WHERE id = ?').get(patchId);
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
+  const userId = ctx.state.user?.id || 0;
+  const isOwner = userId === patch.user_id;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (!isOwner && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '无权限查看版本历史' };
+    return;
+  }
+
+  const offset = (page - 1) * pageSize;
+
+  const totalStmt = db.prepare(`
+    SELECT COUNT(*) as total FROM patch_versions WHERE patch_id = ?
+  `);
+  const { total } = totalStmt.get(patchId);
+
+  const versions = db.prepare(`
+    SELECT pv.*, u.username, u.avatar
+    FROM patch_versions pv
+    LEFT JOIN users u ON pv.created_by = u.id
+    WHERE pv.patch_id = ?
+    ORDER BY pv.version DESC
+    LIMIT ? OFFSET ?
+  `).all(patchId, pageSize, offset);
+
+  ctx.body = {
+    list: versions,
+    total,
+    page: parseInt(page),
+    pageSize: parseInt(pageSize),
+    totalPages: Math.ceil(total / pageSize)
+  };
+};
+
+exports.getPatchVersionDetail = async (ctx) => {
+  const patchId = parseInt(ctx.params.id);
+  const versionId = parseInt(ctx.params.versionId);
+
+  const patch = db.prepare('SELECT id, user_id FROM patches WHERE id = ?').get(patchId);
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
+  const userId = ctx.state.user?.id || 0;
+  const isOwner = userId === patch.user_id;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (!isOwner && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '无权限查看版本详情' };
+    return;
+  }
+
+  const version = db.prepare(`
+    SELECT pv.*, u.username, u.avatar
+    FROM patch_versions pv
+    LEFT JOIN users u ON pv.created_by = u.id
+    WHERE pv.patch_id = ? AND pv.id = ?
+  `).get(patchId, versionId);
+
+  if (!version) {
+    ctx.status = 404;
+    ctx.body = { error: '版本不存在' };
+    return;
+  }
+
+  ctx.body = version;
+};
+
+exports.getPatchVersionDiff = async (ctx) => {
+  const patchId = parseInt(ctx.params.id);
+  const { fromVersion, toVersion } = ctx.query;
+
+  const patch = db.prepare('SELECT id, user_id FROM patches WHERE id = ?').get(patchId);
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
+  const userId = ctx.state.user?.id || 0;
+  const isOwner = userId === patch.user_id;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (!isOwner && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '无权限查看版本差异' };
+    return;
+  }
+
+  const fromVer = fromVersion ? parseInt(fromVersion) : null;
+  const toVer = toVersion ? parseInt(toVersion) : null;
+
+  let fromVersionData = null;
+  let toVersionData = null;
+
+  if (toVer) {
+    toVersionData = db.prepare('SELECT * FROM patch_versions WHERE patch_id = ? AND version = ?').get(patchId, toVer);
+  }
+
+  if (fromVer) {
+    fromVersionData = db.prepare('SELECT * FROM patch_versions WHERE patch_id = ? AND version = ?').get(patchId, fromVer);
+  } else if (toVersionData && toVer > 1) {
+    fromVersionData = db.prepare('SELECT * FROM patch_versions WHERE patch_id = ? AND version = ?').get(patchId, toVer - 1);
+  }
+
+  if (!toVersionData) {
+    ctx.status = 404;
+    ctx.body = { error: '目标版本不存在' };
+    return;
+  }
+
+  const diffs = [];
+
+  for (const field of VERSION_FIELDS) {
+    const oldVal = fromVersionData ? fromVersionData[field] : null;
+    const newVal = toVersionData[field];
+
+    if (oldVal !== newVal) {
+      let oldDisplay = oldVal;
+      let newDisplay = newVal;
+
+      if (['modules_used', 'parameters', 'tags'].includes(field)) {
+        try {
+          oldDisplay = oldVal ? JSON.parse(oldVal) : null;
+          newDisplay = newVal ? JSON.parse(newVal) : null;
+        } catch (e) {}
+      }
+
+      diffs.push({
+        field,
+        fieldLabel: FIELD_LABELS[field] || field,
+        oldValue: oldDisplay,
+        newValue: newDisplay
+      });
+    }
+  }
+
+  ctx.body = {
+    fromVersion: fromVersionData ? {
+      id: fromVersionData.id,
+      version: fromVersionData.version,
+      created_at: fromVersionData.created_at,
+      change_summary: fromVersionData.change_summary
+    } : null,
+    toVersion: {
+      id: toVersionData.id,
+      version: toVersionData.version,
+      created_at: toVersionData.created_at,
+      change_summary: toVersionData.change_summary
+    },
+    diffs
+  };
+};
+
+exports.rollbackPatchVersion = async (ctx) => {
+  const patchId = parseInt(ctx.params.id);
+  const versionId = parseInt(ctx.params.versionId);
+
+  const patch = db.prepare('SELECT * FROM patches WHERE id = ?').get(patchId);
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
+  const userId = ctx.state.user?.id || 0;
+  const isOwner = userId === patch.user_id;
+  const isAdmin = ctx.state.user?.role === 'admin';
+
+  if (!isOwner && !isAdmin) {
+    ctx.status = 403;
+    ctx.body = { error: '无权限回滚版本' };
+    return;
+  }
+
+  const targetVersion = db.prepare('SELECT * FROM patch_versions WHERE patch_id = ? AND id = ?').get(patchId, versionId);
+  if (!targetVersion) {
+    ctx.status = 404;
+    ctx.body = { error: '目标版本不存在' };
+    return;
+  }
+
+  const changeSummary = `回滚到版本 v${targetVersion.version}`;
+  createPatchVersion(patchId, userId, changeSummary);
+
+  const stmt = db.prepare(`
+    UPDATE patches SET
+      title = ?,
+      description = ?,
+      modules_used = ?,
+      parameters = ?,
+      cables = ?,
+      audio_url = ?,
+      image_url = ?,
+      patch_file = ?,
+      tags = ?,
+      is_public = ?,
+      is_paid = ?,
+      price = ?,
+      preview_content = ?,
+      status = ?,
+      scheduled_at = ?,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+
+  stmt.run(
+    targetVersion.title,
+    targetVersion.description,
+    targetVersion.modules_used,
+    targetVersion.parameters,
+    targetVersion.cables,
+    targetVersion.audio_url,
+    targetVersion.image_url,
+    targetVersion.patch_file,
+    targetVersion.tags,
+    targetVersion.is_public,
+    targetVersion.is_paid,
+    targetVersion.price,
+    targetVersion.preview_content,
+    targetVersion.status,
+    targetVersion.scheduled_at,
+    patchId
+  );
+
+  ctx.body = {
+    success: true,
+    message: `已成功回滚到版本 v${targetVersion.version}`,
+    rolledBackToVersion: targetVersion.version
+  };
+};
+
+exports.adminGetAllPatchVersions = async (ctx) => {
+  const { page = 1, pageSize = 20, patchId, userId, startDate, endDate, keyword } = ctx.query;
+
+  const offset = (page - 1) * pageSize;
+  const whereConditions = [];
+  const sqlParams = [];
+
+  if (patchId) {
+    whereConditions.push('pv.patch_id = ?');
+    sqlParams.push(parseInt(patchId));
+  }
+  if (userId) {
+    whereConditions.push('pv.created_by = ?');
+    sqlParams.push(parseInt(userId));
+  }
+  if (startDate) {
+    whereConditions.push('pv.created_at >= ?');
+    sqlParams.push(startDate);
+  }
+  if (endDate) {
+    whereConditions.push('pv.created_at <= ?');
+    sqlParams.push(endDate);
+  }
+  if (keyword) {
+    whereConditions.push('(pv.title LIKE ? OR pv.change_summary LIKE ? OR u.username LIKE ?)');
+    const kw = `%${keyword}%`;
+    sqlParams.push(kw, kw, kw);
+  }
+
+  const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+
+  const totalStmt = db.prepare(`
+    SELECT COUNT(*) as total FROM patch_versions pv
+    LEFT JOIN users u ON pv.created_by = u.id
+    ${whereClause}
+  `);
+  const { total } = totalStmt.get(...sqlParams);
+
+  const versions = db.prepare(`
+    SELECT pv.*, p.title as patch_title, u.username, u.avatar
+    FROM patch_versions pv
+    LEFT JOIN patches p ON pv.patch_id = p.id
+    LEFT JOIN users u ON pv.created_by = u.id
+    ${whereClause}
+    ORDER BY pv.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...sqlParams, pageSize, offset);
+
+  ctx.body = {
+    list: versions,
+    total,
+    page: parseInt(page),
+    pageSize: parseInt(pageSize),
+    totalPages: Math.ceil(total / pageSize)
+  };
 };

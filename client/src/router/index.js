@@ -238,6 +238,12 @@ const routes = [
         meta: { permission: PERMISSIONS.PATCH_VIEW }
       },
       {
+        path: 'patch-versions',
+        name: 'AdminPatchVersions',
+        component: () => import('@/views/admin/AdminPatchVersions.vue'),
+        meta: { permission: PERMISSIONS.PATCH_VIEW }
+      },
+      {
         path: 'modules',
         name: 'AdminModules',
         component: () => import('@/views/admin/AdminModules.vue'),

@@ -88,6 +88,10 @@ router.delete('/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), modu
 
 router.get('/patches', patchController.getPatches);
 router.get('/patches/:id', patchController.getPatchDetail);
+router.get('/patches/:id/versions', requireAuth, patchController.getPatchVersions);
+router.get('/patches/:id/versions/:versionId', requireAuth, patchController.getPatchVersionDetail);
+router.get('/patches/:id/versions/diff', requireAuth, patchController.getPatchVersionDiff);
+router.post('/patches/:id/versions/:versionId/rollback', requireAuth, patchController.rollbackPatchVersion);
 router.post('/patches', requireAuth, patchController.createPatch);
 router.put('/patches/:id', requireAuth, patchController.updatePatch);
 router.delete('/patches/:id', requireAuth, patchController.deletePatch);
@@ -150,6 +154,7 @@ router.put('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), admin
 router.delete('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), adminController.deleteUser);
 router.get('/admin/patches/recent', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getRecentPatches);
 router.get('/admin/patches', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getAllPatches);
+router.get('/admin/patches/versions', requirePermission(PERMISSIONS.PATCH_VIEW), patchController.adminGetAllPatchVersions);
 router.put('/admin/patches/:id/status', requireAnyPermission([PERMISSIONS.PATCH_REVIEW, PERMISSIONS.PATCH_MANAGE]), adminController.updatePatchStatus);
 router.put('/admin/patches/:id/public', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.togglePatchPublic);
 router.delete('/admin/patches/:id', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.adminDeletePatch);
