@@ -13,6 +13,8 @@ export const LOCALE_LABELS = {
   [LOCALES.EN_US]: 'English'
 }
 
+export const FALLBACK_LOCALE = LOCALES.ZH_CN
+
 const STORAGE_KEY = 'app_locale'
 
 const defaultMessages = {
@@ -34,49 +36,109 @@ const flattenMessages = (obj, prefix = '') => {
 }
 
 const getBrowserLocale = () => {
-  const lang = navigator.language?.toLowerCase().replace('-', '_')
-  if (lang === 'zh_cn' || lang === 'zh') return LOCALES.ZH_CN
-  if (lang === 'en_us' || lang === 'en') return LOCALES.EN_US
-  return LOCALES.ZH_CN
+  try {
+    const lang = navigator.language?.toLowerCase().replace('-', '_')
+    if (lang === 'zh_cn' || lang === 'zh') return LOCALES.ZH_CN
+    if (lang === 'en_us' || lang === 'en') return LOCALES.EN_US
+  } catch (e) {}
+  return FALLBACK_LOCALE
 }
 
 export const useI18nStore = defineStore('i18n', {
   state: () => ({
-    locale: localStorage.getItem(STORAGE_KEY) || getBrowserLocale(),
+    locale: FALLBACK_LOCALE,
     messages: {
-      [LOCALES.ZH_CN]: flattenMessages(defaultMessages[LOCALES.ZH_CN]),
-      [LOCALES.EN_US]: flattenMessages(defaultMessages[LOCALES.EN_US])
+      [LOCALES.ZH_CN]: {},
+      [LOCALES.EN_US]: {}
     },
-    serverMessages: {},
-    isSyncing: false
+    serverMessages: {
+      [LOCALES.ZH_CN]: {},
+      [LOCALES.EN_US]: {}
+    },
+    isSyncing: false,
+    isInitialized: false,
+    missingKeys: new Set()
   }),
 
   getters: {
     currentLocale: (state) => state.locale,
     localeLabel: (state) => LOCALE_LABELS[state.locale] || state.locale,
     availableLocales: () => Object.values(LOCALES),
-    localeOptions: () => Object.entries(LOCALE_LABELS).map(([value, label]) => ({ value, label }))
+    localeOptions: () => Object.entries(LOCALE_LABELS).map(([value, label]) => ({ value, label })),
+    fallbackLocale: () => FALLBACK_LOCALE,
+    elementPlusLocaleKey: (state) => (state.locale === LOCALES.EN_US ? 'en' : 'zh-cn'),
+    isZh: (state) => state.locale === LOCALES.ZH_CN,
+    isEn: (state) => state.locale === LOCALES.EN_US
   },
 
   actions: {
-    setLocale(locale) {
+    init() {
+      Object.values(LOCALES).forEach((locale) => {
+        this.messages[locale] = flattenMessages(defaultMessages[locale] || {})
+        if (!this.serverMessages[locale]) {
+          this.serverMessages[locale] = {}
+        }
+      })
+
+      const savedLocale = localStorage.getItem(STORAGE_KEY)
+      const initialLocale = savedLocale && Object.values(LOCALES).includes(savedLocale)
+        ? savedLocale
+        : getBrowserLocale()
+
+      this.setLocale(initialLocale, false)
+      this.isInitialized = true
+    },
+
+    setLocale(locale, persist = true) {
       if (!Object.values(LOCALES).includes(locale)) {
-        console.warn(`Unsupported locale: ${locale}, fallback to zh_cn`)
-        locale = LOCALES.ZH_CN
+        console.warn(`Unsupported locale: ${locale}, fallback to ${FALLBACK_LOCALE}`)
+        locale = FALLBACK_LOCALE
       }
       this.locale = locale
-      localStorage.setItem(STORAGE_KEY, locale)
-      document.documentElement.setAttribute('lang', locale.replace('_', '-'))
+      if (persist) {
+        try {
+          localStorage.setItem(STORAGE_KEY, locale)
+        } catch (e) {}
+      }
+      try {
+        document.documentElement.setAttribute('lang', locale.replace('_', '-'))
+        document.documentElement.setAttribute('dir', 'ltr')
+      } catch (e) {}
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('locale-change', { detail: { locale } }))
+      }
     },
 
     t(key, params = {}) {
       if (!key) return key
-      let value = this.serverMessages[this.locale]?.[key]
-        || this.messages[this.locale]?.[key]
-        || this.messages[LOCALES.ZH_CN]?.[key]
-        || key
+      const locales = [this.locale, FALLBACK_LOCALE]
+      let value = key
+      let found = false
 
-      if (params && typeof params === 'object') {
+      for (const locale of locales) {
+        if (this.serverMessages[locale]?.[key]) {
+          value = this.serverMessages[locale][key]
+          found = true
+          break
+        }
+        if (this.messages[locale]?.[key]) {
+          value = this.messages[locale][key]
+          found = true
+          break
+        }
+      }
+
+      if (!found && typeof value === 'string') {
+        if (!this.missingKeys.has(key)) {
+          this.missingKeys.add(key)
+          if (this.isInitialized) {
+            console.warn(`[i18n] Missing translation key: "${key}"`)
+          }
+        }
+      }
+
+      if (params && typeof params === 'object' && typeof value === 'string') {
         Object.entries(params).forEach(([k, v]) => {
           value = value.replace(new RegExp(`\\{${k}\\}`, 'g'), v)
         })
@@ -88,7 +150,20 @@ export const useI18nStore = defineStore('i18n', {
     tc(key, count, params = {}) {
       const pluralKey = count === 1 ? key : `${key}_plural`
       const value = this.t(pluralKey, params)
-      return value.replace('{count}', count)
+      if (typeof value === 'string') {
+        return value.replace('{count}', count)
+      }
+      return value
+    },
+
+    hasKey(key) {
+      if (!key) return false
+      const locales = [this.locale, FALLBACK_LOCALE]
+      for (const locale of locales) {
+        if (this.serverMessages[locale]?.[key]) return true
+        if (this.messages[locale]?.[key]) return true
+      }
+      return false
     },
 
     toggleLocale() {
@@ -97,8 +172,8 @@ export const useI18nStore = defineStore('i18n', {
       return newLocale
     },
 
-    async syncFromServer() {
-      if (this.isSyncing) return
+    async syncFromServer(force = false) {
+      if (this.isSyncing && !force) return
       this.isSyncing = true
       try {
         const [zhRes, enRes] = await Promise.all([
@@ -107,15 +182,21 @@ export const useI18nStore = defineStore('i18n', {
         ])
         this.serverMessages[LOCALES.ZH_CN] = zhRes?.translations || {}
         this.serverMessages[LOCALES.EN_US] = enRes?.translations || {}
+        this.missingKeys.clear()
+        return true
       } catch (e) {
         console.warn('Failed to sync translations from server:', e)
+        return false
       } finally {
         this.isSyncing = false
       }
     },
 
-    init() {
-      this.setLocale(this.locale)
+    setServerMessages(locale, translations) {
+      if (Object.values(LOCALES).includes(locale) && translations) {
+        this.serverMessages[locale] = translations
+        this.missingKeys.clear()
+      }
     }
   }
 })

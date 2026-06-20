@@ -36,7 +36,6 @@ const localeOptions = computed(() => i18nStore.localeOptions)
 const handleCommand = (locale) => {
   if (locale !== currentLocale.value) {
     i18nStore.setLocale(locale)
-    window.location.reload()
   }
 }
 </script>

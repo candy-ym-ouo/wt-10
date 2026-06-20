@@ -156,7 +156,7 @@ import {
   Setting, DataAnalysis, User, Document, Box, 
   OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
   Folder, Histogram, PieChart, Warning, Goods, ShoppingCart, Money, Key, Lock,
-  Crown, Operation, CircleCheck, List, Search
+  List, Search
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { PERMISSIONS, ROLES } from '@/constants/permissions'

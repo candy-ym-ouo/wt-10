@@ -4,9 +4,10 @@ const DEFAULT_LOCALE = 'zh_cn';
 const SUPPORTED_LOCALES = ['zh_cn', 'en_us'];
 
 const getLocaleFromRequest = (ctx) => {
+  const xLocale = ctx.headers['x-locale']?.toLowerCase().replace('-', '_');
   const headerLocale = ctx.headers['accept-language']?.toLowerCase().replace('-', '_');
   const queryLocale = ctx.query.locale?.toLowerCase().replace('-', '_');
-  const locale = queryLocale || headerLocale || DEFAULT_LOCALE;
+  const locale = queryLocale || xLocale || headerLocale || DEFAULT_LOCALE;
   return SUPPORTED_LOCALES.includes(locale) ? locale : DEFAULT_LOCALE;
 };
 

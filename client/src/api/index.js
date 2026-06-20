@@ -10,6 +10,10 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  const locale = localStorage.getItem('app_locale') || 'zh_cn'
+  const headerLocale = locale.replace('_', '-')
+  config.headers['Accept-Language'] = headerLocale
+  config.headers['X-Locale'] = locale
   return config
 })
 
