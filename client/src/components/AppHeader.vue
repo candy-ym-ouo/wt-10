@@ -115,6 +115,9 @@
               <el-dropdown-item command="creator-earnings">
                 <el-icon><Money /></el-icon>创作者收益
               </el-dropdown-item>
+              <el-dropdown-item command="open-platform">
+                <el-icon><Key /></el-icon>API 开放平台
+              </el-dropdown-item>
               <el-dropdown-item v-if="userStore.isAdmin" command="admin">
                 <el-icon><Setting /></el-icon>后台管理
               </el-dropdown-item>
@@ -215,6 +218,9 @@ const handleCommand = (command) => {
       break
     case 'creator-earnings':
       router.push('/creator-earnings')
+      break
+    case 'open-platform':
+      router.push('/open-platform')
       break
     case 'admin':
       router.push('/admin')

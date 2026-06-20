@@ -87,6 +87,20 @@
             <span>提现管理</span>
           </el-menu-item>
         </el-sub-menu>
+        <el-sub-menu index="openPlatform">
+          <template #title>
+            <el-icon><Key /></el-icon>
+            <span>开放平台</span>
+          </template>
+          <el-menu-item index="/admin/open-platform">
+            <el-icon><Lock /></el-icon>
+            <span>密钥管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/api-call-logs">
+            <el-icon><Histogram /></el-icon>
+            <span>调用记录</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
     <el-container>
@@ -119,7 +133,7 @@ import { ElMessage } from 'element-plus'
 import { 
   Setting, DataAnalysis, User, Document, Box, 
   OfficeBuilding, HomeFilled, SwitchButton, CollectionTag, Present, Trophy, Medal,
-  Folder, Histogram, PieChart, Warning, Goods, ShoppingCart, Money
+  Folder, Histogram, PieChart, Warning, Goods, ShoppingCart, Money, Key, Lock
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 

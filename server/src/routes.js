@@ -21,6 +21,7 @@ const productController = require('./controllers/productController');
 const orderController = require('./controllers/orderController');
 const earningsController = require('./controllers/earningsController');
 const articleController = require('./controllers/articleController');
+const openPlatformController = require('./controllers/openPlatformController');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -299,5 +300,22 @@ router.get('/me/withdrawals', requireAuth, earningsController.getMyWithdrawals);
 router.get('/admin/earnings/stats', requireAdmin, earningsController.getEarningsStats);
 router.get('/admin/withdrawals', requireAdmin, earningsController.getAllWithdrawals);
 router.put('/admin/withdrawals/:id/review', requireAdmin, earningsController.reviewWithdrawal);
+
+router.get('/open-platform/scopes', openPlatformController.getScopes);
+router.get('/me/api-keys', requireAuth, openPlatformController.getMyKeys);
+router.post('/me/api-keys', requireAuth, openPlatformController.createApiKey);
+router.put('/me/api-keys/:id', requireAuth, openPlatformController.updateApiKey);
+router.delete('/me/api-keys/:id', requireAuth, openPlatformController.deleteApiKey);
+router.post('/open-platform/token', requireAuth, openPlatformController.generateToken);
+router.get('/me/api-call-logs', requireAuth, openPlatformController.getMyCallLogs);
+router.get('/me/api-call-stats', requireAuth, openPlatformController.getCallStats);
+
+router.get('/admin/api-keys', requireAdmin, openPlatformController.adminGetAllKeys);
+router.get('/admin/api-keys/:id', requireAdmin, openPlatformController.adminGetKeyDetail);
+router.post('/admin/api-keys/:id/ban', requireAdmin, openPlatformController.adminBanKey);
+router.post('/admin/api-keys/:id/unban', requireAdmin, openPlatformController.adminUnbanKey);
+router.put('/admin/api-keys/:id/rate-limit', requireAdmin, openPlatformController.adminUpdateRateLimit);
+router.get('/admin/api-call-logs', requireAdmin, openPlatformController.adminGetCallLogs);
+router.get('/admin/open-platform/stats', requireAdmin, openPlatformController.adminGetPlatformStats);
 
 module.exports = router;

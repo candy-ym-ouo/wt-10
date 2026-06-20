@@ -196,6 +196,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/open-platform',
+    name: 'OpenPlatform',
+    component: () => import('@/views/OpenPlatform.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'Admin',
     component: () => import('@/views/admin/AdminLayout.vue'),
@@ -300,6 +306,16 @@ const routes = [
         path: 'withdrawals',
         name: 'AdminWithdrawals',
         component: () => import('@/views/admin/AdminWithdrawals.vue')
+      },
+      {
+        path: 'open-platform',
+        name: 'AdminOpenPlatform',
+        component: () => import('@/views/admin/AdminOpenPlatform.vue')
+      },
+      {
+        path: 'api-call-logs',
+        name: 'AdminApiCallLogs',
+        component: () => import('@/views/admin/AdminApiCallLogs.vue')
       }
     ]
   },

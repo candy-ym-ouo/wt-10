@@ -386,3 +386,27 @@ export const adminArticleApi = {
 
 export const articleAPI = articleApi
 export const adminArticleAPI = adminArticleApi
+
+export const openPlatformApi = {
+  getScopes: () => api.get('/open-platform/scopes'),
+  getMyKeys: (params) => api.get('/me/api-keys', { params }),
+  createKey: (data) => api.post('/me/api-keys', data),
+  updateKey: (id, data) => api.put(`/me/api-keys/${id}`, data),
+  deleteKey: (id) => api.delete(`/me/api-keys/${id}`),
+  generateToken: (data) => api.post('/open-platform/token', data),
+  getMyCallLogs: (params) => api.get('/me/api-call-logs', { params }),
+  getCallStats: (params) => api.get('/me/api-call-stats', { params })
+}
+
+export const adminOpenPlatformApi = {
+  getAllKeys: (params) => api.get('/admin/api-keys', { params }),
+  getKeyDetail: (id) => api.get(`/admin/api-keys/${id}`),
+  banKey: (id, data) => api.post(`/admin/api-keys/${id}/ban`, data),
+  unbanKey: (id) => api.post(`/admin/api-keys/${id}/unban`),
+  updateRateLimit: (id, data) => api.put(`/admin/api-keys/${id}/rate-limit`, data),
+  getCallLogs: (params) => api.get('/admin/api-call-logs', { params }),
+  getPlatformStats: (params) => api.get('/admin/open-platform/stats', { params })
+}
+
+export const openPlatformAPI = openPlatformApi
+export const adminOpenPlatformAPI = adminOpenPlatformApi
