@@ -24,6 +24,7 @@ const orderController = require('./controllers/orderController');
 const earningsController = require('./controllers/earningsController');
 const articleController = require('./controllers/articleController');
 const openPlatformController = require('./controllers/openPlatformController');
+const patchLabController = require('./controllers/patchLabController');
 const { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, getRoleLabel, isStaffRole } = require('./constants/permissions');
 
 const storage = multer.diskStorage({
@@ -320,6 +321,17 @@ router.post('/admin/api-keys/:id/unban', requirePermission(PERMISSIONS.OPEN_PLAT
 router.put('/admin/api-keys/:id/rate-limit', requirePermission(PERMISSIONS.OPEN_PLATFORM_MANAGE), openPlatformController.adminUpdateRateLimit);
 router.get('/admin/api-call-logs', requirePermission(PERMISSIONS.API_CALL_LOG_VIEW), openPlatformController.adminGetCallLogs);
 router.get('/admin/open-platform/stats', requirePermission(PERMISSIONS.OPEN_PLATFORM_VIEW), openPlatformController.adminGetPlatformStats);
+
+router.get('/me/lab/experiments', requireAuth, patchLabController.getMyExperiments);
+router.get('/me/lab/experiments/stats', requireAuth, patchLabController.getExperimentStats);
+router.get('/me/lab/experiments/:id', requireAuth, patchLabController.getExperimentDetail);
+router.post('/me/lab/experiments', requireAuth, patchLabController.createExperiment);
+router.put('/me/lab/experiments/:id', requireAuth, patchLabController.updateExperiment);
+router.delete('/me/lab/experiments/:id', requireAuth, patchLabController.deleteExperiment);
+router.post('/me/lab/experiments/:id/snapshots', requireAuth, patchLabController.createSnapshot);
+router.put('/me/lab/experiments/:id/snapshots/:snapshotId', requireAuth, patchLabController.updateSnapshot);
+router.delete('/me/lab/experiments/:id/snapshots/:snapshotId', requireAuth, patchLabController.deleteSnapshot);
+router.post('/me/lab/experiments/:id/result', requireAuth, patchLabController.saveResult);
 
 router.get('/admin/roles', requireAdmin, async (ctx) => {
   ctx.body = {

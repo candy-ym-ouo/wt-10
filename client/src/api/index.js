@@ -422,3 +422,18 @@ export const adminAuditLogApi = {
 
 export const adminRolesAPI = adminRolesApi
 export const adminAuditLogAPI = adminAuditLogApi
+
+export const patchLabApi = {
+  getMyExperiments: (params) => api.get('/me/lab/experiments', { params }),
+  getStats: () => api.get('/me/lab/experiments/stats'),
+  getDetail: (id) => api.get(`/me/lab/experiments/${id}`),
+  create: (data) => api.post('/me/lab/experiments', data),
+  update: (id, data) => api.put(`/me/lab/experiments/${id}`, data),
+  delete: (id) => api.delete(`/me/lab/experiments/${id}`),
+  createSnapshot: (id, data) => api.post(`/me/lab/experiments/${id}/snapshots`, data),
+  updateSnapshot: (id, snapshotId, data) => api.put(`/me/lab/experiments/${id}/snapshots/${snapshotId}`, data),
+  deleteSnapshot: (id, snapshotId) => api.delete(`/me/lab/experiments/${id}/snapshots/${snapshotId}`),
+  saveResult: (id, data) => api.post(`/me/lab/experiments/${id}/result`, data)
+}
+
+export const patchLabAPI = patchLabApi

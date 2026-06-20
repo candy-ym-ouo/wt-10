@@ -48,6 +48,10 @@
           参数对比
           <span v-if="patchStore.compareCount > 0" class="badge">{{ patchStore.compareCount }}</span>
         </router-link>
+        <router-link v-if="userStore.isLoggedIn" to="/patch-lab" class="nav-link" :class="{ active: $route.path === '/patch-lab' }">
+          <el-icon><Cpu /></el-icon>
+          补丁实验室
+        </router-link>
         <router-link v-if="userStore.isLoggedIn" to="/workbench" class="nav-link" :class="{ active: $route.path === '/workbench' }">
           <el-icon><Odometer /></el-icon>
           工作台
@@ -105,6 +109,9 @@
               </el-dropdown-item>
               <el-dropdown-item command="favorites">
                 <el-icon><Star /></el-icon>我的收藏
+              </el-dropdown-item>
+              <el-dropdown-item command="patch-lab">
+                <el-icon><Cpu /></el-icon>补丁实验室
               </el-dropdown-item>
               <el-dropdown-item command="my-orders">
                 <el-icon><ShoppingCart /></el-icon>我的订单
@@ -209,6 +216,9 @@ const handleCommand = (command) => {
       break
     case 'favorites':
       router.push('/favorites')
+      break
+    case 'patch-lab':
+      router.push('/patch-lab')
       break
     case 'my-orders':
       router.push('/my-orders')

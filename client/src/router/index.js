@@ -94,6 +94,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/patch-lab',
+    name: 'PatchLab',
+    component: () => import('@/views/PatchLab.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/workbench',
     name: 'CreatorWorkbench',
     component: () => import('@/views/CreatorWorkbench.vue'),
