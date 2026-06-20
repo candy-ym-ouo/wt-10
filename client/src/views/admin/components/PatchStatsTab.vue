@@ -37,7 +37,7 @@
     </div>
 
     <div class="table-card">
-      <el-table :data="data" v-loading="loading" stripe>
+      <el-table :data="data" v-loading="loading" stripe @sort-change="handleTableSort">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
         <el-table-column prop="author_name" label="作者" width="120" />
@@ -48,14 +48,14 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="views_count" label="浏览量" width="100" sortable>
+        <el-table-column prop="views_count" label="浏览量" width="100" sortable="custom">
           <template #default="{ row }">
             <span class="highlight-number">{{ formatNumber(row.views_count || 0) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="likes_count" label="点赞数" width="100" sortable />
-        <el-table-column prop="favorites_count" label="收藏数" width="100" sortable />
-        <el-table-column prop="comments_count" label="评论数" width="100" sortable />
+        <el-table-column prop="likes_count" label="点赞数" width="100" sortable="custom" />
+        <el-table-column prop="favorites_count" label="收藏数" width="100" sortable="custom" />
+        <el-table-column prop="comments_count" label="评论数" width="100" sortable="custom" />
         <el-table-column label="是否公开" width="100">
           <template #default="{ row }">
             <el-tag :type="row.is_public ? 'success' : 'info'" size="small">
@@ -63,7 +63,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" label="创建时间" width="180" sortable="custom">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { ref, defineEmits } from 'vue'
+import { ref, defineEmits, defineExpose } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -135,14 +135,18 @@ const getStatusType = (status) => {
 
 const handleSearch = () => {
   currentPage.value = 1
-  emit('refresh', {
-    search: keyword.value,
-    status: statusFilter.value,
-    sort_by: sortBy.value,
-    sort_order: sortOrder.value,
-    page: currentPage.value,
-    limit: pageSize.value
-  })
+  emit('refresh', getFilters())
+}
+
+const handleTableSort = ({ prop, order }) => {
+  if (!prop) return
+  sortBy.value = prop
+  sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : 'desc'
+  if (!order) {
+    sortBy.value = 'views_count'
+    sortOrder.value = 'desc'
+  }
+  emit('refresh', getFilters())
 }
 
 const resetFilters = () => {
@@ -158,13 +162,31 @@ const resetFilters = () => {
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
-  handleSearch()
+  emit('refresh', getFilters())
 }
 
 const handlePageChange = (page) => {
   currentPage.value = page
-  handleSearch()
+  emit('refresh', getFilters())
 }
+
+const getFilters = () => ({
+  search: keyword.value,
+  status: statusFilter.value,
+  sort_by: sortBy.value,
+  sort_order: sortOrder.value,
+  page: currentPage.value,
+  limit: pageSize.value
+})
+
+const getExportFilters = () => ({
+  search: keyword.value,
+  status: statusFilter.value,
+  sort_by: sortBy.value,
+  sort_order: sortOrder.value
+})
+
+defineExpose({ getExportFilters })
 </script>
 
 <style scoped>

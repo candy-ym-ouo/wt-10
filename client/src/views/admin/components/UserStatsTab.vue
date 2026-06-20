@@ -14,9 +14,11 @@
       </el-input>
       <el-select v-model="sortBy" placeholder="排序方式" class="filter-select" @change="handleSearch">
         <el-option label="Patch数量" value="patches_count" />
+        <el-option label="总点赞" value="total_likes" />
+        <el-option label="总收藏" value="total_favorites" />
+        <el-option label="总浏览" value="total_views" />
         <el-option label="粉丝数" value="followers_count" />
-        <el-option label="总点赞" value="likes_count" />
-        <el-option label="总收藏" value="favorites_count" />
+        <el-option label="关注数" value="following_count" />
         <el-option label="注册时间" value="created_at" />
       </el-select>
       <el-select v-model="sortOrder" placeholder="排序方向" class="filter-select" @change="handleSearch">
@@ -31,7 +33,7 @@
     </div>
 
     <div class="table-card">
-      <el-table :data="data" v-loading="loading" stripe>
+      <el-table :data="data" v-loading="loading" stripe @sort-change="handleTableSort">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column label="用户" min-width="180">
           <template #default="{ row }">
@@ -53,20 +55,20 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="patches_count" label="Patch数" width="100" sortable />
-        <el-table-column prop="total_likes" label="总点赞" width="100" sortable>
+        <el-table-column prop="patches_count" label="Patch数" width="100" sortable="custom" />
+        <el-table-column prop="total_likes" label="总点赞" width="100" sortable="custom">
           <template #default="{ row }">
             <span class="highlight-number">{{ row.total_likes || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="total_favorites" label="总收藏" width="100" sortable />
-        <el-table-column prop="total_views" label="总浏览" width="100" sortable>
+        <el-table-column prop="total_favorites" label="总收藏" width="100" sortable="custom" />
+        <el-table-column prop="total_views" label="总浏览" width="100" sortable="custom">
           <template #default="{ row }">
             {{ formatNumber(row.total_views || 0) }}
           </template>
         </el-table-column>
-        <el-table-column prop="followers_count" label="粉丝数" width="100" sortable />
-        <el-table-column prop="following_count" label="关注数" width="100" sortable />
+        <el-table-column prop="followers_count" label="粉丝数" width="100" sortable="custom" />
+        <el-table-column prop="following_count" label="关注数" width="100" sortable="custom" />
         <el-table-column label="创作者认证" width="110">
           <template #default="{ row }">
             <el-tag :type="row.is_creator_verified ? 'success' : 'info'" size="small">
@@ -74,7 +76,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="注册时间" width="180">
+        <el-table-column prop="created_at" label="注册时间" width="180" sortable="custom">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
@@ -97,7 +99,7 @@
 </template>
 
 <script setup>
-import { ref, defineEmits } from 'vue'
+import { ref, defineEmits, defineExpose } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -127,13 +129,18 @@ const formatNumber = (num) => {
 
 const handleSearch = () => {
   currentPage.value = 1
-  emit('refresh', {
-    search: keyword.value,
-    sort_by: sortBy.value,
-    sort_order: sortOrder.value,
-    page: currentPage.value,
-    limit: pageSize.value
-  })
+  emit('refresh', getFilters())
+}
+
+const handleTableSort = ({ prop, order }) => {
+  if (!prop) return
+  sortBy.value = prop
+  sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : 'desc'
+  if (!order) {
+    sortBy.value = 'patches_count'
+    sortOrder.value = 'desc'
+  }
+  emit('refresh', getFilters())
 }
 
 const resetFilters = () => {
@@ -148,13 +155,29 @@ const resetFilters = () => {
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
-  handleSearch()
+  emit('refresh', getFilters())
 }
 
 const handlePageChange = (page) => {
   currentPage.value = page
-  handleSearch()
+  emit('refresh', getFilters())
 }
+
+const getFilters = () => ({
+  search: keyword.value,
+  sort_by: sortBy.value,
+  sort_order: sortOrder.value,
+  page: currentPage.value,
+  limit: pageSize.value
+})
+
+const getExportFilters = () => ({
+  search: keyword.value,
+  sort_by: sortBy.value,
+  sort_order: sortOrder.value
+})
+
+defineExpose({ getExportFilters })
 </script>
 
 <style scoped>

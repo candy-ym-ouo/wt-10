@@ -58,6 +58,10 @@ export const moduleApi = {
   getModuleParameters: (id) => api.get(`/modules/${id}/parameters`),
   getModuleTips: (id) => api.get(`/modules/${id}/tips`),
   getRecommendedPatches: (id) => api.get(`/modules/${id}/recommended-patches`),
+  getRecommendedCombinations: (id, params) => api.get(`/modules/${id}/recommended-combinations`, { params }),
+  getCombinationPatches: (id, pairedId, params) => api.get(`/modules/${id}/combination-patches/${pairedId}`, { params }),
+  getModuleCombinationStats: (id) => api.get(`/modules/${id}/combination-stats`),
+  getPopularCombinations: (params) => api.get('/modules/combinations/popular', { params }),
   createManufacturer: (data) => api.post('/manufacturers', data),
   createModule: (data) => api.post('/modules', data),
   updateModule: (id, data) => api.put(`/modules/${id}`, data),
@@ -141,7 +145,17 @@ export const adminApi = {
   addPatchToCollection: (id, data) => api.post(`/admin/collections/${id}/patches`, data),
   updatePatchNote: (id, patchId, note) => api.put(`/admin/collections/${id}/patches/${patchId}`, { note }),
   removePatchFromCollection: (id, patchId) => api.delete(`/admin/collections/${id}/patches/${patchId}`),
-  reorderPatches: (id, orders) => api.put(`/admin/collections/${id}/reorder`, { orders })
+  reorderPatches: (id, orders) => api.put(`/admin/collections/${id}/reorder`, { orders }),
+  getCombinationStatsList: (params) => api.get('/admin/modules/combinations/stats', { params }),
+  getModuleCombinations: (id) => api.get(`/admin/modules/${id}/combinations`),
+  addModuleCombination: (id, data) => api.post(`/admin/modules/${id}/combinations`, data),
+  updateModuleCombination: (comboId, data) => api.put(`/admin/modules/combinations/${comboId}`, data),
+  removeModuleCombination: (comboId) => api.delete(`/admin/modules/combinations/${comboId}`),
+  reorderModuleCombinations: (id, orders) => api.put(`/admin/modules/${id}/combinations/reorder`, { orders }),
+  recalculateCombinations: () => api.post('/admin/modules/combinations/recalculate'),
+  getCombinationConfig: () => api.get('/admin/modules/combinations/config'),
+  updateCombinationConfig: (data) => api.put('/admin/modules/combinations/config', data),
+  batchUpdateCombinationConfig: (data) => api.post('/admin/modules/combinations/config/batch', data)
 }
 
 export const authAPI = authApi
@@ -253,9 +267,18 @@ export const adminReportApi = {
   getPatchStats: (params) => api.get('/admin/reports/patches', { params }),
   getModuleStats: (params) => api.get('/admin/reports/modules', { params }),
   getManufacturerStats: (params) => api.get('/admin/reports/manufacturers', { params }),
-  getExportUrl: (type, format = 'csv') => {
+  getExportUrl: (type, format = 'csv', params = {}) => {
     const token = localStorage.getItem('token')
-    return `/api/admin/reports/export?type=${type}&format=${format}&token=${encodeURIComponent(token || '')}`
+    const searchParams = new URLSearchParams()
+    searchParams.append('type', type)
+    searchParams.append('format', format)
+    if (token) searchParams.append('token', token)
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, value)
+      }
+    })
+    return `/api/admin/reports/export?${searchParams.toString()}`
   }
 }
 

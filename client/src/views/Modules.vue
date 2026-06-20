@@ -42,6 +42,14 @@
             <div class="module-specs">
               <span v-if="mod.hp">宽度: {{ mod.hp }} HP</span>
             </div>
+            <div class="module-actions">
+              <el-button size="small" text type="primary" @click.stop="viewModuleDetail(mod.id)">
+                <el-icon><Document /></el-icon> 详情
+              </el-button>
+              <el-button size="small" text @click.stop="goToPatchesWithModule(mod.id)">
+                <el-icon><SetUp /></el-icon> 相关 Patch
+              </el-button>
+            </div>
           </div>
         </div>
 
@@ -59,6 +67,36 @@
 
       <el-col :span="6">
         <div class="card">
+          <h3 class="sidebar-title">🔥 热门模块组合</h3>
+          <div v-if="popularCombinations.length > 0" class="popular-combos">
+            <div
+              v-for="combo in popularCombinations"
+              :key="combo.module_id + '-' + combo.paired_module_id"
+              class="popular-combo-item"
+              @click="viewCombination(combo)"
+            >
+              <div class="combo-modules">
+                <span class="mini-type">{{ combo.module_type }}</span>
+                <span class="mini-name">{{ combo.module_name }}</span>
+                <span class="combo-plus">+</span>
+                <span class="mini-type">{{ combo.paired_type }}</span>
+                <span class="mini-name">{{ combo.paired_name }}</span>
+              </div>
+              <div class="combo-meta">
+                <el-tag size="small" type="warning">
+                  {{ Math.round((combo.confidence_score || 0) * 100) }}% 匹配
+                </el-tag>
+                <span class="combo-count">{{ combo.co_occurrence_count }} 次</span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-sidebar">
+            <el-icon><Connection /></el-icon>
+            <p>暂无热门组合数据</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
           <h3 class="sidebar-title">🏭 厂商列表</h3>
           <div class="manufacturer-list">
             <div
@@ -80,15 +118,19 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Search, Loading } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { Search, Loading, Document, SetUp, Connection } from '@element-plus/icons-vue'
 import { useModuleStore } from '@/stores/moduleStore'
+import { moduleAPI } from '@/api'
 
+const router = useRouter()
 const moduleStore = useModuleStore()
 
 const loading = ref(false)
 const modules = ref([])
 const manufacturers = ref([])
 const moduleTypes = ref([])
+const popularCombinations = ref([])
 const total = ref(0)
 const page = ref(1)
 const limit = 12
@@ -97,7 +139,7 @@ const selectedType = ref('')
 const selectedManufacturer = ref(null)
 
 onMounted(async () => {
-  await Promise.all([fetchModules(), fetchManufacturers()])
+  await Promise.all([fetchModules(), fetchManufacturers(), fetchPopularCombinations()])
 })
 
 const fetchModules = async () => {
@@ -123,6 +165,33 @@ const fetchModules = async () => {
 const fetchManufacturers = async () => {
   const res = await moduleStore.fetchManufacturers()
   manufacturers.value = res.list || []
+}
+
+const fetchPopularCombinations = async () => {
+  try {
+    const res = await moduleAPI.getPopularCombinations({ limit: 10 })
+    popularCombinations.value = res.list || []
+  } catch (e) {
+    console.error('获取热门组合失败:', e)
+  }
+}
+
+const viewModuleDetail = (moduleId) => {
+  router.push(`/modules/${moduleId}`)
+}
+
+const goToPatchesWithModule = (moduleId) => {
+  router.push({
+    path: '/patches',
+    query: { modules: String(moduleId) }
+  })
+}
+
+const viewCombination = (combo) => {
+  router.push({
+    path: '/patches',
+    query: { modules: `${combo.module_id},${combo.paired_module_id}` }
+  })
 }
 </script>
 
@@ -196,5 +265,98 @@ const fetchManufacturers = async () => {
 .module-specs {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 12px;
+}
+
+.module-actions {
+  display: flex;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.module-actions .el-button {
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.module-actions .el-icon {
+  margin-right: 4px;
+}
+
+.popular-combos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popular-combo-item {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.popular-combo-item:hover {
+  background: rgba(255, 215, 0, 0.05);
+  border-color: rgba(255, 215, 0, 0.2);
+}
+
+.combo-modules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.mini-type {
+  font-size: 10px;
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.15);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.mini-name {
+  font-size: 12px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.combo-plus {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  margin: 0 2px;
+}
+
+.combo-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.combo-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.empty-sidebar {
+  text-align: center;
+  padding: 30px 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.empty-sidebar .el-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.3;
+}
+
+.empty-sidebar p {
+  font-size: 13px;
+  margin: 0;
 }
 </style>

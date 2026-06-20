@@ -78,9 +78,8 @@ exports.getOverview = async (ctx) => {
   };
 };
 
-exports.getUserStats = async (ctx) => {
-  const { page = 1, limit = 20, search, sort_by = 'patches_count', sort_order = 'desc' } = ctx.query;
-  const offset = (page - 1) * limit;
+const buildUserStatsQuery = (options = {}) => {
+  const { search, sort_by = 'patches_count', sort_order = 'desc' } = options;
 
   let where = [];
   let params = [];
@@ -92,9 +91,18 @@ exports.getUserStats = async (ctx) => {
 
   const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
 
-  const validSortFields = ['patches_count', 'likes_count', 'favorites_count', 'followers_count', 'created_at'];
+  const validSortFields = ['patches_count', 'total_likes', 'total_favorites', 'total_views', 'followers_count', 'following_count', 'created_at'];
   const sortField = validSortFields.includes(sort_by) ? sort_by : 'patches_count';
   const sortOrder = sort_order === 'asc' ? 'ASC' : 'DESC';
+
+  return { whereSql, params, sortField, sortOrder };
+};
+
+exports.getUserStats = async (ctx) => {
+  const { page = 1, limit = 20, search, sort_by, sort_order } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const { whereSql, params, sortField, sortOrder } = buildUserStatsQuery({ search, sort_by, sort_order });
 
   const users = db.prepare(`
     SELECT 
@@ -133,9 +141,8 @@ exports.getUserStats = async (ctx) => {
   };
 };
 
-exports.getPatchStats = async (ctx) => {
-  const { page = 1, limit = 20, search, user_id, status, sort_by = 'views_count', sort_order = 'desc' } = ctx.query;
-  const offset = (page - 1) * limit;
+const buildPatchStatsQuery = (options = {}) => {
+  const { search, user_id, status, sort_by = 'views_count', sort_order = 'desc' } = options;
 
   let where = [];
   let params = [];
@@ -158,6 +165,15 @@ exports.getPatchStats = async (ctx) => {
   const validSortFields = ['views_count', 'likes_count', 'favorites_count', 'comments_count', 'created_at'];
   const sortField = validSortFields.includes(sort_by) ? sort_by : 'views_count';
   const sortOrder = sort_order === 'asc' ? 'ASC' : 'DESC';
+
+  return { whereSql, params, sortField, sortOrder };
+};
+
+exports.getPatchStats = async (ctx) => {
+  const { page = 1, limit = 20, search, user_id, status, sort_by, sort_order } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const { whereSql, params, sortField, sortOrder } = buildPatchStatsQuery({ search, user_id, status, sort_by, sort_order });
 
   const patches = db.prepare(`
     SELECT 
@@ -195,9 +211,8 @@ exports.getPatchStats = async (ctx) => {
   };
 };
 
-exports.getModuleStats = async (ctx) => {
-  const { page = 1, limit = 20, search, manufacturer_id, type, sort_by = 'patches_count', sort_order = 'desc' } = ctx.query;
-  const offset = (page - 1) * limit;
+const buildModuleStatsQuery = (options = {}) => {
+  const { search, manufacturer_id, type, sort_by = 'patches_count', sort_order = 'desc' } = options;
 
   let where = [];
   let params = [];
@@ -217,9 +232,18 @@ exports.getModuleStats = async (ctx) => {
 
   const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
 
-  const validSortFields = ['patches_count', 'hp', 'created_at'];
+  const validSortFields = ['patches_count', 'hp', 'created_at', 'name'];
   const sortField = validSortFields.includes(sort_by) ? sort_by : 'patches_count';
   const sortOrder = sort_order === 'asc' ? 'ASC' : 'DESC';
+
+  return { whereSql, params, sortField, sortOrder };
+};
+
+exports.getModuleStats = async (ctx) => {
+  const { page = 1, limit = 20, search, manufacturer_id, type, sort_by, sort_order } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const { whereSql, params, sortField, sortOrder } = buildModuleStatsQuery({ search, manufacturer_id, type, sort_by, sort_order });
 
   const modules = db.prepare(`
     SELECT 
@@ -255,9 +279,8 @@ exports.getModuleStats = async (ctx) => {
   };
 };
 
-exports.getManufacturerStats = async (ctx) => {
-  const { page = 1, limit = 20, search, sort_by = 'modules_count', sort_order = 'desc' } = ctx.query;
-  const offset = (page - 1) * limit;
+const buildManufacturerStatsQuery = (options = {}) => {
+  const { search, sort_by = 'modules_count', sort_order = 'desc' } = options;
 
   let where = [];
   let params = [];
@@ -269,9 +292,18 @@ exports.getManufacturerStats = async (ctx) => {
 
   const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
 
-  const validSortFields = ['modules_count', 'patches_count', 'created_at'];
+  const validSortFields = ['modules_count', 'patches_count', 'created_at', 'name'];
   const sortField = validSortFields.includes(sort_by) ? sort_by : 'modules_count';
   const sortOrder = sort_order === 'asc' ? 'ASC' : 'DESC';
+
+  return { whereSql, params, sortField, sortOrder };
+};
+
+exports.getManufacturerStats = async (ctx) => {
+  const { page = 1, limit = 20, search, sort_by, sort_order } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const { whereSql, params, sortField, sortOrder } = buildManufacturerStatsQuery({ search, sort_by, sort_order });
 
   const manufacturers = db.prepare(`
     SELECT 
@@ -306,14 +338,15 @@ exports.getManufacturerStats = async (ctx) => {
 };
 
 exports.exportReport = async (ctx) => {
-  const { type, format = 'csv' } = ctx.query;
+  const { type, format = 'csv', search, status, user_id, manufacturer_id: manufacturerId, type: moduleType, sort_by, sort_order } = ctx.query;
 
   let data = [];
   let filename = '';
   let headers = [];
 
   switch (type) {
-    case 'users':
+    case 'users': {
+      const { whereSql, params, sortField, sortOrder } = buildUserStatsQuery({ search, sort_by, sort_order });
       data = db.prepare(`
         SELECT 
           u.id,
@@ -330,14 +363,17 @@ exports.exportReport = async (ctx) => {
           COALESCE(SUM(p.views_count), 0) as total_views
         FROM users u
         LEFT JOIN patches p ON u.id = p.user_id
+        ${whereSql}
         GROUP BY u.id
-        ORDER BY patches_count DESC
-      `).all();
+        ORDER BY ${sortField} ${sortOrder}
+      `).all(...params);
       headers = ['ID', '用户名', '邮箱', '角色', '粉丝数', '关注数', '创作者认证', '注册时间', 'Patch数量', '总点赞', '总收藏', '总浏览'];
       filename = '用户统计报表';
       break;
+    }
 
-    case 'patches':
+    case 'patches': {
+      const { whereSql, params, sortField, sortOrder } = buildPatchStatsQuery({ search, user_id, status, sort_by, sort_order });
       data = db.prepare(`
         SELECT 
           p.id,
@@ -353,14 +389,17 @@ exports.exportReport = async (ctx) => {
         FROM patches p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN comments c ON p.id = c.patch_id
+        ${whereSql}
         GROUP BY p.id
-        ORDER BY p.views_count DESC
-      `).all();
+        ORDER BY ${sortField} ${sortOrder}
+      `).all(...params);
       headers = ['ID', '标题', '作者', '状态', '点赞数', '收藏数', '浏览数', '评论数', '是否公开', '创建时间'];
       filename = 'Patch统计报表';
       break;
+    }
 
-    case 'modules':
+    case 'modules': {
+      const { whereSql, params, sortField, sortOrder } = buildModuleStatsQuery({ search, manufacturer_id: manufacturerId, type: moduleType, sort_by, sort_order });
       data = db.prepare(`
         SELECT 
           m.id,
@@ -374,14 +413,17 @@ exports.exportReport = async (ctx) => {
         FROM modules m
         LEFT JOIN manufacturers mf ON m.manufacturer_id = mf.id
         LEFT JOIN patches p ON p.modules_used LIKE '%' || m.name || '%'
+        ${whereSql}
         GROUP BY m.id
-        ORDER BY patches_count DESC
-      `).all();
+        ORDER BY ${sortField} ${sortOrder}
+      `).all(...params);
       headers = ['ID', '模块名称', '类型', 'HP', '厂商', '状态', '创建时间', '关联Patch数'];
       filename = '模块统计报表';
       break;
+    }
 
-    case 'manufacturers':
+    case 'manufacturers': {
+      const { whereSql, params, sortField, sortOrder } = buildManufacturerStatsQuery({ search, sort_by, sort_order });
       data = db.prepare(`
         SELECT 
           m.id,
@@ -394,12 +436,14 @@ exports.exportReport = async (ctx) => {
         FROM manufacturers m
         LEFT JOIN modules mod ON m.id = mod.manufacturer_id
         LEFT JOIN patches p ON p.modules_used LIKE '%' || m.name || '%'
+        ${whereSql}
         GROUP BY m.id
-        ORDER BY modules_count DESC
-      `).all();
+        ORDER BY ${sortField} ${sortOrder}
+      `).all(...params);
       headers = ['ID', '厂商名称', '国家', '官网', '创建时间', '模块数量', '关联Patch数'];
       filename = '厂商统计报表';
       break;
+    }
 
     default:
       ctx.status = 400;

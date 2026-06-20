@@ -37,6 +37,7 @@
       <el-select v-model="sortBy" placeholder="排序方式" class="filter-select" @change="handleSearch">
         <el-option label="关联Patch数" value="patches_count" />
         <el-option label="HP" value="hp" />
+        <el-option label="名称" value="name" />
         <el-option label="创建时间" value="created_at" />
       </el-select>
       <el-select v-model="sortOrder" placeholder="排序方向" class="filter-select" @change="handleSearch">
@@ -51,9 +52,9 @@
     </div>
 
     <div class="table-card">
-      <el-table :data="data" v-loading="loading" stripe>
+      <el-table :data="data" v-loading="loading" stripe @sort-change="handleTableSort">
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="模块名称" min-width="160" />
+        <el-table-column prop="name" label="模块名称" min-width="160" sortable="custom" />
         <el-table-column prop="manufacturer_name" label="厂商" width="150" />
         <el-table-column prop="type" label="类型" width="120">
           <template #default="{ row }">
@@ -62,7 +63,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="hp" label="HP" width="80" sortable />
+        <el-table-column prop="hp" label="HP" width="80" sortable="custom" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
@@ -70,12 +71,12 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="patches_count" label="关联Patch数" width="120" sortable>
+        <el-table-column prop="patches_count" label="关联Patch数" width="120" sortable="custom">
           <template #default="{ row }">
             <span class="highlight-number">{{ row.patches_count || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" label="创建时间" width="180" sortable="custom">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
@@ -98,7 +99,7 @@
 </template>
 
 <script setup>
-import { ref, defineEmits, onMounted } from 'vue'
+import { ref, defineEmits, defineExpose, onMounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { moduleApi } from '@/api'
 
@@ -150,15 +151,18 @@ const fetchManufacturers = async () => {
 
 const handleSearch = () => {
   currentPage.value = 1
-  emit('refresh', {
-    search: keyword.value,
-    manufacturer_id: manufacturerFilter.value,
-    type: typeFilter.value,
-    sort_by: sortBy.value,
-    sort_order: sortOrder.value,
-    page: currentPage.value,
-    limit: pageSize.value
-  })
+  emit('refresh', getFilters())
+}
+
+const handleTableSort = ({ prop, order }) => {
+  if (!prop) return
+  sortBy.value = prop
+  sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : 'desc'
+  if (!order) {
+    sortBy.value = 'patches_count'
+    sortOrder.value = 'desc'
+  }
+  emit('refresh', getFilters())
 }
 
 const resetFilters = () => {
@@ -175,13 +179,33 @@ const resetFilters = () => {
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
-  handleSearch()
+  emit('refresh', getFilters())
 }
 
 const handlePageChange = (page) => {
   currentPage.value = page
-  handleSearch()
+  emit('refresh', getFilters())
 }
+
+const getFilters = () => ({
+  search: keyword.value,
+  manufacturer_id: manufacturerFilter.value,
+  type: typeFilter.value,
+  sort_by: sortBy.value,
+  sort_order: sortOrder.value,
+  page: currentPage.value,
+  limit: pageSize.value
+})
+
+const getExportFilters = () => ({
+  search: keyword.value,
+  manufacturer_id: manufacturerFilter.value,
+  type: typeFilter.value,
+  sort_by: sortBy.value,
+  sort_order: sortOrder.value
+})
+
+defineExpose({ getExportFilters })
 
 onMounted(() => {
   fetchManufacturers()

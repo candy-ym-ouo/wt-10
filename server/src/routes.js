@@ -15,6 +15,7 @@ const wikiController = require('./controllers/wikiController');
 const creatorVerificationController = require('./controllers/creatorVerificationController');
 const downloadController = require('./controllers/downloadController');
 const reportController = require('./controllers/reportController');
+const moduleRecommendationController = require('./controllers/moduleRecommendationController');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -49,6 +50,10 @@ router.get('/modules/:id/wiki', wikiController.getModuleWiki);
 router.get('/modules/:id/parameters', wikiController.getModuleParameters);
 router.get('/modules/:id/tips', wikiController.getModuleTips);
 router.get('/modules/:id/recommended-patches', wikiController.getRecommendedPatches);
+router.get('/modules/:id/recommended-combinations', moduleRecommendationController.getRecommendedCombinations);
+router.get('/modules/:id/combination-patches/:pairedId', moduleRecommendationController.getCombinationPatches);
+router.get('/modules/:id/combination-stats', moduleRecommendationController.getModuleStats);
+router.get('/modules/combinations/popular', moduleRecommendationController.getPopularCombinations);
 router.post('/manufacturers', requireAdmin, moduleController.createManufacturer);
 router.post('/modules', requireAdmin, moduleController.createModule);
 router.put('/modules/:id', requireAdmin, moduleController.updateModule);
@@ -130,6 +135,17 @@ router.get('/admin/manufacturers', requireAdmin, adminController.getAllManufactu
 router.post('/admin/manufacturers', requireAdmin, adminController.createManufacturer);
 router.put('/admin/manufacturers/:id', requireAdmin, adminController.updateManufacturer);
 router.delete('/admin/manufacturers/:id', requireAdmin, adminController.deleteManufacturer);
+
+router.get('/admin/modules/combinations/stats', requireAdmin, moduleRecommendationController.adminGetCombinationStatsList);
+router.get('/admin/modules/:id/combinations', requireAdmin, moduleRecommendationController.adminGetRecommendedCombinations);
+router.post('/admin/modules/:id/combinations', requireAdmin, moduleRecommendationController.adminAddRecommendedCombination);
+router.put('/admin/modules/combinations/:comboId', requireAdmin, moduleRecommendationController.adminUpdateRecommendedCombination);
+router.delete('/admin/modules/combinations/:comboId', requireAdmin, moduleRecommendationController.adminRemoveRecommendedCombination);
+router.put('/admin/modules/:id/combinations/reorder', requireAdmin, moduleRecommendationController.adminReorderRecommendedCombinations);
+router.post('/admin/modules/combinations/recalculate', requireAdmin, moduleRecommendationController.recalculateStats);
+router.get('/admin/modules/combinations/config', requireAdmin, moduleRecommendationController.getConfig);
+router.put('/admin/modules/combinations/config', requireAdmin, moduleRecommendationController.updateConfig);
+router.post('/admin/modules/combinations/config/batch', requireAdmin, moduleRecommendationController.batchUpdateConfig);
 
 router.get('/admin/collections', requireAdmin, collectionController.adminGetCollections);
 router.post('/admin/collections', requireAdmin, collectionController.createCollection);

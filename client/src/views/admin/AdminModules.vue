@@ -2,10 +2,16 @@
   <div class="admin-page">
     <div class="page-header">
       <h1 class="page-title">🎛️ 模块管理</h1>
-      <el-button type="primary" @click="openCreateDialog">
-        <el-icon><Plus /></el-icon>
-        新增模块
-      </el-button>
+      <div class="header-actions">
+        <el-button @click="router.push('/admin/modules/combinations')">
+          <el-icon><Connection /></el-icon>
+          组合推荐管理
+        </el-button>
+        <el-button type="primary" @click="openCreateDialog">
+          <el-icon><Plus /></el-icon>
+          新增模块
+        </el-button>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -58,7 +64,7 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="openEditDialog(row)">
               编辑
@@ -69,6 +75,13 @@
               @click="goToWiki(row)"
             >
               百科管理
+            </el-button>
+            <el-button 
+              size="small" 
+              type="success" 
+              @click="goToCombinations(row)"
+            >
+              搭配推荐
             </el-button>
             <el-button 
               size="small" 
@@ -147,7 +160,7 @@
 import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus } from '@element-plus/icons-vue'
+import { Search, Plus, Connection } from '@element-plus/icons-vue'
 import { adminApi, moduleApi } from '@/api'
 
 const router = useRouter()
@@ -273,6 +286,10 @@ const goToWiki = (module) => {
   router.push(`/admin/modules/${module.id}/wiki`)
 }
 
+const goToCombinations = (module) => {
+  router.push(`/admin/modules/${module.id}/combinations`)
+}
+
 onMounted(async () => {
   await fetchManufacturers()
   fetchModules()
@@ -291,8 +308,14 @@ onMounted(async () => {
   margin-bottom: 1.5rem;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 .page-title {
   font-size: 1.8rem;
+  font-weight: 700;
   margin: 0;
   color: var(--text-primary);
 }

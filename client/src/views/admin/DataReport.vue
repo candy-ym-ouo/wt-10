@@ -11,14 +11,26 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="users">用户统计 (CSV)</el-dropdown-item>
-              <el-dropdown-item command="patches">Patch统计 (CSV)</el-dropdown-item>
-              <el-dropdown-item command="modules">模块统计 (CSV)</el-dropdown-item>
-              <el-dropdown-item command="manufacturers">厂商统计 (CSV)</el-dropdown-item>
-              <el-dropdown-item divided command="users_json">用户统计 (JSON)</el-dropdown-item>
-              <el-dropdown-item command="patches_json">Patch统计 (JSON)</el-dropdown-item>
-              <el-dropdown-item command="modules_json">模块统计 (JSON)</el-dropdown-item>
-              <el-dropdown-item command="manufacturers_json">厂商统计 (JSON)</el-dropdown-item>
+              <el-dropdown-item 
+                v-if="activeTab !== 'overview'"
+                :command="activeTab"
+              >
+                导出当前筛选结果 (CSV)
+              </el-dropdown-item>
+              <el-dropdown-item 
+                v-if="activeTab !== 'overview'"
+                :command="activeTab + '_current_json'"
+              >
+                导出当前筛选结果 (JSON)
+              </el-dropdown-item>
+              <el-dropdown-item divided command="all_users">全部用户 (CSV)</el-dropdown-item>
+              <el-dropdown-item command="all_patches">全部Patch (CSV)</el-dropdown-item>
+              <el-dropdown-item command="all_modules">全部模块 (CSV)</el-dropdown-item>
+              <el-dropdown-item command="all_manufacturers">全部厂商 (CSV)</el-dropdown-item>
+              <el-dropdown-item divided command="all_users_json">全部用户 (JSON)</el-dropdown-item>
+              <el-dropdown-item command="all_patches_json">全部Patch (JSON)</el-dropdown-item>
+              <el-dropdown-item command="all_modules_json">全部模块 (JSON)</el-dropdown-item>
+              <el-dropdown-item command="all_manufacturers_json">全部厂商 (JSON)</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -31,26 +43,50 @@
       </el-tab-pane>
 
       <el-tab-pane label="用户统计" name="users">
-        <UserStatsTab :loading="userLoading" :data="userData" :total="userTotal" @refresh="fetchUserStats" />
+        <UserStatsTab 
+          ref="userTabRef" 
+          :loading="userLoading" 
+          :data="userData" 
+          :total="userTotal" 
+          @refresh="fetchUserStats" 
+        />
       </el-tab-pane>
 
       <el-tab-pane label="Patch统计" name="patches">
-        <PatchStatsTab :loading="patchLoading" :data="patchData" :total="patchTotal" @refresh="fetchPatchStats" />
+        <PatchStatsTab 
+          ref="patchTabRef" 
+          :loading="patchLoading" 
+          :data="patchData" 
+          :total="patchTotal" 
+          @refresh="fetchPatchStats" 
+        />
       </el-tab-pane>
 
       <el-tab-pane label="模块统计" name="modules">
-        <ModuleStatsTab :loading="moduleLoading" :data="moduleData" :total="moduleTotal" @refresh="fetchModuleStats" />
+        <ModuleStatsTab 
+          ref="moduleTabRef" 
+          :loading="moduleLoading" 
+          :data="moduleData" 
+          :total="moduleTotal" 
+          @refresh="fetchModuleStats" 
+        />
       </el-tab-pane>
 
       <el-tab-pane label="厂商统计" name="manufacturers">
-        <ManufacturerStatsTab :loading="manufacturerLoading" :data="manufacturerData" :total="manufacturerTotal" @refresh="fetchManufacturerStats" />
+        <ManufacturerStatsTab 
+          ref="manufacturerTabRef" 
+          :loading="manufacturerLoading" 
+          :data="manufacturerData" 
+          :total="manufacturerTotal" 
+          @refresh="fetchManufacturerStats" 
+        />
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, ArrowDown } from '@element-plus/icons-vue'
 import { adminReportApi } from '@/api'
@@ -68,18 +104,22 @@ const overviewData = ref(null)
 const userLoading = ref(true)
 const userData = ref([])
 const userTotal = ref(0)
+const userTabRef = ref(null)
 
 const patchLoading = ref(true)
 const patchData = ref([])
 const patchTotal = ref(0)
+const patchTabRef = ref(null)
 
 const moduleLoading = ref(true)
 const moduleData = ref([])
 const moduleTotal = ref(0)
+const moduleTabRef = ref(null)
 
 const manufacturerLoading = ref(true)
 const manufacturerData = ref([])
 const manufacturerTotal = ref(0)
+const manufacturerTabRef = ref(null)
 
 const fetchOverview = async () => {
   try {
@@ -150,10 +190,46 @@ const fetchManufacturerStats = async (params = {}) => {
   }
 }
 
+const getCurrentFilters = () => {
+  const tabRefs = {
+    users: userTabRef,
+    patches: patchTabRef,
+    modules: moduleTabRef,
+    manufacturers: manufacturerTabRef
+  }
+  const ref = tabRefs[activeTab.value]
+  if (ref && ref.value && typeof ref.value.getExportFilters === 'function') {
+    return ref.value.getExportFilters()
+  }
+  return {}
+}
+
 const handleExport = (command) => {
-  const [type, format] = command.split('_')
-  const fmt = format || 'csv'
-  const url = adminReportApi.getExportUrl(type, fmt)
+  let type = command
+  let format = 'csv'
+  let exportAll = false
+
+  if (command.startsWith('all_')) {
+    exportAll = true
+    type = command.replace('all_', '')
+  }
+
+  if (type.endsWith('_json')) {
+    format = 'json'
+    type = type.replace('_json', '')
+  }
+
+  if (type.endsWith('_current_json')) {
+    format = 'json'
+    type = type.replace('_current_json', '')
+  }
+
+  let params = {}
+  if (!exportAll) {
+    params = getCurrentFilters()
+  }
+
+  const url = adminReportApi.getExportUrl(type, format, params)
   
   const link = document.createElement('a')
   link.href = url

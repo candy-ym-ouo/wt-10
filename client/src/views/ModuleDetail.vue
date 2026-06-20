@@ -240,6 +240,101 @@
             <p>暂无相关 Patch</p>
           </div>
         </el-tab-pane>
+
+        <el-tab-pane :label="`搭配推荐 (${recommendedCombinations.length})`" name="combinations">
+          <div v-if="recommendedCombinations.length > 0">
+            <div class="combo-filter-bar">
+              <span class="filter-label">筛选：</span>
+              <el-tag
+                v-for="t in combinationTypes"
+                :key="t"
+                :type="selectedComboType === t ? 'warning' : 'info'"
+                class="filter-tag"
+                @click="selectedComboType = selectedComboType === t ? '' : t"
+              >
+                {{ t }}
+              </el-tag>
+            </div>
+
+            <div class="combo-grid">
+              <div
+                v-for="combo in filteredCombinations"
+                :key="combo.paired_module_id"
+                class="card combo-card"
+              >
+                <div class="combo-header">
+                  <div class="combo-source" :class="combo.source">
+                    <el-icon v-if="combo.source === 'manual'"><Star /></el-icon>
+                    <el-icon v-else><TrendCharts /></el-icon>
+                    <span>{{ combo.source === 'manual' ? '精选推荐' : '统计推荐' }}</span>
+                  </div>
+                  <div class="combo-confidence">
+                    <el-progress
+                      :percentage="Math.round((combo.confidence_score || 0) * 100)"
+                      :stroke-width="8"
+                      :show-text="false"
+                      color="#ffd700"
+                    />
+                    <span class="confidence-text">匹配度 {{ Math.round((combo.confidence_score || 0) * 100) }}%</span>
+                  </div>
+                </div>
+
+                <div class="combo-module" @click="$router.push(`/modules/${combo.paired_module_id}`)">
+                  <span class="combo-type">{{ combo.paired_type }}</span>
+                  <h4 class="combo-name">{{ combo.paired_name }}</h4>
+                  <p class="combo-manu" v-if="combo.paired_manufacturer_name">
+                    {{ combo.paired_manufacturer_name }}
+                  </p>
+                  <p class="combo-desc">{{ combo.paired_description }}</p>
+                </div>
+
+                <div class="combo-stats">
+                  <span>共同出现 {{ combo.co_occurrence_count || 0 }} 次</span>
+                  <span v-if="combo.avg_patch_likes">平均点赞 {{ combo.avg_patch_likes }}</span>
+                </div>
+
+                <div class="combo-reason" v-if="combo.reason">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>{{ combo.reason }}</span>
+                </div>
+
+                <div class="combo-samples" v-if="combo.sample_patches && combo.sample_patches.length > 0">
+                  <div class="sample-title">示例 Patch：</div>
+                  <div class="sample-list">
+                    <div
+                      v-for="sample in combo.sample_patches"
+                      :key="sample.id"
+                      class="sample-item"
+                      @click="goToPatchesWithFilter(wikiData.module.id, combo.paired_module_id)"
+                    >
+                      <span class="sample-name">{{ sample.title }}</span>
+                      <span class="sample-likes">
+                        <el-icon><Star /></el-icon> {{ sample.likes_count || 0 }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="combo-actions">
+                  <el-button size="small" @click="$router.push(`/modules/${combo.paired_module_id}`)">
+                    查看模块
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="primary" 
+                    @click="goToPatchesWithFilter(wikiData.module.id, combo.paired_module_id)"
+                  >
+                    查看 Patch
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card empty-card" v-else>
+            <el-icon><Connection /></el-icon>
+            <p>暂无搭配推荐，更多 Patch 发布后将自动生成</p>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </template>
 
@@ -252,20 +347,23 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { 
   Loading, ArrowLeft, Warning, Reading, InfoFilled, 
   Timer, Star, Suitcase, DocumentAdd, Setting,
-  Document
+  Document, TrendCharts, Connection
 } from '@element-plus/icons-vue'
 import { moduleAPI } from '@/api'
 
 const route = useRoute()
+const router = useRouter()
 
 const loading = ref(true)
 const wikiData = ref(null)
 const activeTab = ref('overview')
 const activeTipCategory = ref('all')
+const recommendedCombinations = ref([])
+const selectedComboType = ref('')
 
 const tipCategories = [
   { value: 'all', label: '全部' },
@@ -332,9 +430,34 @@ const getCategoryLabel = (cat) => {
   return map[cat] || cat
 }
 
+const combinationTypes = computed(() => {
+  const types = new Set()
+  recommendedCombinations.value.forEach(c => {
+    if (c.paired_type) types.add(c.paired_type)
+  })
+  return [...types]
+})
+
+const filteredCombinations = computed(() => {
+  if (!selectedComboType.value) return recommendedCombinations.value
+  return recommendedCombinations.value.filter(c => c.paired_type === selectedComboType.value)
+})
+
+const goToPatchesWithFilter = (moduleId, pairedId) => {
+  router.push({
+    path: '/patches',
+    query: { modules: `${moduleId},${pairedId}` }
+  })
+}
+
 onMounted(async () => {
   try {
-    wikiData.value = await moduleAPI.getModuleWiki(route.params.id)
+    const [wiki, combos] = await Promise.all([
+      moduleAPI.getModuleWiki(route.params.id),
+      moduleAPI.getRecommendedCombinations(route.params.id)
+    ])
+    wikiData.value = wiki
+    recommendedCombinations.value = combos.list || []
   } catch (e) {
     console.error(e)
   } finally {
@@ -666,5 +789,216 @@ onMounted(async () => {
   font-size: 48px;
   margin-bottom: 12px;
   opacity: 0.3;
+}
+
+.combo-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.filter-tag {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-tag:hover {
+  transform: translateY(-1px);
+}
+
+.combo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.combo-card {
+  transition: all 0.3s ease;
+}
+
+.combo-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.combo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.combo-source {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.combo-source.manual {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 170, 0, 0.1));
+  color: #ffd700;
+}
+
+.combo-source.stats {
+  background: rgba(103, 194, 58, 0.15);
+  color: #67c23a;
+}
+
+.combo-confidence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.confidence-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.combo-module {
+  cursor: pointer;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  transition: all 0.3s ease;
+}
+
+.combo-module:hover {
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.combo-type {
+  display: inline-block;
+  font-size: 11px;
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.combo-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px 0;
+}
+
+.combo-manu {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 8px 0;
+}
+
+.combo-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.combo-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 12px;
+}
+
+.combo-reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  background: rgba(255, 215, 0, 0.08);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.combo-reason .el-icon {
+  color: #ffd700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.combo-samples {
+  margin-bottom: 12px;
+}
+
+.sample-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+}
+
+.sample-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sample-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sample-item:hover {
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.sample-name {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.sample-likes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.sample-likes .el-icon {
+  color: #ff6b6b;
+}
+
+.combo-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.combo-actions .el-button {
+  flex: 1;
 }
 </style>
