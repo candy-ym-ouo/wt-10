@@ -8,13 +8,21 @@ export const useUserStore = defineStore('user', {
   }),
 
   getters: {
-    isLoggedIn: (state) => !!state.token,
-    isAdmin: (state) => state.user?.role === 'admin'
+    isLoggedIn: (state) => {
+      if (!state.token) return false
+      if (state.user?.role === 'banned' || state.user?.role === 'suspended') return false
+      return true
+    },
+    isAdmin: (state) => state.user?.role === 'admin',
+    isBanned: (state) => state.user?.role === 'banned' || state.user?.role === 'suspended'
   },
 
   actions: {
     async login(data) {
       const res = await authAPI.login(data)
+      if (res.user?.role === 'banned' || res.user?.role === 'suspended') {
+        throw new Error(res.error || '您的账号已被封禁')
+      }
       this.setToken(res.token)
       this.setUser(res.user)
       return res
@@ -31,6 +39,10 @@ export const useUserStore = defineStore('user', {
       if (!this.token) return null
       try {
         const res = await authAPI.getMe()
+        if (res?.role === 'banned' || res?.role === 'suspended') {
+          this.logout()
+          return null
+        }
         this.setUser(res)
         return res
       } catch (e) {
@@ -40,6 +52,9 @@ export const useUserStore = defineStore('user', {
     },
 
     async updateProfile(data) {
+      if (this.isBanned) {
+        throw new Error('您的账号已被封禁，无法执行此操作')
+      }
       const res = await authAPI.updateProfile(data)
       this.setUser(res)
       return res
@@ -70,7 +85,12 @@ export const useUserStore = defineStore('user', {
       const storedUser = localStorage.getItem('user')
       if (storedUser) {
         try {
-          this.user = JSON.parse(storedUser)
+          const parsed = JSON.parse(storedUser)
+          if (parsed?.role === 'banned' || parsed?.role === 'suspended') {
+            this.logout()
+            return
+          }
+          this.user = parsed
         } catch (e) {
           localStorage.removeItem('user')
         }

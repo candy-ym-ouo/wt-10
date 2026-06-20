@@ -20,6 +20,19 @@ api.interceptors.response.use(
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       window.location.href = '/login'
+    } else if (error.response?.status === 403 && error.response?.data?.banned) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      const data = error.response.data
+      let message = data.error || '您的账号已被封禁'
+      if (data.role === 'suspended' && data.suspended_until && !data.is_permanent) {
+        const endTime = new Date(data.suspended_until).toLocaleString('zh-CN')
+        message = `您的账号已被临时封禁，解封时间：${endTime}`
+      } else if (data.role === 'banned') {
+        message = '您的账号已被永久封禁'
+      }
+      alert(message)
+      window.location.href = '/login'
     }
     return Promise.reject(error.response?.data || error)
   }

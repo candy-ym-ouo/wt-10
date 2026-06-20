@@ -259,6 +259,10 @@ router.beforeEach((to, from, next) => {
     next('/')
   } else if (to.meta.guest && userStore.isLoggedIn) {
     next('/')
+  } else if (userStore.isBanned) {
+    userStore.logout()
+    alert('您的账号已被封禁，已退出登录')
+    next('/login')
   } else {
     next()
   }

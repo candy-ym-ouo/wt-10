@@ -56,6 +56,46 @@ exports.login = async (ctx) => {
     return;
   }
 
+  if (user.role === 'banned') {
+    ctx.status = 403;
+    ctx.body = { error: '您的账号已被永久封禁，无法登录', banned: true, role: 'banned' };
+    return;
+  }
+
+  if (user.role === 'suspended') {
+    const activePunishment = db.prepare(`
+      SELECT ends_at FROM report_punishments
+      WHERE target_user_id = ? AND punishment_type = 'suspend_user'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(user.id);
+
+    let suspendedUntil = null;
+    let isPermanent = false;
+    if (activePunishment) {
+      if (activePunishment.ends_at && new Date(activePunishment.ends_at) > new Date()) {
+        suspendedUntil = activePunishment.ends_at;
+      } else if (!activePunishment.ends_at) {
+        isPermanent = true;
+      }
+    }
+
+    if (suspendedUntil || isPermanent) {
+      const endsAtText = isPermanent ? '永久' : `至 ${new Date(suspendedUntil).toLocaleString('zh-CN')}`;
+      ctx.status = 403;
+      ctx.body = {
+        error: `您的账号已被临时封禁（${endsAtText}），无法登录`,
+        banned: true,
+        role: 'suspended',
+        suspended_until: suspendedUntil,
+        is_permanent: isPermanent
+      };
+      return;
+    } else {
+      db.prepare(`UPDATE users SET role = 'user', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id);
+      user.role = 'user';
+    }
+  }
+
   const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
   const { password: _, ...safeUser } = user;
   delete safeUser.password;
