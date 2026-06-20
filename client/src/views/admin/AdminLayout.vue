@@ -29,6 +29,10 @@
           <el-icon><Box /></el-icon>
           <span>模块管理</span>
         </el-menu-item>
+        <el-menu-item index="/admin/articles">
+          <el-icon><Document /></el-icon>
+          <span>专栏管理</span>
+        </el-menu-item>
         <el-menu-item index="/admin/manufacturers">
           <el-icon><OfficeBuilding /></el-icon>
           <span>厂商管理</span>

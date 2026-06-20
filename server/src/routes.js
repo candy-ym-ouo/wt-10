@@ -20,6 +20,7 @@ const moduleRecommendationController = require('./controllers/moduleRecommendati
 const productController = require('./controllers/productController');
 const orderController = require('./controllers/orderController');
 const earningsController = require('./controllers/earningsController');
+const articleController = require('./controllers/articleController');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -70,6 +71,18 @@ router.put('/patches/:id', requireAuth, patchController.updatePatch);
 router.delete('/patches/:id', requireAuth, patchController.deletePatch);
 router.post('/patches/:id/comments', requireAuth, patchController.addComment);
 router.delete('/patches/:id/comments/:commentId', requireAuth, patchController.deleteComment);
+
+router.get('/articles', articleController.getArticles);
+router.get('/articles/:id', articleController.getArticleDetail);
+router.get('/articles/:id/module-refs', articleController.getModuleRefs);
+router.post('/articles', requireAuth, articleController.createArticle);
+router.put('/articles/:id', requireAuth, articleController.updateArticle);
+router.delete('/articles/:id', requireAuth, articleController.deleteArticle);
+router.post('/articles/:id/like', requireAuth, articleController.toggleLike);
+router.post('/articles/:id/favorite', requireAuth, articleController.toggleFavorite);
+router.post('/articles/:id/comments', requireAuth, articleController.addComment);
+router.delete('/articles/:id/comments/:commentId', requireAuth, articleController.deleteComment);
+router.get('/me/articles', requireAuth, articleController.getMyArticles);
 
 router.post('/patches/:id/like', requireAuth, socialController.toggleLike);
 router.post('/patches/:id/favorite', requireAuth, socialController.toggleFavorite);
@@ -135,6 +148,11 @@ router.put('/admin/modules/:id/recommended-patches/:recId', requireAdmin, wikiCo
 router.delete('/admin/modules/:id/recommended-patches/:recId', requireAdmin, wikiController.adminRemoveRecommendedPatch);
 router.put('/admin/modules/:id/recommended-patches/reorder', requireAdmin, wikiController.adminReorderRecommendedPatches);
 router.get('/admin/patches/search', requireAdmin, wikiController.adminSearchPatches);
+router.get('/admin/articles', requireAdmin, articleController.adminGetArticles);
+router.get('/admin/articles/:id', requireAdmin, articleController.adminGetArticleDetail);
+router.put('/admin/articles/:id/review', requireAdmin, articleController.adminReviewArticle);
+router.put('/admin/articles/:id/public', requireAdmin, articleController.adminToggleArticlePublic);
+router.delete('/admin/articles/:id', requireAdmin, articleController.adminDeleteArticle);
 router.get('/admin/manufacturers', requireAdmin, adminController.getAllManufacturers);
 router.post('/admin/manufacturers', requireAdmin, adminController.createManufacturer);
 router.put('/admin/manufacturers/:id', requireAdmin, adminController.updateManufacturer);

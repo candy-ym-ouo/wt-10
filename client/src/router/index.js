@@ -111,6 +111,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/my-articles',
+    name: 'MyArticles',
+    component: () => import('@/views/MyArticles.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/favorites',
     name: 'Favorites',
     component: () => import('@/views/Favorites.vue'),
@@ -148,6 +154,28 @@ const routes = [
     path: '/downloads/:id',
     name: 'DownloadDetail',
     component: () => import('@/views/DownloadDetail.vue')
+  },
+  {
+    path: '/articles',
+    name: 'Articles',
+    component: () => import('@/views/Articles.vue')
+  },
+  {
+    path: '/articles/create',
+    name: 'CreateArticle',
+    component: () => import('@/views/CreateArticle.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/articles/edit/:id',
+    name: 'EditArticle',
+    component: () => import('@/views/CreateArticle.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/articles/:id',
+    name: 'ArticleDetail',
+    component: () => import('@/views/ArticleDetail.vue')
   },
   {
     path: '/my-orders',
@@ -192,6 +220,11 @@ const routes = [
         path: 'modules',
         name: 'AdminModules',
         component: () => import('@/views/admin/AdminModules.vue')
+      },
+      {
+        path: 'articles',
+        name: 'AdminArticles',
+        component: () => import('@/views/admin/AdminArticles.vue')
       },
       {
         path: 'modules/combinations',

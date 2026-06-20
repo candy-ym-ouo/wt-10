@@ -40,6 +40,10 @@
               <strong>{{ patchCount }}</strong>
               <span>Patch</span>
             </span>
+            <span class="stat-item" @click="activeTab = 'articles'">
+              <strong>{{ articleCount }}</strong>
+              <span>文章</span>
+            </span>
             <span class="stat-item" @click="activeTab = 'followers'">
               <strong>{{ user.followers_count || 0 }}</strong>
               <span>粉丝</span>
@@ -66,6 +70,13 @@
         </div>
         <div 
           class="tab" 
+          :class="{ active: activeTab === 'articles' }"
+          @click="activeTab = 'articles'"
+        >
+          专栏文章 ({{ articleCount }})
+        </div>
+        <div 
+          class="tab" 
           :class="{ active: activeTab === 'followers' }"
           @click="activeTab = 'followers'"
         >
@@ -88,6 +99,46 @@
           </div>
           <div v-else class="patch-grid">
             <PatchCard v-for="patch in userPatches" :key="patch.id" :patch="patch" />
+          </div>
+        </div>
+        
+        <div v-if="activeTab === 'articles'" class="tab-pane">
+          <div v-if="userArticles.length === 0" class="empty-state">
+            <el-icon class="empty-icon"><Document /></el-icon>
+            <p>暂无专栏文章</p>
+          </div>
+          <div v-else class="article-list">
+            <div
+              v-for="article in userArticles"
+              :key="article.id"
+              class="article-card"
+              @click="goToArticle(article)"
+            >
+              <div v-if="article.cover_image" class="article-cover">
+                <img :src="article.cover_image" :alt="article.title" />
+              </div>
+              <div class="article-info">
+                <h3 class="article-title">{{ article.title }}</h3>
+                <p class="article-summary">{{ article.summary || article.content }}</p>
+                <div class="article-meta">
+                  <span class="meta-item">
+                    <el-icon><View /></el-icon>
+                    {{ article.views_count || 0 }}
+                  </span>
+                  <span class="meta-item">
+                    <el-icon><Star /></el-icon>
+                    {{ article.likes_count || 0 }}
+                  </span>
+                  <span class="meta-item">
+                    <el-icon><ChatDotRound /></el-icon>
+                    {{ article.comments_count || 0 }}
+                  </span>
+                  <span class="meta-item status" :class="article.status">
+                    {{ getStatusText(article.status) }}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -126,9 +177,10 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Loading, Document, Star, User, WarningFilled } from '@element-plus/icons-vue'
-import { userApi, patchApi } from '@/api'
+import { Loading, Document, Star, User, WarningFilled, View, ChatDotRound } from '@element-plus/icons-vue'
+import { userApi, patchApi, articleApi } from '@/api'
 import { useUserStore } from '@/stores/userStore'
 import PatchCard from '@/components/PatchCard.vue'
 import FollowButton from '@/components/FollowButton.vue'
@@ -137,17 +189,20 @@ import CreatorBadge from '@/components/CreatorBadge.vue'
 import ReportDialog from '@/components/ReportDialog.vue'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 
 const loading = ref(true)
 const user = ref(null)
 const userPatches = ref([])
+const userArticles = ref([])
 const activeTab = ref('patches')
 const reportDialogVisible = ref(false)
 const reportTargetDescription = ref('')
 
 const isMe = computed(() => userStore.user?.id === parseInt(route.params.id))
 const patchCount = computed(() => userPatches.value.length)
+const articleCount = computed(() => userArticles.value.length)
 const favoriteCount = computed(() => user.value?.favorites_count || 0)
 
 const formatDate = (dateStr) => {
@@ -176,12 +231,28 @@ const fetchUser = async () => {
     
     const patchesRes = await patchApi.getList({ user_id: route.params.id })
     userPatches.value = patchesRes.list || patchesRes.data || []
+    
+    const articlesRes = await articleApi.getList({ user_id: route.params.id, limit: 20 })
+    userArticles.value = articlesRes.list || []
   } catch (err) {
     ElMessage.error('获取用户信息失败')
     console.error(err)
   } finally {
     loading.value = false
   }
+}
+
+const goToArticle = (article) => {
+  router.push(`/articles/${article.id}`)
+}
+
+const getStatusText = (status) => {
+  const statusMap = {
+    'pending': '审核中',
+    'approved': '已发布',
+    'rejected': '已驳回'
+  }
+  return statusMap[status] || status
 }
 
 watch(() => route.params.id, () => {
@@ -311,6 +382,104 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
+}
+
+.article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.article-card {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.article-card:hover {
+  border-color: rgba(255, 215, 0, 0.3);
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.article-cover {
+  flex-shrink: 0;
+  width: 160px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.article-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.article-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.article-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.article-summary {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-meta {
+  display: flex;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  margin-top: auto;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-item.status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.meta-item.status.pending {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.meta-item.status.approved {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.meta-item.status.rejected {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
 }
 
 .empty-state {

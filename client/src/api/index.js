@@ -361,3 +361,28 @@ export const orderAPI = orderApi
 export const adminOrderAPI = adminOrderApi
 export const earningsAPI = earningsApi
 export const adminEarningsAPI = adminEarningsApi
+
+export const articleApi = {
+  getList: (params) => api.get('/articles', { params }),
+  getDetail: (id) => api.get(`/articles/${id}`),
+  getModuleRefs: (id) => api.get(`/articles/${id}/module-refs`),
+  create: (data) => api.post('/articles', data),
+  update: (id, data) => api.put(`/articles/${id}`, data),
+  delete: (id) => api.delete(`/articles/${id}`),
+  toggleLike: (id) => api.post(`/articles/${id}/like`),
+  toggleFavorite: (id, folder) => api.post(`/articles/${id}/favorite`, { folder }),
+  addComment: (id, content, parentId) => api.post(`/articles/${id}/comments`, { content, parent_id: parentId }),
+  deleteComment: (id, commentId) => api.delete(`/articles/${id}/comments/${commentId}`),
+  getMyArticles: (params) => api.get('/me/articles', { params })
+}
+
+export const adminArticleApi = {
+  getList: (params) => api.get('/admin/articles', { params }),
+  getDetail: (id) => api.get(`/admin/articles/${id}`),
+  review: (id, data) => api.put(`/admin/articles/${id}/review`, data),
+  togglePublic: (id, is_public) => api.put(`/admin/articles/${id}/public`, { is_public }),
+  delete: (id) => api.delete(`/admin/articles/${id}`)
+}
+
+export const articleAPI = articleApi
+export const adminArticleAPI = adminArticleApi

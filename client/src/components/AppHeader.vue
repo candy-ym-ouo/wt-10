@@ -35,6 +35,10 @@
           <el-icon><Folder /></el-icon>
           资源中心
         </router-link>
+        <router-link to="/articles" class="nav-link" :class="{ active: $route.path.startsWith('/articles') && !$route.path.startsWith('/articles/create') && !$route.path.startsWith('/articles/edit') }">
+          <el-icon><Reading /></el-icon>
+          知识专栏
+        </router-link>
         <router-link v-if="userStore.isLoggedIn" to="/feed" class="nav-link" :class="{ active: $route.path === '/feed' }">
           <el-icon><TrendCharts /></el-icon>
           关注动态
@@ -96,6 +100,9 @@
               <el-dropdown-item command="my-patches">
                 <el-icon><Document /></el-icon>我的 Patch
               </el-dropdown-item>
+              <el-dropdown-item command="my-articles">
+                <el-icon><Reading /></el-icon>我的文章
+              </el-dropdown-item>
               <el-dropdown-item command="favorites">
                 <el-icon><Star /></el-icon>我的收藏
               </el-dropdown-item>
@@ -135,7 +142,7 @@ import {
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
   Odometer, CollectionTag, TrendCharts, Present, Trophy, Bell,
-  Folder, ShoppingCart, Key, Money
+  Folder, ShoppingCart, Key, Money, Reading
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
@@ -193,6 +200,9 @@ const handleCommand = (command) => {
       break
     case 'my-patches':
       router.push('/my-patches')
+      break
+    case 'my-articles':
+      router.push('/my-articles')
       break
     case 'favorites':
       router.push('/favorites')
