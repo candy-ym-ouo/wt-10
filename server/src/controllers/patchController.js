@@ -69,11 +69,24 @@ exports.getPatches = async (ctx) => {
   if (sort === 'popular') orderSql = 'ORDER BY p.likes_count DESC, p.views_count DESC';
   if (sort === 'views') orderSql = 'ORDER BY p.views_count DESC';
 
+  const userId = ctx.state.user?.id || 0;
+  const userRole = ctx.state.user?.role;
+
   const patches = db.prepare(`
     SELECT p.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
            COUNT(l.id) as real_likes,
            EXISTS(SELECT 1 FROM likes WHERE user_id = ? AND patch_id = p.id) as is_liked,
-           EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited
+           EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited,
+           CASE 
+             WHEN p.is_paid = 0 THEN 1
+             WHEN ? = 0 THEN 0
+             WHEN p.user_id = ? THEN 1
+             WHEN ? = 'admin' THEN 1
+             ELSE EXISTS(
+               SELECT 1 FROM patch_permissions pp 
+               WHERE pp.user_id = ? AND pp.patch_id = p.id AND pp.status = 'active'
+             )
+           END as has_purchase_permission
     FROM patches p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN likes l ON p.id = l.patch_id
@@ -81,7 +94,21 @@ exports.getPatches = async (ctx) => {
     GROUP BY p.id
     ${orderSql}
     LIMIT ? OFFSET ?
-  `).all(ctx.state.user?.id || 0, ctx.state.user?.id || 0, ...params, limit, offset);
+  `).all(userId, userId, userId, userId, userRole || '', userId, ...params, limit, offset);
+
+  patches.forEach(p => {
+    if (p.is_paid && !p.has_purchase_permission) {
+      p.parameters = null;
+      p.cables = null;
+      p.patch_file = null;
+      p.modules_used = null;
+      if (p.preview_content) {
+        p.description = p.preview_content;
+      } else if (p.description && p.description.length > 100) {
+        p.description = p.description.substring(0, 100) + '...[付费内容]';
+      }
+    }
+  });
 
   const total = db.prepare(`SELECT COUNT(*) as count FROM patches p ${whereSql}`).get(...params);
 
@@ -115,6 +142,35 @@ exports.getPatchDetail = async (ctx) => {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };
     return;
+  }
+
+  let hasPermission = true;
+  if (patch.is_paid) {
+    if (userId === 0) {
+      hasPermission = false;
+    } else if (patch.user_id !== userId && ctx.state.user?.role !== 'admin') {
+      const perm = db.prepare(`
+        SELECT 1 FROM patch_permissions 
+        WHERE user_id = ? AND patch_id = ? AND status = 'active'
+        LIMIT 1
+      `).get(userId, id);
+      hasPermission = !!perm;
+    }
+  }
+
+  patch.has_purchase_permission = hasPermission;
+
+  if (patch.is_paid && !hasPermission) {
+    patch.parameters = null;
+    patch.cables = null;
+    patch.patch_file = null;
+    patch.modules_used = null;
+    if (patch.preview_content) {
+      patch.description = patch.preview_content;
+    } else if (patch.description) {
+      const words = patch.description.split(' ');
+      patch.description = words.slice(0, Math.ceil(words.length * 0.3)).join(' ') + '\n\n...[付费内容，购买后查看完整内容]';
+    }
   }
 
   const comments = db.prepare(`

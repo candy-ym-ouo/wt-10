@@ -216,6 +216,222 @@ try {
   console.error('创建举报中心表失败:', e);
 }
 
+try {
+  const patchColumns = db.prepare("PRAGMA table_info(patches)").all();
+  const hasIsPaidColumn = patchColumns.some(col => col.name === 'is_paid');
+  if (!hasIsPaidColumn) {
+    db.exec(`ALTER TABLE patches ADD COLUMN is_paid INTEGER DEFAULT 0`);
+    db.exec(`ALTER TABLE patches ADD COLUMN price REAL DEFAULT 0`);
+    db.exec(`ALTER TABLE patches ADD COLUMN preview_content TEXT`);
+    console.log('patches 表已添加付费字段');
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS patch_products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patch_id INTEGER NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT,
+      price REAL NOT NULL DEFAULT 0,
+      original_price REAL,
+      currency TEXT DEFAULT 'CNY',
+      is_active INTEGER DEFAULT 1,
+      is_discount INTEGER DEFAULT 0,
+      discount_start_date DATETIME,
+      discount_end_date DATETIME,
+      sales_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_no TEXT NOT NULL UNIQUE,
+      user_id INTEGER NOT NULL,
+      product_id INTEGER,
+      patch_id INTEGER NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      currency TEXT DEFAULT 'CNY',
+      platform_fee REAL DEFAULT 0,
+      creator_earning REAL DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      payment_method TEXT,
+      transaction_id TEXT,
+      paid_at DATETIME,
+      refunded_at DATETIME,
+      remark TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id) REFERENCES patch_products(id) ON DELETE SET NULL,
+      FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS patch_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      patch_id INTEGER NOT NULL,
+      order_id INTEGER,
+      permission_type TEXT DEFAULT 'purchase',
+      status TEXT DEFAULT 'active',
+      expires_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, patch_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE CASCADE,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS creator_earnings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      creator_id INTEGER NOT NULL,
+      order_id INTEGER NOT NULL,
+      patch_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      order_amount REAL NOT NULL DEFAULT 0,
+      platform_fee REAL NOT NULL DEFAULT 0,
+      platform_fee_rate REAL NOT NULL DEFAULT 0.3,
+      net_earning REAL NOT NULL DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      settled_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (patch_id) REFERENCES patches(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS creator_withdrawals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      creator_id INTEGER NOT NULL,
+      withdrawal_no TEXT,
+      amount REAL NOT NULL DEFAULT 0,
+      actual_amount REAL,
+      fee_amount REAL DEFAULT 0,
+      payment_method TEXT DEFAULT 'bank_transfer',
+      payment_account TEXT,
+      bank_name TEXT,
+      bank_account TEXT,
+      bank_account_name TEXT,
+      alipay_account TEXT,
+      wechat_account TEXT,
+      status TEXT DEFAULT 'pending',
+      review_note TEXT,
+      reviewed_by INTEGER,
+      reviewed_at DATETIME,
+      transferred_at DATETIME,
+      transfer_proof TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+  `);
+
+  const addMissingColumns = (table, columns) => {
+    const existing = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+    columns.forEach(col => {
+      if (!existing.includes(col.name)) {
+        try {
+          db.prepare(`ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.definition}`).run();
+        } catch (e) {
+          console.log(`跳过列 ${table}.${col.name}: ${e.message}`);
+        }
+      }
+    });
+  };
+
+  addMissingColumns('patch_products', [
+    { name: 'description', definition: 'TEXT' },
+    { name: 'original_price', definition: 'REAL' },
+    { name: 'currency', definition: "TEXT DEFAULT 'CNY'" },
+    { name: 'is_discount', definition: 'INTEGER DEFAULT 0' },
+    { name: 'discount_start_date', definition: 'DATETIME' },
+    { name: 'discount_end_date', definition: 'DATETIME' },
+    { name: 'sales_count', definition: 'INTEGER DEFAULT 0' },
+    { name: 'created_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" },
+    { name: 'updated_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" }
+  ]);
+
+  addMissingColumns('orders', [
+    { name: 'product_id', definition: 'INTEGER' },
+    { name: 'currency', definition: "TEXT DEFAULT 'CNY'" },
+    { name: 'platform_fee', definition: 'REAL DEFAULT 0' },
+    { name: 'creator_earning', definition: 'REAL DEFAULT 0' },
+    { name: 'transaction_id', definition: 'TEXT' },
+    { name: 'paid_at', definition: 'DATETIME' },
+    { name: 'refunded_at', definition: 'DATETIME' },
+    { name: 'remark', definition: 'TEXT' },
+    { name: 'created_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" },
+    { name: 'updated_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" }
+  ]);
+
+  addMissingColumns('patch_permissions', [
+    { name: 'order_id', definition: 'INTEGER' },
+    { name: 'permission_type', definition: "TEXT DEFAULT 'purchase'" },
+    { name: 'status', definition: "TEXT DEFAULT 'active'" },
+    { name: 'expires_at', definition: 'DATETIME' },
+    { name: 'created_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" },
+    { name: 'updated_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" }
+  ]);
+
+  addMissingColumns('creator_earnings', [
+    { name: 'user_id', definition: 'INTEGER NOT NULL DEFAULT 0' },
+    { name: 'order_amount', definition: 'REAL NOT NULL DEFAULT 0' },
+    { name: 'platform_fee_rate', definition: 'REAL NOT NULL DEFAULT 0.3' },
+    { name: 'net_earning', definition: 'REAL NOT NULL DEFAULT 0' },
+    { name: 'settled_at', definition: 'DATETIME' },
+    { name: 'created_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" }
+  ]);
+
+  addMissingColumns('creator_withdrawals', [
+    { name: 'withdrawal_no', definition: 'TEXT' },
+    { name: 'actual_amount', definition: 'REAL' },
+    { name: 'fee_amount', definition: 'REAL DEFAULT 0' },
+    { name: 'payment_account', definition: 'TEXT' },
+    { name: 'bank_name', definition: 'TEXT' },
+    { name: 'bank_account', definition: 'TEXT' },
+    { name: 'bank_account_name', definition: 'TEXT' },
+    { name: 'alipay_account', definition: 'TEXT' },
+    { name: 'wechat_account', definition: 'TEXT' },
+    { name: 'reviewed_at', definition: 'DATETIME' },
+    { name: 'transferred_at', definition: 'DATETIME' },
+    { name: 'transfer_proof', definition: 'TEXT' },
+    { name: 'created_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" },
+    { name: 'updated_at', definition: "DATETIME DEFAULT CURRENT_TIMESTAMP" }
+  ]);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_products_patch ON patch_products(patch_id);
+    CREATE INDEX IF NOT EXISTS idx_products_active ON patch_products(is_active);
+    CREATE INDEX IF NOT EXISTS idx_products_price ON patch_products(price);
+
+    CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_patch ON orders(patch_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_no ON orders(order_no);
+    CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_permissions_user ON patch_permissions(user_id, status);
+    CREATE INDEX IF NOT EXISTS idx_permissions_patch ON patch_permissions(patch_id, status);
+    CREATE INDEX IF NOT EXISTS idx_permissions_expires ON patch_permissions(expires_at);
+
+    CREATE INDEX IF NOT EXISTS idx_earnings_creator ON creator_earnings(creator_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_earnings_status ON creator_earnings(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_earnings_patch ON creator_earnings(patch_id);
+    CREATE INDEX IF NOT EXISTS idx_earnings_order ON creator_earnings(order_id);
+
+    CREATE INDEX IF NOT EXISTS idx_withdrawals_creator ON creator_withdrawals(creator_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON creator_withdrawals(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_withdrawals_created ON creator_withdrawals(created_at DESC);
+  `);
+  console.log('创作者收益模块表检查/创建完成');
+} catch (e) {
+  console.error('创建创作者收益模块表失败:', e);
+}
+
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
