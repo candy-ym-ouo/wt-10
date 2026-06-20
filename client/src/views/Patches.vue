@@ -36,6 +36,21 @@
       />
     </div>
 
+    <div v-if="activeModules.length > 0" class="filter-tags-bar">
+      <span class="filter-label">🔍 按模块筛选:</span>
+      <el-tag
+        v-for="m in activeModules"
+        :key="m.id"
+        type="primary"
+        closable
+        @close="removeModuleFilter(m.id)"
+        class="module-filter-tag"
+      >
+        {{ m.name }}
+      </el-tag>
+      <el-button link type="danger" @click="clearModuleFilters" style="margin-left: 8px">清除全部</el-button>
+    </div>
+
     <div v-if="loading" class="empty-state">
       <el-icon class="empty-icon"><Loading /></el-icon>
       <p>加载中...</p>
@@ -73,12 +88,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Loading, Document } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
+import { moduleAPI } from '@/api'
 import PatchCard from '@/components/PatchCard.vue'
 
 const route = useRoute()
@@ -94,10 +110,57 @@ const limit = 12
 const search = ref(route.query.search || '')
 const sort = ref(route.query.sort || 'newest')
 const tagFilter = ref(route.query.tag || '')
+const moduleIds = ref(route.query.modules ? String(route.query.modules).split(',').map(m => parseInt(m)).filter(m => !isNaN(m)) : [])
+const activeModules = ref([])
 
-onMounted(() => {
+const fetchModuleNames = async (ids) => {
+  if (!ids.length) return
+  try {
+    const res = await moduleAPI.getModules({ ids: ids.join(',') })
+    activeModules.value = res.list || []
+  } catch (e) {
+    activeModules.value = ids.map(id => ({ id, name: `模块 #${id}` }))
+  }
+}
+
+watch(() => route.query.modules, (val) => {
+  moduleIds.value = val ? String(val).split(',').map(m => parseInt(m)).filter(m => !isNaN(m)) : []
+  fetchModuleNames(moduleIds.value)
   fetchData()
 })
+
+onMounted(() => {
+  if (moduleIds.value.length) {
+    fetchModuleNames(moduleIds.value)
+  }
+  fetchData()
+})
+
+const removeModuleFilter = (mid) => {
+  const newIds = moduleIds.value.filter(m => m !== mid)
+  moduleIds.value = newIds
+  activeModules.value = activeModules.value.filter(m => m.id !== mid)
+  updateRouteAndFetch(newIds)
+}
+
+const clearModuleFilters = () => {
+  moduleIds.value = []
+  activeModules.value = []
+  updateRouteAndFetch([])
+}
+
+const updateRouteAndFetch = (newIds) => {
+  router.replace({
+    path: '/patches',
+    query: {
+      ...route.query,
+      modules: newIds.length ? newIds.join(',') : undefined,
+      page: 1
+    }
+  })
+  page.value = 1
+  fetchData()
+}
 
 const fetchData = async () => {
   loading.value = true
@@ -109,6 +172,7 @@ const fetchData = async () => {
     }
     if (search.value) params.search = search.value
     if (tagFilter.value) params.tag = tagFilter.value
+    if (moduleIds.value.length) params.modules = moduleIds.value.join(',')
 
     const res = await patchStore.fetchPatches(params)
     patches.value = res.list
@@ -160,3 +224,27 @@ const handleAddToCompare = async (patchId) => {
   }
 }
 </script>
+
+<style scoped>
+.filter-tags-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: #4f5d75;
+  margin-right: 4px;
+}
+
+.module-filter-tag {
+  font-size: 13px;
+}
+</style>

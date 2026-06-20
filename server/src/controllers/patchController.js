@@ -37,10 +37,10 @@ const createNotification = (userId, type, fromUserId, patchId, content, options 
 };
 
 exports.getPatches = async (ctx) => {
-  const { page = 1, limit = 12, search, tag, user_id, sort = 'newest' } = ctx.query;
+  const { page = 1, limit = 12, search, tag, user_id, sort = 'newest', modules } = ctx.query;
   const offset = (page - 1) * limit;
 
-  let where = ['p.is_public = 1'];
+  let where = ['p.is_public = 1', "p.status = 'approved'"];
   let params = [];
 
   if (search) {
@@ -54,6 +54,13 @@ exports.getPatches = async (ctx) => {
   if (user_id) {
     where.push('p.user_id = ?');
     params.push(parseInt(user_id));
+  }
+  if (modules) {
+    const moduleIds = String(modules).split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m));
+    moduleIds.forEach(mid => {
+      where.push('p.modules_used LIKE ?');
+      params.push(`%${mid}%`);
+    });
   }
 
   const whereSql = 'WHERE ' + where.join(' AND ');

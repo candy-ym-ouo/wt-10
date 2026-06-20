@@ -24,12 +24,20 @@ exports.getManufacturers = async (ctx) => {
 };
 
 exports.getModules = async (ctx) => {
-  const { page = 1, limit = 20, type, manufacturer_id, search } = ctx.query;
+  const { page = 1, limit = 20, type, manufacturer_id, search, ids } = ctx.query;
   const offset = (page - 1) * limit;
 
   let where = [];
   let params = [];
 
+  if (ids) {
+    const idList = String(ids).split(',').map(i => parseInt(i.trim())).filter(i => !isNaN(i));
+    if (idList.length) {
+      const placeholders = idList.map(() => '?').join(',');
+      where.push(`mod.id IN (${placeholders})`);
+      params.push(...idList);
+    }
+  }
   if (type) {
     where.push('mod.type = ?');
     params.push(type);

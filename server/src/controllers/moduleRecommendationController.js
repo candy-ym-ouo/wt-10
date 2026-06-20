@@ -1,5 +1,38 @@
 const db = require('../db');
 
+const DEFAULT_CONFIG = {
+  min_co_occurrence: 2,
+  min_confidence_score: 0.1,
+  max_recommendations: 8,
+  max_popular_combinations: 20,
+  auto_calculate: '1'
+};
+
+function getConfig() {
+  try {
+    const configs = db.prepare('SELECT key, value FROM module_recommendation_config').all();
+    const result = { ...DEFAULT_CONFIG };
+    configs.forEach(c => {
+      if (c.value !== undefined && c.value !== null && c.value !== '') {
+        result[c.key] = c.value;
+      }
+    });
+    return result;
+  } catch (e) {
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
+function parseIntSafe(v, def) {
+  const n = parseInt(v);
+  return isNaN(n) ? def : n;
+}
+
+function parseFloatSafe(v, def) {
+  const n = parseFloat(v);
+  return isNaN(n) ? def : n;
+}
+
 function calculateModuleCombinations() {
   const patches = db.prepare(`
     SELECT id, modules_used, likes_count
@@ -89,7 +122,12 @@ function calculateModuleCombinations() {
 
 exports.getRecommendedCombinations = async (ctx) => {
   const moduleId = parseInt(ctx.params.id);
-  const { limit = 8, min_score = 0.1 } = ctx.query;
+  const config = getConfig();
+  const defaultLimit = parseIntSafe(config.max_recommendations, 8);
+  const defaultMinScore = parseFloatSafe(config.min_confidence_score, 0.1);
+  const defaultMinCount = parseIntSafe(config.min_co_occurrence, 2);
+
+  const { limit = defaultLimit, min_score = defaultMinScore, min_count = defaultMinCount } = ctx.query;
 
   const module = db.prepare('SELECT id FROM modules WHERE id = ?').get(moduleId);
   if (!module) {
@@ -109,27 +147,33 @@ exports.getRecommendedCombinations = async (ctx) => {
   `).all(moduleId);
 
   const manualIds = new Set(manualRecs.map(r => r.paired_module_id));
+  const manualLimit = limit;
+  const statsLimit = Math.max(0, limit - manualRecs.length);
 
-  const statsRecs = db.prepare(`
-    SELECT mcs.*, mod.name as paired_name, mod.type as paired_type, mod.hp as paired_hp,
-           mod.description as paired_description, m.name as paired_manufacturer_name
-    FROM module_combination_stats mcs
-    JOIN modules mod ON mcs.paired_module_id = mod.id
-    LEFT JOIN manufacturers m ON mod.manufacturer_id = m.id
-    WHERE mcs.module_id = ? 
-      AND mod.status = 'active'
-      AND mcs.confidence_score >= ?
-      AND mcs.paired_module_id NOT IN (
-        SELECT paired_module_id FROM module_recommended_combinations WHERE module_id = ?
-      )
-    ORDER BY mcs.confidence_score DESC, mcs.co_occurrence_count DESC
-    LIMIT ?
-  `).all(moduleId, min_score, moduleId, limit);
+  let statsRecs = [];
+  if (statsLimit > 0) {
+    statsRecs = db.prepare(`
+      SELECT mcs.*, mod.name as paired_name, mod.type as paired_type, mod.hp as paired_hp,
+             mod.description as paired_description, m.name as paired_manufacturer_name
+      FROM module_combination_stats mcs
+      JOIN modules mod ON mcs.paired_module_id = mod.id
+      LEFT JOIN manufacturers m ON mod.manufacturer_id = m.id
+      WHERE mcs.module_id = ? 
+        AND mod.status = 'active'
+        AND mcs.confidence_score >= ?
+        AND mcs.co_occurrence_count >= ?
+        AND mcs.paired_module_id NOT IN (
+          SELECT paired_module_id FROM module_recommended_combinations WHERE module_id = ?
+        )
+      ORDER BY mcs.confidence_score DESC, mcs.co_occurrence_count DESC
+      LIMIT ?
+    `).all(moduleId, min_score, min_count, moduleId, statsLimit);
+  }
 
   const combined = [
     ...manualRecs.map(r => ({ ...r, is_manual: true, source: 'manual' })),
     ...statsRecs.map(r => ({ ...r, is_manual: false, source: 'stats' }))
-  ].slice(0, limit);
+  ].slice(0, parseIntSafe(limit, defaultLimit));
 
   const patchSample = db.prepare(`
     SELECT p.id, p.title, p.likes_count, p.views_count, u.username
@@ -148,7 +192,12 @@ exports.getRecommendedCombinations = async (ctx) => {
   ctx.body = {
     list: combined,
     module_id: moduleId,
-    total: combined.length
+    total: combined.length,
+    config: {
+      min_co_occurrence: defaultMinCount,
+      min_confidence_score: defaultMinScore,
+      max_recommendations: defaultLimit
+    }
   };
 };
 
@@ -183,17 +232,20 @@ exports.getCombinationPatches = async (ctx) => {
 };
 
 exports.getPopularCombinations = async (ctx) => {
-  const { limit = 20, type = '' } = ctx.query;
+  const config = getConfig();
+  const defaultLimit = parseIntSafe(config.max_popular_combinations, 20);
+  const defaultMinScore = parseFloatSafe(config.min_confidence_score, 0.1);
+  const defaultMinCount = parseIntSafe(config.min_co_occurrence, 2);
+
+  const { limit = defaultLimit, type = '', min_score = defaultMinScore, min_count = defaultMinCount } = ctx.query;
 
   let typeFilter = '';
   let params = [];
 
   if (type) {
-    typeFilter = 'AND mod.type = ?';
-    params.push(type);
+    typeFilter = 'AND (mod.type = ? OR paired.type = ?)';
+    params.push(type, type);
   }
-
-  params.push(limit);
 
   const combos = db.prepare(`
     SELECT mcs.*, 
@@ -208,10 +260,12 @@ exports.getPopularCombinations = async (ctx) => {
     LEFT JOIN manufacturers m2 ON paired.manufacturer_id = m2.id
     WHERE mod.status = 'active' AND paired.status = 'active'
       AND mcs.module_id < mcs.paired_module_id
+      AND mcs.confidence_score >= ?
+      AND mcs.co_occurrence_count >= ?
       ${typeFilter}
     ORDER BY mcs.confidence_score DESC, mcs.co_occurrence_count DESC
     LIMIT ?
-  `).all(...params);
+  `).all(min_score, min_count, ...params, limit);
 
   ctx.body = { list: combos };
 };
