@@ -77,9 +77,12 @@ const extractScopesFromPath = (path, method) => {
     { pattern: /^\/patches\//, methods: ['GET'], scope: 'patches:read' },
     { pattern: /^\/patches$/, methods: ['POST'], scope: 'patches:write' },
     { pattern: /^\/patches\//, methods: ['PUT', 'DELETE', 'POST'], scope: 'patches:write' },
-    { pattern: /^\/articles/, methods: ['GET'], scope: 'articles:read' },
+    { pattern: /^\/articles$/, methods: ['GET'], scope: 'articles:read' },
+    { pattern: /^\/articles\/[\d]+$/, methods: ['GET'], scope: 'articles:read' },
+    { pattern: /^\/articles\/[\d]+\/module-refs$/, methods: ['GET'], scope: 'articles:read' },
     { pattern: /^\/articles$/, methods: ['POST'], scope: 'articles:write' },
-    { pattern: /^\/articles\//, methods: ['PUT', 'DELETE'], scope: 'articles:write' },
+    { pattern: /^\/articles\/[\d]+$/, methods: ['PUT', 'DELETE'], scope: 'articles:write' },
+    { pattern: /^\/articles\/[\d]+\/(like|favorite|comments)/, methods: ['POST', 'DELETE'], scope: 'articles:write' },
     { pattern: /^\/users\//, methods: ['GET'], scope: 'users:read' },
     { pattern: /^\/collections/, methods: ['GET'], scope: 'collections:read' },
     { pattern: /^\/challenge/, methods: ['GET'], scope: 'challenge:read' },
@@ -267,12 +270,14 @@ const apiKeyAuth = async (ctx, next) => {
               code: 'API_KEY_BANNED',
               banned_reason: apiKey.banned_reason 
             };
+            await logApiCall(ctx, apiKey, tokenId, startTime, '关联的 API 密钥已被封禁');
             return;
           }
           
           if (apiKey.status === 'inactive') {
             ctx.status = 403;
             ctx.body = { error: '关联的 API 密钥已被停用', code: 'API_KEY_INACTIVE' };
+            await logApiCall(ctx, apiKey, tokenId, startTime, '关联的 API 密钥已被停用');
             return;
           }
           
@@ -285,6 +290,7 @@ const apiKeyAuth = async (ctx, next) => {
               retry_after: rateLimitResult.retry_after
             };
             ctx.set('Retry-After', rateLimitResult.retry_after);
+            await logApiCall(ctx, apiKey, tokenId, startTime, '超过限流限制');
             return;
           }
           
@@ -298,6 +304,7 @@ const apiKeyAuth = async (ctx, next) => {
                 code: 'INSUFFICIENT_SCOPE',
                 required_scope: requiredScope
               };
+              await logApiCall(ctx, apiKey, tokenId, startTime, `访问令牌缺少权限范围: ${requiredScope}`);
               return;
             }
           }
@@ -323,10 +330,14 @@ const apiKeyAuth = async (ctx, next) => {
     
     await next();
     
-    await logApiCall(ctx, apiKey, tokenId, startTime);
+    if (apiKey) {
+      await logApiCall(ctx, apiKey, tokenId, startTime);
+    }
     
   } catch (error) {
-    await logApiCall(ctx, apiKey, tokenId, startTime, error.message);
+    if (apiKey) {
+      await logApiCall(ctx, apiKey, tokenId, startTime, error.message);
+    }
     throw error;
   }
 };
