@@ -79,21 +79,29 @@ exports.getMyFavorites = async (ctx) => {
 };
 
 exports.getMyPatches = async (ctx) => {
-  const { page = 1, limit = 12 } = ctx.query;
+  const { page = 1, limit = 12, status } = ctx.query;
   const offset = (page - 1) * limit;
   const userId = ctx.state.user.id;
+
+  let where = 'p.user_id = ?';
+  let params = [userId];
+
+  if (status) {
+    where += ' AND p.status = ?';
+    params.push(status);
+  }
 
   const patches = db.prepare(`
     SELECT p.*, COUNT(l.id) as real_likes
     FROM patches p
     LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE p.user_id = ?
+    WHERE ${where}
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(userId, limit, offset);
+  `).all(...params, limit, offset);
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM patches WHERE user_id = ?').get(userId);
+  const total = db.prepare(`SELECT COUNT(*) as count FROM patches p WHERE ${where}`).get(...params);
 
   ctx.body = {
     list: patches,
@@ -189,8 +197,11 @@ exports.getCreatorStats = async (ctx) => {
   const patchesStats = db.prepare(`
     SELECT 
       COUNT(*) as total_patches,
-      COALESCE(SUM(CASE WHEN is_public = 1 THEN 1 ELSE 0 END), 0) as published_patches,
-      COALESCE(SUM(CASE WHEN is_public = 0 THEN 1 ELSE 0 END), 0) as draft_count,
+      COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0) as published_patches,
+      COALESCE(SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END), 0) as draft_count,
+      COALESCE(SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END), 0) as scheduled_count,
+      COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending_count,
+      COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejected_count,
       COALESCE(SUM(views_count), 0) as total_views
     FROM patches 
     WHERE user_id = ?
@@ -218,6 +229,9 @@ exports.getCreatorStats = async (ctx) => {
     totalPatches: patchesStats.total_patches || 0,
     publishedPatches: patchesStats.published_patches || 0,
     totalDrafts: patchesStats.draft_count || 0,
+    totalScheduled: patchesStats.scheduled_count || 0,
+    totalPending: patchesStats.pending_count || 0,
+    totalRejected: patchesStats.rejected_count || 0,
     totalViews: patchesStats.total_views || 0,
     totalLikes: likesStats.total_likes || 0,
     totalFavorites: favoritesStats.total_favorites || 0,
@@ -234,16 +248,41 @@ exports.getMyDrafts = async (ctx) => {
     SELECT p.*, COUNT(l.id) as real_likes
     FROM patches p
     LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE p.user_id = ? AND p.is_public = 0
+    WHERE p.user_id = ? AND p.status = 'draft'
     GROUP BY p.id
     ORDER BY p.updated_at DESC
     LIMIT ? OFFSET ?
   `).all(userId, limit, offset);
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND is_public = 0').get(userId);
+  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND status = 'draft'").get(userId);
 
   ctx.body = {
     list: drafts,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.getMyScheduled = async (ctx) => {
+  const { page = 1, limit = 12 } = ctx.query;
+  const offset = (page - 1) * limit;
+  const userId = ctx.state.user.id;
+
+  const scheduled = db.prepare(`
+    SELECT p.*, COUNT(l.id) as real_likes
+    FROM patches p
+    LEFT JOIN likes l ON p.id = l.patch_id
+    WHERE p.user_id = ? AND p.status = 'scheduled'
+    GROUP BY p.id
+    ORDER BY p.scheduled_at ASC
+    LIMIT ? OFFSET ?
+  `).all(userId, limit, offset);
+
+  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND status = 'scheduled'").get(userId);
+
+  ctx.body = {
+    list: scheduled,
     total: total.count,
     page: parseInt(page),
     limit: parseInt(limit)

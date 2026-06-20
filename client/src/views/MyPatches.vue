@@ -12,6 +12,13 @@
       </el-button>
     </div>
 
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="patch-tabs">
+      <el-tab-pane label="🚀 已发布" name="published" />
+      <el-tab-pane label="⏰ 定时发布" name="scheduled" />
+      <el-tab-pane label="📝 草稿箱" name="draft" />
+      <el-tab-pane label="💾 全部" name="all" />
+    </el-tabs>
+
     <div v-if="loading" class="empty-state">
       <el-icon class="empty-icon"><Loading /></el-icon>
       <p>加载中...</p>
@@ -19,19 +26,25 @@
 
     <div v-else-if="patches.length === 0" class="empty-state">
       <el-icon class="empty-icon"><Document /></el-icon>
-      <p>还没有发布任何 Patch</p>
+      <p>{{ emptyText }}</p>
       <el-button type="primary" class="btn-primary" @click="$router.push('/create')">
-        发布第一个 Patch
+        创建 Patch
       </el-button>
     </div>
 
     <div v-else class="grid-patches">
       <div v-for="patch in patches" :key="patch.id" class="card patch-card">
+        <div class="patch-status-badge" :class="`status-${patch.status}`">
+          {{ getStatusLabel(patch.status) }}
+        </div>
         <div class="patch-image">🎛️</div>
         <div class="patch-title">{{ patch.title }}</div>
         <div class="patch-desc">{{ patch.description }}</div>
         <div class="patch-tags" v-if="getTags(patch.tags).length > 0">
           <span class="tag" v-for="tag in getTags(patch.tags)" :key="tag">#{{ tag }}</span>
+        </div>
+        <div v-if="patch.status === 'scheduled' && patch.scheduled_at" class="patch-scheduled">
+          ⏰ 定时发布：{{ patch.scheduled_at }}
         </div>
         <div class="patch-meta">
           <div class="patch-stats">
@@ -48,6 +61,14 @@
           </el-button>
           <el-button size="small" type="primary" @click="$router.push(`/edit/${patch.id}`)">
             <el-icon><Edit /></el-icon> 编辑
+          </el-button>
+          <el-button 
+            v-if="patch.status === 'draft'" 
+            size="small" 
+            type="success" 
+            @click="publishNow(patch)"
+          >
+            🚀 立即发布
           </el-button>
           <el-button size="small" type="danger" @click="deletePatch(patch)">
             <el-icon><Delete /></el-icon> 删除
@@ -70,13 +91,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading, Document, Plus, View, Edit, Delete, Star } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 const patchStore = usePatchStore()
 
 const loading = ref(false)
@@ -84,15 +106,51 @@ const patches = ref([])
 const total = ref(0)
 const page = ref(1)
 const limit = 12
+const activeTab = ref('published')
+
+const emptyText = computed(() => {
+  switch (activeTab.value) {
+    case 'draft':
+      return '还没有草稿，点击创建开始吧'
+    case 'scheduled':
+      return '没有定时发布的 Patch'
+    case 'published':
+      return '还没有发布任何 Patch'
+    default:
+      return '还没有创建任何 Patch'
+  }
+})
 
 onMounted(() => {
+  const tab = route.query.tab || 'published'
+  activeTab.value = tab
   fetchPatches()
 })
+
+const handleTabChange = (tab) => {
+  page.value = 1
+  router.replace({ query: { tab } })
+  fetchPatches()
+}
 
 const fetchPatches = async () => {
   loading.value = true
   try {
-    const res = await patchStore.fetchMyPatches({ page: page.value, limit })
+    let res
+    const params = { page: page.value, limit }
+    switch (activeTab.value) {
+      case 'draft':
+        res = await patchStore.fetchMyDrafts(params)
+        break
+      case 'scheduled':
+        res = await patchStore.fetchMyScheduled(params)
+        break
+      case 'published':
+        res = await patchStore.fetchMyPatches(params)
+        break
+      default:
+        res = await patchStore.fetchMyPatches({ ...params, status: 'all' })
+    }
     patches.value = res.list
     total.value = res.total
   } finally {
@@ -106,6 +164,28 @@ const getTags = (tags) => {
   } catch {
     return []
   }
+}
+
+const getStatusLabel = (status) => {
+  const map = {
+    draft: '📝 草稿',
+    scheduled: '⏰ 定时中',
+    pending: '🕓 审核中',
+    approved: '🚀 已发布',
+    rejected: '❌ 已驳回'
+  }
+  return map[status] || status
+}
+
+const publishNow = async (patch) => {
+  try {
+    await ElMessageBox.confirm(`确定立即发布 "${patch.title}" 吗？`, '确认发布', {
+      type: 'info'
+    })
+    await patchStore.updatePatch(patch.id, { status: 'approved' })
+    ElMessage.success('发布成功')
+    fetchPatches()
+  } catch {}
 }
 
 const deletePatch = async (patch) => {
@@ -127,5 +207,55 @@ const deletePatch = async (patch) => {
 
 .text-warning {
   color: #e6a23c;
+}
+
+.patch-tabs {
+  margin-bottom: 24px;
+}
+
+.patch-card {
+  position: relative;
+}
+
+.patch-status-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.status-draft {
+  background: rgba(144, 147, 153, 0.2);
+  color: #909399;
+}
+
+.status-scheduled {
+  background: rgba(230, 162, 60, 0.2);
+  color: #e6a23c;
+}
+
+.status-pending {
+  background: rgba(64, 158, 255, 0.2);
+  color: #409eff;
+}
+
+.status-approved {
+  background: rgba(103, 194, 58, 0.2);
+  color: #67c23a;
+}
+
+.status-rejected {
+  background: rgba(245, 108, 108, 0.2);
+  color: #f56c6c;
+}
+
+.patch-scheduled {
+  font-size: 13px;
+  color: #e6a23c;
+  margin: 8px 0;
 }
 </style>

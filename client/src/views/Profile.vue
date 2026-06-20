@@ -115,10 +115,18 @@
 
         <div class="card" style="margin-top: 24px;">
           <h3 class="section-title">数据统计</h3>
-          <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
-            <div class="stat-card">
+          <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+            <div class="stat-card" @click="router.push('/my-patches?tab=published')" style="cursor: pointer;">
               <div class="stat-value">{{ stats.patches }}</div>
-              <div class="stat-label">发布的 Patch</div>
+              <div class="stat-label">🚀 已发布</div>
+            </div>
+            <div class="stat-card" @click="router.push('/my-patches?tab=scheduled')" style="cursor: pointer;">
+              <div class="stat-value" style="color: #e6a23c;">{{ stats.scheduled }}</div>
+              <div class="stat-label">⏰ 定时中</div>
+            </div>
+            <div class="stat-card" @click="router.push('/my-patches?tab=draft')" style="cursor: pointer;">
+              <div class="stat-value" style="color: #909399;">{{ stats.drafts }}</div>
+              <div class="stat-label">📝 草稿</div>
             </div>
             <div class="stat-card">
               <div class="stat-value">{{ stats.likes }}</div>
@@ -149,7 +157,7 @@ const router = useRouter()
 
 const formRef = ref()
 const saving = ref(false)
-const stats = ref({ patches: 0, likes: 0, favorites: 0 })
+const stats = ref({ patches: 0, drafts: 0, scheduled: 0, likes: 0, favorites: 0 })
 const verificationStatus = ref(null)
 
 const form = reactive({
@@ -196,9 +204,11 @@ onMounted(() => {
 
 const loadStats = async () => {
   try {
-    const [myPatches, favorites] = await Promise.all([
+    const [myPatches, favorites, myDrafts, myScheduled] = await Promise.all([
       patchAPI.getList({ user_id: userStore.user?.id, limit: 1 }),
-      socialApi.getMyFavorites({ limit: 1 })
+      socialApi.getMyFavorites({ limit: 1 }),
+      socialApi.getMyDrafts({ limit: 1 }).catch(() => ({ total: 0 })),
+      socialApi.getMyScheduled({ limit: 1 }).catch(() => ({ total: 0 }))
     ])
     
     let totalLikes = 0
@@ -209,6 +219,8 @@ const loadStats = async () => {
 
     stats.value = {
       patches: myPatches.total || 0,
+      drafts: myDrafts.total || 0,
+      scheduled: myScheduled.total || 0,
       likes: totalLikes,
       favorites: favorites.total || 0
     }

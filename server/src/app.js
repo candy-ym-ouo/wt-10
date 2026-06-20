@@ -910,6 +910,92 @@ try {
   console.error('初始化默认账户失败:', e);
 }
 
+try {
+  const patchColumns = db.prepare("PRAGMA table_info(patches)").all();
+  const hasScheduledAtColumn = patchColumns.some(col => col.name === 'scheduled_at');
+  if (!hasScheduledAtColumn) {
+    db.exec(`ALTER TABLE patches ADD COLUMN scheduled_at DATETIME`);
+    console.log('patches 表已添加 scheduled_at 字段');
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_patches_status ON patches(status);
+    CREATE INDEX IF NOT EXISTS idx_patches_scheduled ON patches(scheduled_at) WHERE scheduled_at IS NOT NULL;
+  `);
+} catch (e) {
+  console.error('创建草稿/定时发布字段失败:', e);
+}
+
+const processScheduledPatches = () => {
+  try {
+    const now = new Date().toISOString();
+    const duePatches = db.prepare(`
+      SELECT p.*, u.username 
+      FROM patches p 
+      JOIN users u ON p.user_id = u.id 
+      WHERE p.status = 'scheduled' AND p.scheduled_at <= ?
+    `).all(now);
+
+    if (duePatches.length > 0) {
+      console.log(`[定时发布] 检查到 ${duePatches.length} 个待发布的 Patch`);
+      
+      const typeToCategory = {
+        'new_patch': 'follow',
+        'system': 'system'
+      };
+
+      const createNotification = (userId, type, fromUserId, patchId, content, options = {}) => {
+        try {
+          const category = options.category || typeToCategory[type] || 'system';
+          const subscription = db.prepare(`
+            SELECT enabled FROM notification_subscriptions 
+            WHERE user_id = ? AND category = ?
+          `).get(userId, category);
+          if (subscription && subscription.enabled === 0) return;
+          const linkUrl = options.linkUrl || null;
+          const extraData = options.extraData ? JSON.stringify(options.extraData) : null;
+          db.prepare(`
+            INSERT INTO notifications (user_id, type, category, from_user_id, patch_id, content, link_url, extra_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(userId, type, category, fromUserId, patchId, content, linkUrl, extraData);
+        } catch (e) {
+          console.error('创建通知失败:', e);
+        }
+      };
+
+      const updateStmt = db.prepare(`
+        UPDATE patches SET status = 'approved', is_public = 1, scheduled_at = NULL, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `);
+
+      duePatches.forEach(patch => {
+        updateStmt.run(patch.id);
+        console.log(`[定时发布] Patch "${patch.title}" (ID: ${patch.id}) 已自动发布`);
+
+        const followers = db.prepare(`
+          SELECT follower_id FROM follows WHERE following_id = ?
+        `).all(patch.user_id);
+        
+        followers.forEach(follower => {
+          createNotification(
+            follower.follower_id,
+            'new_patch',
+            patch.user_id,
+            patch.id,
+            `${patch.username} 发布了新 Patch：${patch.title}`,
+            { linkUrl: `/patches/${patch.id}` }
+          );
+        });
+      });
+    }
+  } catch (e) {
+    console.error('[定时发布] 处理失败:', e);
+  }
+};
+
+setInterval(processScheduledPatches, 60 * 1000);
+console.log('定时发布调度器已启动（每分钟检查一次）');
+setTimeout(processScheduledPatches, 5000);
+
 app.listen(PORT, () => {
   console.log(`
   ╔════════════════════════════════════════════════════════╗

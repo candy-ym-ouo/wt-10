@@ -59,6 +59,14 @@
             <el-icon><Lock /></el-icon> 付费内容
           </el-tag>
         </div>
+        <div class="status-row" v-if="patch.status !== 'approved'">
+          <el-tag :type="statusTagType(patch.status)" size="large" effect="dark" class="status-tag">
+            {{ statusLabel(patch.status) }}
+          </el-tag>
+          <span v-if="patch.status === 'scheduled' && patch.scheduled_at" class="scheduled-info">
+            ⏰ 将于 {{ patch.scheduled_at }} 自动发布
+          </span>
+        </div>
         <p class="detail-desc">{{ patch.description }}</p>
 
         <div class="detail-meta">
@@ -472,6 +480,28 @@ const formatDate = (date) => {
   })
 }
 
+const statusLabel = (status) => {
+  const map = {
+    draft: '📝 草稿',
+    scheduled: '⏰ 定时发布中',
+    pending: '🕓 审核中',
+    approved: '🚀 已发布',
+    rejected: '❌ 已驳回'
+  }
+  return map[status] || status
+}
+
+const statusTagType = (status) => {
+  const map = {
+    draft: 'info',
+    scheduled: 'warning',
+    pending: '',
+    approved: 'success',
+    rejected: 'danger'
+  }
+  return map[status] || 'info'
+}
+
 const formatValue = (v) => {
   if (typeof v === 'object') return JSON.stringify(v)
   return v ?? '-'
@@ -622,7 +652,7 @@ const openLink = (url) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .detail-title {
@@ -633,6 +663,23 @@ const openLink = (url) => {
 }
 
 .paid-tag {
+  font-size: 14px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.status-tag {
+  font-size: 14px;
+}
+
+.scheduled-info {
+  color: #e6a23c;
   font-size: 14px;
 }
 

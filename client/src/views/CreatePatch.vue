@@ -172,9 +172,49 @@
           </el-form-item>
         </template>
 
+        <el-divider content-position="left">⏰ 发布设置</el-divider>
+
+        <el-form-item label="定时发布">
+          <el-switch v-model="useScheduled" active-text="开启" inactive-text="关闭" />
+          <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+            开启后，可设置指定时间自动发布 Patch
+          </div>
+        </el-form-item>
+
+        <el-form-item v-if="useScheduled" label="发布时间" prop="scheduled_at">
+          <el-date-picker
+            v-model="form.scheduled_at"
+            type="datetime"
+            placeholder="选择发布时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            :disabled-date="disabledDate"
+            style="width: 100%; max-width: 300px;"
+          />
+        </el-form-item>
+
         <el-form-item>
-          <el-button type="primary" size="large" class="btn-primary" @click="submit" :loading="loading">
-            发布 Patch
+          <el-button size="large" @click="saveDraft" :loading="savingDraft">
+            💾 保存草稿
+          </el-button>
+          <el-button 
+            v-if="useScheduled" 
+            type="warning" 
+            size="large" 
+            @click="schedulePublish" 
+            :loading="scheduling"
+          >
+            ⏰ 定时发布
+          </el-button>
+          <el-button 
+            v-else 
+            type="primary" 
+            size="large" 
+            class="btn-primary" 
+            @click="submit" 
+            :loading="loading"
+          >
+            🚀 立即发布
           </el-button>
           <el-button size="large" @click="$router.back()">取消</el-button>
         </el-form-item>
@@ -195,7 +235,10 @@ const patchStore = usePatchStore()
 
 const formRef = ref()
 const loading = ref(false)
+const savingDraft = ref(false)
+const scheduling = ref(false)
 const moduleList = ref([])
+const useScheduled = ref(false)
 
 const commonTags = ['bass', 'pad', 'lead', 'drums', 'ambient', 'techno', 'house', 'experimental', 'classic', 'modern']
 
@@ -210,6 +253,7 @@ const form = reactive({
   is_paid: false,
   price: 0,
   preview_content: '',
+  scheduled_at: null,
   parameters: {
     oscillators: [{ type: 'saw', detune: 0, octave: 0 }],
     filter: { cutoff: 5000, resonance: 0.3, envAmount: 0.5 },
@@ -231,7 +275,23 @@ const rules = {
       },
       trigger: 'blur'
     }
+  ],
+  scheduled_at: [
+    {
+      validator: (rule, value, callback) => {
+        if (useScheduled.value && !value) {
+          callback(new Error('请选择发布时间'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
   ]
+}
+
+const disabledDate = (time) => {
+  return time.getTime() < Date.now() - 8.64e7
 }
 
 onMounted(async () => {
@@ -243,13 +303,51 @@ const submit = async () => {
   try {
     await formRef.value.validate()
     loading.value = true
-    const res = await patchStore.createPatch(form)
+    const data = { ...form, status: 'approved' }
+    const res = await patchStore.createPatch(data)
     ElMessage.success('发布成功！')
     router.push(`/patches/${res.id}`)
   } catch (e) {
     ElMessage.error(e.error || '发布失败')
   } finally {
     loading.value = false
+  }
+}
+
+const saveDraft = async () => {
+  try {
+    if (!form.title.trim()) {
+      ElMessage.warning('请至少填写标题')
+      return
+    }
+    savingDraft.value = true
+    const data = { ...form, status: 'draft' }
+    const res = await patchStore.createPatch(data)
+    ElMessage.success('草稿保存成功！')
+    router.push('/my-patches?tab=draft')
+  } catch (e) {
+    ElMessage.error(e.error || '保存草稿失败')
+  } finally {
+    savingDraft.value = false
+  }
+}
+
+const schedulePublish = async () => {
+  try {
+    await formRef.value.validate()
+    if (!form.scheduled_at) {
+      ElMessage.warning('请选择发布时间')
+      return
+    }
+    scheduling.value = true
+    const data = { ...form, status: 'scheduled', scheduled_at: form.scheduled_at }
+    const res = await patchStore.createPatch(data)
+    ElMessage.success('定时发布设置成功！')
+    router.push('/my-patches?tab=scheduled')
+  } catch (e) {
+    ElMessage.error(e.error || '设置定时发布失败')
+  } finally {
+    scheduling.value = false
   }
 }
 </script>

@@ -37,11 +37,25 @@ const createNotification = (userId, type, fromUserId, patchId, content, options 
 };
 
 exports.getPatches = async (ctx) => {
-  const { page = 1, limit = 12, search, tag, user_id, sort = 'newest', modules } = ctx.query;
+  const { page = 1, limit = 12, search, tag, user_id, sort = 'newest', modules, status } = ctx.query;
   const offset = (page - 1) * limit;
 
-  let where = ['p.is_public = 1', "p.status = 'approved'"];
+  let where = [];
   let params = [];
+
+  const userId = ctx.state.user?.id || 0;
+  const userRole = ctx.state.user?.role;
+
+  if (status && userRole === 'admin') {
+    where.push('p.status = ?');
+    params.push(status);
+  } else if (status && user_id && parseInt(user_id) === userId) {
+    where.push('p.status = ?');
+    params.push(status);
+  } else {
+    where.push('p.is_public = 1');
+    where.push("p.status = 'approved'");
+  }
 
   if (search) {
     where.push('(p.title LIKE ? OR p.description LIKE ?)');
@@ -68,9 +82,6 @@ exports.getPatches = async (ctx) => {
   let orderSql = 'ORDER BY p.created_at DESC';
   if (sort === 'popular') orderSql = 'ORDER BY p.likes_count DESC, p.views_count DESC';
   if (sort === 'views') orderSql = 'ORDER BY p.views_count DESC';
-
-  const userId = ctx.state.user?.id || 0;
-  const userRole = ctx.state.user?.role;
 
   const patches = db.prepare(`
     SELECT p.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
@@ -124,8 +135,6 @@ exports.getPatchDetail = async (ctx) => {
   const id = parseInt(ctx.params.id);
   const userId = ctx.state.user?.id || 0;
 
-  db.prepare('UPDATE patches SET views_count = views_count + 1 WHERE id = ?').run(id);
-
   const patch = db.prepare(`
     SELECT p.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
            COUNT(l.id) as real_likes,
@@ -142,6 +151,23 @@ exports.getPatchDetail = async (ctx) => {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };
     return;
+  }
+
+  if (patch.status === 'draft' || patch.status === 'scheduled') {
+    if (userId === 0) {
+      ctx.status = 403;
+      ctx.body = { error: '无权访问此 Patch' };
+      return;
+    }
+    if (patch.user_id !== userId && ctx.state.user?.role !== 'admin') {
+      ctx.status = 403;
+      ctx.body = { error: '无权访问此 Patch' };
+      return;
+    }
+  }
+
+  if (patch.status === 'approved' && patch.is_public) {
+    db.prepare('UPDATE patches SET views_count = views_count + 1 WHERE id = ?').run(id);
   }
 
   let hasPermission = true;
@@ -188,7 +214,7 @@ exports.createPatch = async (ctx) => {
   const {
     title, description, modules_used, parameters,
     cables, audio_url, image_url, patch_file, tags, is_public,
-    is_paid, price, preview_content
+    is_paid, price, preview_content, status, scheduled_at
   } = ctx.request.body;
 
   if (!title) {
@@ -197,17 +223,39 @@ exports.createPatch = async (ctx) => {
     return;
   }
 
+  const validStatuses = ['draft', 'pending', 'approved', 'scheduled', 'rejected'];
+  let patchStatus = status || 'approved';
+  if (!validStatuses.includes(patchStatus)) {
+    patchStatus = 'approved';
+  }
+
+  let isPublic = is_public ? 1 : 0;
+  if (patchStatus === 'draft') {
+    isPublic = 0;
+  } else if (patchStatus === 'scheduled' || patchStatus === 'pending' || patchStatus === 'approved') {
+    isPublic = 1;
+  }
+
   const isPaid = is_paid ? 1 : 0;
   const patchPrice = isPaid ? (price || 0) : 0;
+
+  let scheduledAt = scheduled_at || null;
+  if (patchStatus !== 'scheduled') {
+    scheduledAt = null;
+  }
+  if (patchStatus === 'scheduled' && !scheduledAt) {
+    ctx.status = 400;
+    ctx.body = { error: '定时发布需要指定发布时间' };
+    return;
+  }
 
   const stmt = db.prepare(`
     INSERT INTO patches (title, description, user_id, modules_used, parameters,
                          cables, audio_url, image_url, patch_file, tags, is_public,
-                         is_paid, price, preview_content)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         is_paid, price, preview_content, status, scheduled_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const isPublic = is_public ? 1 : 0;
   const result = stmt.run(
     title, description, ctx.state.user.id,
     JSON.stringify(modules_used || []),
@@ -218,7 +266,9 @@ exports.createPatch = async (ctx) => {
     isPublic,
     isPaid,
     patchPrice,
-    preview_content || null
+    preview_content || null,
+    patchStatus,
+    scheduledAt
   );
 
   const patchId = result.lastInsertRowid;
@@ -232,7 +282,7 @@ exports.createPatch = async (ctx) => {
     productStmt.run(patchId, title, patchPrice);
   }
 
-  if (isPublic) {
+  if (patchStatus === 'approved' && isPublic) {
     const user = db.prepare('SELECT username FROM users WHERE id = ?').get(ctx.state.user.id);
     const followers = db.prepare(`
       SELECT follower_id FROM follows WHERE following_id = ?
@@ -253,7 +303,9 @@ exports.createPatch = async (ctx) => {
 
   ctx.body = {
     id: patchId,
-    message: '创建成功'
+    status: patchStatus,
+    scheduled_at: scheduledAt,
+    message: patchStatus === 'draft' ? '草稿保存成功' : (patchStatus === 'scheduled' ? '定时发布设置成功' : '创建成功')
   };
 };
 
@@ -276,8 +328,33 @@ exports.updatePatch = async (ctx) => {
   const {
     title, description, modules_used, parameters,
     cables, audio_url, image_url, patch_file, tags, is_public,
-    is_paid, price, preview_content
+    is_paid, price, preview_content, status, scheduled_at
   } = ctx.request.body;
+
+  const validStatuses = ['draft', 'pending', 'approved', 'scheduled', 'rejected'];
+  let patchStatus = status;
+  if (patchStatus !== undefined && !validStatuses.includes(patchStatus)) {
+    ctx.status = 400;
+    ctx.body = { error: '无效的状态值' };
+    return;
+  }
+
+  let finalIsPublic = is_public;
+  if (patchStatus === 'draft') {
+    finalIsPublic = false;
+  } else if (patchStatus === 'scheduled' || patchStatus === 'pending' || patchStatus === 'approved') {
+    finalIsPublic = true;
+  }
+
+  let scheduledAt = scheduled_at;
+  if (patchStatus !== undefined && patchStatus !== 'scheduled') {
+    scheduledAt = null;
+  }
+  if (patchStatus === 'scheduled' && !scheduledAt && !patch.scheduled_at) {
+    ctx.status = 400;
+    ctx.body = { error: '定时发布需要指定发布时间' };
+    return;
+  }
 
   const stmt = db.prepare(`
     UPDATE patches SET
@@ -294,6 +371,8 @@ exports.updatePatch = async (ctx) => {
       is_paid = COALESCE(?, is_paid),
       price = COALESCE(?, price),
       preview_content = COALESCE(?, preview_content),
+      status = COALESCE(?, status),
+      scheduled_at = COALESCE(?, scheduled_at),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `);
@@ -308,10 +387,12 @@ exports.updatePatch = async (ctx) => {
     cables ? JSON.stringify(cables) : null,
     audio_url, image_url, patch_file,
     tags ? JSON.stringify(tags) : null,
-    is_public !== undefined ? (is_public ? 1 : 0) : null,
+    finalIsPublic !== undefined ? (finalIsPublic ? 1 : 0) : null,
     isPaid,
     patchPrice,
     preview_content,
+    patchStatus,
+    scheduledAt,
     id
   );
 
@@ -339,7 +420,25 @@ exports.updatePatch = async (ctx) => {
     }
   }
 
-  ctx.body = { success: true };
+  if (patchStatus === 'approved' && patch.status !== 'approved') {
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(patch.user_id);
+    const followers = db.prepare(`
+      SELECT follower_id FROM follows WHERE following_id = ?
+    `).all(patch.user_id);
+    
+    followers.forEach(follower => {
+      createNotification(
+        follower.follower_id,
+        'new_patch',
+        patch.user_id,
+        id,
+        `${user.username} 发布了新 Patch：${title || patch.title}`,
+        { linkUrl: `/patches/${id}` }
+      );
+    });
+  }
+
+  ctx.body = { success: true, status: patchStatus || patch.status };
 };
 
 exports.deletePatch = async (ctx) => {

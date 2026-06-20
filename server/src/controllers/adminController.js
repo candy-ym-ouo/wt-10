@@ -142,7 +142,7 @@ exports.deleteUser = async (ctx) => {
 };
 
 exports.getAllPatches = async (ctx) => {
-  const { page = 1, limit = 20, search, user_id } = ctx.query;
+  const { page = 1, limit = 20, search, user_id, status } = ctx.query;
   const offset = (page - 1) * limit;
 
   let where = [];
@@ -155,6 +155,10 @@ exports.getAllPatches = async (ctx) => {
   if (user_id) {
     where.push('p.user_id = ?');
     params.push(parseInt(user_id));
+  }
+  if (status) {
+    where.push('p.status = ?');
+    params.push(status);
   }
 
   const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
@@ -264,30 +268,71 @@ exports.getRecentPatches = async (ctx) => {
 
 exports.updatePatchStatus = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
-  const { status } = ctx.request.body;
+  const { status, scheduled_at } = ctx.request.body;
   const adminId = ctx.state.user.id;
 
-  const validStatuses = ['pending', 'approved', 'rejected'];
+  const validStatuses = ['draft', 'pending', 'approved', 'rejected', 'scheduled'];
   if (!validStatuses.includes(status)) {
     ctx.status = 400;
     ctx.body = { error: '无效的状态值' };
     return;
   }
 
-  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ?').get(patchId);
+  const patch = db.prepare('SELECT user_id, title, status as old_status FROM patches WHERE id = ?').get(patchId);
   if (!patch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };
     return;
   }
 
-  db.prepare('UPDATE patches SET status = ? WHERE id = ?').run(status, patchId);
+  let scheduledAt = scheduled_at || null;
+  if (status !== 'scheduled') {
+    scheduledAt = null;
+  }
+  if (status === 'scheduled' && !scheduledAt && !patch.scheduled_at) {
+    ctx.status = 400;
+    ctx.body = { error: '定时发布需要指定发布时间' };
+    return;
+  }
+
+  let isPublic = undefined;
+  if (status === 'draft') {
+    isPublic = 0;
+  } else if (status === 'scheduled' || status === 'pending' || status === 'approved') {
+    isPublic = 1;
+  }
+
+  if (isPublic !== undefined) {
+    db.prepare('UPDATE patches SET status = ?, scheduled_at = ?, is_public = ? WHERE id = ?').run(status, scheduledAt, isPublic, patchId);
+  } else {
+    db.prepare('UPDATE patches SET status = ?, scheduled_at = ? WHERE id = ?').run(status, scheduledAt, patchId);
+  }
 
   const statusLabels = {
+    draft: '草稿',
     pending: '待审核',
     approved: '审核通过',
-    rejected: '审核未通过'
+    rejected: '审核未通过',
+    scheduled: '定时发布'
   };
+
+  if (status === 'approved' && patch.old_status !== 'approved') {
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(patch.user_id);
+    const followers = db.prepare(`
+      SELECT follower_id FROM follows WHERE following_id = ?
+    `).all(patch.user_id);
+    
+    followers.forEach(follower => {
+      createNotification(
+        follower.follower_id,
+        'new_patch',
+        patch.user_id,
+        patchId,
+        `${user.username} 发布了新 Patch：${patch.title}`,
+        { linkUrl: `/patches/${patchId}` }
+      );
+    });
+  }
 
   if (patch.user_id !== adminId) {
     createNotification(
@@ -303,7 +348,7 @@ exports.updatePatchStatus = async (ctx) => {
     );
   }
 
-  ctx.body = { success: true, status };
+  ctx.body = { success: true, status, scheduled_at: scheduledAt };
 };
 
 exports.createModule = async (ctx) => {

@@ -89,6 +89,7 @@ export const socialApi = {
   getMyFavorites: (params) => api.get('/me/favorites', { params }),
   getMyPatches: (params) => api.get('/me/patches', { params }),
   getMyDrafts: (params) => api.get('/me/drafts', { params }),
+  getMyScheduled: (params) => api.get('/me/scheduled', { params }),
   getCreatorStats: () => api.get('/me/stats'),
   getMyNotifications: (params) => api.get('/me/notifications', { params }),
   markNotificationRead: (id) => api.put(`/me/notifications/${id}/read`),

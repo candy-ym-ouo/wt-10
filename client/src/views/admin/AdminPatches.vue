@@ -18,8 +18,10 @@
       </el-input>
       <el-select v-model="statusFilter" placeholder="状态筛选" class="filter-select" @change="fetchPatches">
         <el-option label="全部" value="" />
-        <el-option label="已审核" value="approved" />
+        <el-option label="草稿" value="draft" />
+        <el-option label="定时发布" value="scheduled" />
         <el-option label="待审核" value="pending" />
+        <el-option label="已审核" value="approved" />
         <el-option label="已拒绝" value="rejected" />
       </el-select>
       <el-button type="primary" @click="fetchPatches">
@@ -33,32 +35,40 @@
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="title" label="标题" min-width="200" />
         <el-table-column prop="author_name" label="作者" width="120" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" width="110">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)">
               {{ statusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="定时发布" width="170">
+          <template #default="{ row }">
+            <span v-if="row.status === 'scheduled' && row.scheduled_at">
+              {{ formatDate(row.scheduled_at) }}
+            </span>
+            <span v-else style="color: var(--text-secondary);">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="likes_count" label="点赞" width="80" />
         <el-table-column prop="favorites_count" label="收藏" width="80" />
-        <el-table-column prop="created_at" label="发布时间" width="180">
+        <el-table-column prop="created_at" label="创建时间" width="180">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="viewPatch(row)">
               查看
             </el-button>
             <el-button 
-              v-if="row.status === 'pending'"
+              v-if="row.status === 'pending' || row.status === 'draft' || row.status === 'scheduled'"
               size="small" 
               type="success" 
               @click="approvePatch(row)"
             >
-              通过
+              立即通过
             </el-button>
             <el-button 
               v-if="row.status === 'pending'"
@@ -101,8 +111,10 @@ const formatDate = (dateStr) => {
 
 const statusType = (status) => {
   const map = {
+    draft: 'info',
+    scheduled: 'warning',
     approved: 'success',
-    pending: 'warning',
+    pending: '',
     rejected: 'danger'
   }
   return map[status] || 'info'
@@ -110,6 +122,8 @@ const statusType = (status) => {
 
 const statusText = (status) => {
   const map = {
+    draft: '草稿',
+    scheduled: '定时中',
     approved: '已审核',
     pending: '待审核',
     rejected: '已拒绝'
@@ -139,15 +153,17 @@ const viewPatch = (patch) => {
 
 const approvePatch = async (patch) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要通过 Patch "${patch.title}" 的审核吗？`,
-      '确认审核',
-      { type: 'success' }
-    )
+    let msg = `确定要通过 Patch "${patch.title}" 的审核吗？`
+    if (patch.status === 'draft') {
+      msg = `确定要直接发布草稿 Patch "${patch.title}" 吗？`
+    } else if (patch.status === 'scheduled') {
+      msg = `确定要立即发布定时 Patch "${patch.title}" 吗？\n（原计划发布时间：${patch.scheduled_at || '未设置'}）`
+    }
+    await ElMessageBox.confirm(msg, '确认操作', { type: 'success' })
     
     await adminApi.updatePatchStatus(patch.id, 'approved')
     patch.status = 'approved'
-    ElMessage.success('审核通过')
+    ElMessage.success('操作成功，已发布')
   } catch (err) {
     if (err !== 'cancel') {
       ElMessage.error('操作失败')

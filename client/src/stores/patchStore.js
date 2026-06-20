@@ -67,6 +67,10 @@ export const usePatchStore = defineStore('patch', {
       return await socialAPI.getMyDrafts(params)
     },
 
+    async fetchMyScheduled(params = {}) {
+      return await socialAPI.getMyScheduled(params)
+    },
+
     async fetchCreatorStats() {
       return await socialAPI.getCreatorStats()
     },
