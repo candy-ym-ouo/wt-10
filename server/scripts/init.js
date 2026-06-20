@@ -60,6 +60,10 @@ db.exec(`
     favorites_count INTEGER DEFAULT 0,
     views_count INTEGER DEFAULT 0,
     is_public INTEGER DEFAULT 1,
+    is_paid INTEGER DEFAULT 0,
+    price REAL DEFAULT 0,
+    preview_content TEXT,
+    scheduled_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

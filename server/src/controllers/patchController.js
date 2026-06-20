@@ -229,7 +229,7 @@ exports.createPatch = async (ctx) => {
     patchStatus = 'approved';
   }
 
-  let isPublic = is_public ? 1 : 0;
+  let isPublic = is_public !== undefined ? (is_public ? 1 : 0) : 1;
   if (patchStatus === 'draft') {
     isPublic = 0;
   } else if (patchStatus === 'scheduled' || patchStatus === 'pending' || patchStatus === 'approved') {
@@ -346,7 +346,7 @@ exports.updatePatch = async (ctx) => {
     finalIsPublic = true;
   }
 
-  let scheduledAt = scheduled_at;
+  let scheduledAt = scheduled_at !== undefined ? scheduled_at : undefined;
   if (patchStatus !== undefined && patchStatus !== 'scheduled') {
     scheduledAt = null;
   }
@@ -367,18 +367,21 @@ exports.updatePatch = async (ctx) => {
       image_url = COALESCE(?, image_url),
       patch_file = COALESCE(?, patch_file),
       tags = COALESCE(?, tags),
-      is_public = COALESCE(?, is_public),
+      is_public = ?,
       is_paid = COALESCE(?, is_paid),
       price = COALESCE(?, price),
       preview_content = COALESCE(?, preview_content),
       status = COALESCE(?, status),
-      scheduled_at = COALESCE(?, scheduled_at),
+      scheduled_at = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `);
 
   const isPaid = is_paid !== undefined ? (is_paid ? 1 : 0) : undefined;
   const patchPrice = isPaid === 1 ? (price || 0) : (isPaid === 0 ? 0 : price);
+
+  const isPublicValue = finalIsPublic !== undefined ? (finalIsPublic ? 1 : 0) : patch.is_public;
+  const scheduledAtValue = scheduledAt !== undefined ? scheduledAt : patch.scheduled_at;
 
   stmt.run(
     title, description,
@@ -387,12 +390,12 @@ exports.updatePatch = async (ctx) => {
     cables ? JSON.stringify(cables) : null,
     audio_url, image_url, patch_file,
     tags ? JSON.stringify(tags) : null,
-    finalIsPublic !== undefined ? (finalIsPublic ? 1 : 0) : null,
+    isPublicValue,
     isPaid,
     patchPrice,
     preview_content,
     patchStatus,
-    scheduledAt,
+    scheduledAtValue,
     id
   );
 

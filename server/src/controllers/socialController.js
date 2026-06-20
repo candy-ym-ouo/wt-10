@@ -86,7 +86,7 @@ exports.getMyPatches = async (ctx) => {
   let where = 'p.user_id = ?';
   let params = [userId];
 
-  if (status) {
+  if (status && status !== 'all') {
     where += ' AND p.status = ?';
     params.push(status);
   }
