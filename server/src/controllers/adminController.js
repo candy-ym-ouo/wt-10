@@ -342,10 +342,10 @@ exports.getRecentPatches = async (ctx) => {
 
 exports.updatePatchStatus = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
-  const { status, scheduled_at } = ctx.request.body;
+  const { status, scheduled_at, review_note } = ctx.request.body;
   const adminId = ctx.state.user.id;
 
-  const validStatuses = ['draft', 'pending', 'approved', 'rejected', 'scheduled'];
+  const validStatuses = ['draft', 'pending', 'approved', 'rejected', 'scheduled', 'needs_revision'];
   if (!validStatuses.includes(status)) {
     ctx.status = 400;
     ctx.body = { error: '无效的状态值' };
@@ -370,24 +370,37 @@ exports.updatePatchStatus = async (ctx) => {
   }
 
   let isPublic = undefined;
-  if (status === 'draft') {
+  if (status === 'draft' || status === 'needs_revision') {
     isPublic = 0;
   } else if (status === 'scheduled' || status === 'pending' || status === 'approved') {
     isPublic = 1;
   }
 
+  const updateFields = ['status = ?', 'scheduled_at = ?'];
+  const updateParams = [status, scheduledAt];
+  
   if (isPublic !== undefined) {
-    db.prepare('UPDATE patches SET status = ?, scheduled_at = ?, is_public = ? WHERE id = ?').run(status, scheduledAt, isPublic, patchId);
-  } else {
-    db.prepare('UPDATE patches SET status = ?, scheduled_at = ? WHERE id = ?').run(status, scheduledAt, patchId);
+    updateFields.push('is_public = ?');
+    updateParams.push(isPublic);
   }
+  
+  if (review_note !== undefined) {
+    updateFields.push('review_note = ?');
+    updateParams.push(review_note);
+  }
+  
+  updateFields.push('updated_at = CURRENT_TIMESTAMP');
+  updateParams.push(patchId);
+
+  db.prepare(`UPDATE patches SET ${updateFields.join(', ')} WHERE id = ?`).run(...updateParams);
 
   const statusLabels = {
     draft: '草稿',
     pending: '待审核',
     approved: '审核通过',
     rejected: '审核未通过',
-    scheduled: '定时发布'
+    scheduled: '定时发布',
+    needs_revision: '待修改'
   };
 
   if (status === 'approved' && patch.old_status !== 'approved') {
@@ -409,20 +422,29 @@ exports.updatePatchStatus = async (ctx) => {
   }
 
   if (patch.user_id !== adminId) {
+    let notificationContent = `你的 Patch "${patch.title}" 状态已变更为：${statusLabels[status] || status}`;
+    if (review_note && review_note.trim()) {
+      notificationContent += `\n审核备注：${review_note}`;
+    }
+    
     createNotification(
       patch.user_id,
       'review',
       adminId,
       patchId,
-      `你的 Patch "${patch.title}" 状态已变更为：${statusLabels[status] || status}`,
+      notificationContent,
       {
         category: 'review',
-        linkUrl: `/patches/${patchId}`
+        linkUrl: `/patches/${patchId}`,
+        extraData: {
+          review_status: status,
+          review_note: review_note || null
+        }
       }
     );
   }
 
-  ctx.body = { success: true, status, scheduled_at: scheduledAt };
+  ctx.body = { success: true, status, scheduled_at: scheduledAt, review_note: review_note || null };
 };
 
 exports.createModule = async (ctx) => {

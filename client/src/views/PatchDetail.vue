@@ -66,6 +66,14 @@
               <el-icon><SetUp /></el-icon>
               加入对比
             </el-button>
+            <el-button 
+              v-if="isOwner && patch.status === 'needs_revision'" 
+              type="success" 
+              @click="resubmitForReview"
+            >
+              <el-icon><Check /></el-icon>
+              重新提交审核
+            </el-button>
             <el-dropdown v-if="userStore.isLoggedIn" @command="handleAction">
               <el-button>
                 <el-icon><MoreFilled /></el-icon>
@@ -102,6 +110,10 @@
           <span v-if="patch.status === 'scheduled' && patch.scheduled_at" class="scheduled-info">
             ⏰ 将于 {{ patch.scheduled_at }} 自动发布
           </span>
+        </div>
+        <div v-if="patch.review_note" class="review-note-section">
+          <div class="review-note-label">📝 审核备注</div>
+          <div class="review-note-content">{{ patch.review_note }}</div>
         </div>
         <p class="detail-desc">{{ patch.description }}</p>
 
@@ -651,7 +663,8 @@ const statusLabel = (status) => {
     scheduled: '⏰ 定时发布中',
     pending: '🕓 审核中',
     approved: '🚀 已发布',
-    rejected: '❌ 已驳回'
+    rejected: '❌ 已驳回',
+    needs_revision: '📋 待修改'
   }
   return map[status] || status
 }
@@ -662,7 +675,8 @@ const statusTagType = (status) => {
     scheduled: 'warning',
     pending: '',
     approved: 'success',
-    rejected: 'danger'
+    rejected: 'danger',
+    needs_revision: 'warning'
   }
   return map[status] || 'info'
 }
@@ -709,6 +723,19 @@ const handleAction = async (cmd) => {
   } else if (cmd === 'report') {
     reportPatch()
   }
+}
+
+const resubmitForReview = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要重新提交审核吗？提交后将进入审核队列。',
+      '确认提交',
+      { type: 'info' }
+    )
+    await patchStore.updatePatch(patch.value.id, { status: 'pending' })
+    patch.value.status = 'pending'
+    ElMessage.success('已重新提交审核')
+  } catch {}
 }
 
 const reportPatch = () => {
@@ -930,6 +957,28 @@ const onVersionRollback = async ({ result }) => {
 .scheduled-info {
   color: #e6a23c;
   font-size: 14px;
+}
+
+.review-note-section {
+  background: rgba(230, 162, 60, 0.1);
+  border: 1px solid rgba(230, 162, 60, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.review-note-label {
+  color: #e6a23c;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.review-note-content {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .detail-desc {

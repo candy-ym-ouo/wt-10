@@ -409,14 +409,14 @@ exports.createPatch = async (ctx) => {
     return;
   }
 
-  const validStatuses = ['draft', 'pending', 'approved', 'scheduled', 'rejected'];
+  const validStatuses = ['draft', 'pending', 'approved', 'scheduled', 'rejected', 'needs_revision'];
   let patchStatus = status || 'approved';
   if (!validStatuses.includes(patchStatus)) {
     patchStatus = 'approved';
   }
 
   let isPublic = is_public !== undefined ? (is_public ? 1 : 0) : 1;
-  if (patchStatus === 'draft') {
+  if (patchStatus === 'draft' || patchStatus === 'needs_revision') {
     isPublic = 0;
   } else if (patchStatus === 'scheduled' || patchStatus === 'pending' || patchStatus === 'approved') {
     isPublic = 1;
@@ -519,7 +519,7 @@ exports.updatePatch = async (ctx) => {
     is_paid, price, preview_content, status, scheduled_at
   } = ctx.request.body;
 
-  const validStatuses = ['draft', 'pending', 'approved', 'scheduled', 'rejected'];
+  const validStatuses = ['draft', 'pending', 'approved', 'scheduled', 'rejected', 'needs_revision'];
   let patchStatus = status;
   if (patchStatus !== undefined && !validStatuses.includes(patchStatus)) {
     ctx.status = 400;
@@ -528,7 +528,7 @@ exports.updatePatch = async (ctx) => {
   }
 
   const finalStatus = patchStatus !== undefined ? patchStatus : oldPatch.status;
-  const isDraft = finalStatus === 'draft';
+  const isDraft = finalStatus === 'draft' || finalStatus === 'needs_revision';
   
   const finalModulesUsed = modules_used !== undefined 
     ? modules_used 
@@ -550,7 +550,7 @@ exports.updatePatch = async (ctx) => {
   }
 
   let finalIsPublic = is_public;
-  if (patchStatus === 'draft') {
+  if (patchStatus === 'draft' || patchStatus === 'needs_revision') {
     finalIsPublic = false;
   } else if (patchStatus === 'scheduled' || patchStatus === 'pending' || patchStatus === 'approved') {
     finalIsPublic = true;

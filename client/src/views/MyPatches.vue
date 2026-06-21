@@ -14,6 +14,7 @@
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="patch-tabs">
       <el-tab-pane label="🚀 已发布" name="published" />
+      <el-tab-pane label="📋 待修改" name="needs_revision" />
       <el-tab-pane label="⏰ 定时发布" name="scheduled" />
       <el-tab-pane label="📝 草稿箱" name="draft" />
       <el-tab-pane label="💾 全部" name="all" />
@@ -45,6 +46,10 @@
         </div>
         <div v-if="patch.status === 'scheduled' && patch.scheduled_at" class="patch-scheduled">
           ⏰ 定时发布：{{ patch.scheduled_at }}
+        </div>
+        <div v-if="patch.review_note" class="patch-review-note">
+          <el-icon><Document /></el-icon>
+          <span>{{ patch.review_note }}</span>
         </div>
         <div class="patch-meta">
           <div class="patch-stats">
@@ -114,6 +119,8 @@ const emptyText = computed(() => {
       return '还没有草稿，点击创建开始吧'
     case 'scheduled':
       return '没有定时发布的 Patch'
+    case 'needs_revision':
+      return '没有需要修改的 Patch'
     case 'published':
       return '还没有发布任何 Patch'
     default:
@@ -145,6 +152,9 @@ const fetchPatches = async () => {
       case 'scheduled':
         res = await patchStore.fetchMyScheduled(params)
         break
+      case 'needs_revision':
+        res = await patchStore.fetchMyPatches({ ...params, status: 'needs_revision' })
+        break
       case 'published':
         res = await patchStore.fetchMyPatches(params)
         break
@@ -172,7 +182,8 @@ const getStatusLabel = (status) => {
     scheduled: '⏰ 定时中',
     pending: '🕓 审核中',
     approved: '🚀 已发布',
-    rejected: '❌ 已驳回'
+    rejected: '❌ 已驳回',
+    needs_revision: '📋 待修改'
   }
   return map[status] || status
 }
@@ -253,9 +264,41 @@ const deletePatch = async (patch) => {
   color: #f56c6c;
 }
 
+.status-needs_revision {
+  background: rgba(230, 162, 60, 0.2);
+  color: #e6a23c;
+}
+
 .patch-scheduled {
   font-size: 13px;
   color: #e6a23c;
   margin: 8px 0;
+}
+
+.patch-review-note {
+  background: rgba(230, 162, 60, 0.1);
+  border: 1px solid rgba(230, 162, 60, 0.2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  font-size: 12px;
+  color: #e6a23c;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.5;
+}
+
+.patch-review-note .el-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.patch-review-note span {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
