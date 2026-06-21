@@ -5,6 +5,7 @@ const { requireAuth, requireAdmin, requireSuperAdmin, requirePermission, require
 const { PERMISSIONS } = require('./constants/permissions');
 const { getAuditLogs, getAuditLogById } = require('./middleware/audit');
 const { i18nMiddleware } = require('./middleware/i18n');
+const { createRateLimitMiddleware, getSocialActionStats, getSocialActionOverview } = require('./middleware/rateLimit');
 
 const userController = require('./controllers/userController');
 const moduleController = require('./controllers/moduleController');
@@ -126,15 +127,15 @@ router.get('/articles/:id/module-refs', articleController.getModuleRefs);
 router.post('/articles', requireAuth, articleController.createArticle);
 router.put('/articles/:id', requireAuth, articleController.updateArticle);
 router.delete('/articles/:id', requireAuth, articleController.deleteArticle);
-router.post('/articles/:id/like', requireAuth, articleController.toggleLike);
-router.post('/articles/:id/favorite', requireAuth, articleController.toggleFavorite);
+router.post('/articles/:id/like', requireAuth, createRateLimitMiddleware('article_like'), articleController.toggleLike);
+router.post('/articles/:id/favorite', requireAuth, createRateLimitMiddleware('article_favorite'), articleController.toggleFavorite);
 router.post('/articles/:id/comments', requireAuth, articleController.addComment);
 router.delete('/articles/:id/comments/:commentId', requireAuth, articleController.deleteComment);
 router.post('/articles/comments/:commentId/like', requireAuth, articleController.toggleCommentLike);
 router.get('/me/articles', requireAuth, articleController.getMyArticles);
 
-router.post('/patches/:id/like', requireAuth, socialController.toggleLike);
-router.post('/patches/:id/favorite', requireAuth, socialController.toggleFavorite);
+router.post('/patches/:id/like', requireAuth, createRateLimitMiddleware('patch_like'), socialController.toggleLike);
+router.post('/patches/:id/favorite', requireAuth, createRateLimitMiddleware('patch_favorite'), socialController.toggleFavorite);
 router.post('/patches/:id/favorite/move', requireAuth, socialController.moveFavoriteToFolder);
 router.get('/me/favorites', requireAuth, socialController.getMyFavorites);
 router.post('/me/favorites/batch-move', requireAuth, socialController.batchMoveFavorites);
@@ -427,6 +428,25 @@ router.get('/admin/search/ad-placements', requirePermission(PERMISSIONS.SEARCH_V
 router.post('/admin/search/ad-placements', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminCreateAdPlacement);
 router.put('/admin/search/ad-placements/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminUpdateAdPlacement);
 router.delete('/admin/search/ad-placements/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminDeleteAdPlacement);
+
+router.get('/admin/social-actions/overview', requirePermission(PERMISSIONS.SOCIAL_ACTION_VIEW), async (ctx) => {
+  ctx.body = getSocialActionOverview();
+});
+
+router.get('/admin/social-actions/logs', requirePermission(PERMISSIONS.SOCIAL_ACTION_VIEW), async (ctx) => {
+  const { page = 1, page_size = 20, user_id, action_type, target_type, status, ip_address, start_time, end_time } = ctx.query;
+  ctx.body = getSocialActionStats({
+    page: parseInt(page),
+    page_size: parseInt(page_size),
+    user_id: user_id ? parseInt(user_id) : null,
+    action_type,
+    target_type,
+    status,
+    ip_address,
+    start_time,
+    end_time
+  });
+});
 
 router.get('/admin/achievements', requirePermission(PERMISSIONS.ACHIEVEMENT_VIEW), achievementController.getAchievementRules);
 router.post('/admin/achievements', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.createAchievementRule);

@@ -115,6 +115,10 @@
           <el-icon><List /></el-icon>
           <span>操作审计</span>
         </el-menu-item>
+        <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.SOCIAL_ACTION_VIEW)" index="/admin/social-actions">
+          <el-icon><Heart /></el-icon>
+          <span>社交行为监控</span>
+        </el-menu-item>
         <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.SEARCH_VIEW)" index="/admin/search">
           <el-icon><Search /></el-icon>
           <span>搜索运营</span>

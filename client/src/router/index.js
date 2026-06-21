@@ -363,6 +363,12 @@ const routes = [
         meta: { permission: PERMISSIONS.AUDIT_LOG_VIEW }
       },
       {
+        path: 'social-actions',
+        name: 'AdminSocialActions',
+        component: () => import('@/views/admin/AdminSocialActions.vue'),
+        meta: { permission: PERMISSIONS.SOCIAL_ACTION_VIEW }
+      },
+      {
         path: 'search',
         name: 'AdminSearch',
         component: () => import('@/views/admin/AdminSearch.vue'),

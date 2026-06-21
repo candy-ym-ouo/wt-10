@@ -7,6 +7,7 @@ const db = require('./db');
 const { authMiddleware } = require('./middleware/auth');
 const { apiKeyAuth } = require('./middleware/apiKeyAuth');
 const { initAuditTables, globalAuditMiddleware } = require('./middleware/audit');
+const { initRateLimitTables } = require('./middleware/rateLimit');
 const router = require('./routes');
 
 const app = new Koa();
@@ -17,6 +18,13 @@ try {
   console.log('audit_logs 表检查/创建完成');
 } catch (e) {
   console.error('创建 audit_logs 表失败:', e);
+}
+
+try {
+  initRateLimitTables();
+  console.log('频控相关表检查/创建完成');
+} catch (e) {
+  console.error('创建频控相关表失败:', e);
 }
 
 try {
@@ -743,7 +751,11 @@ try {
     ['validation.password_match', '两次密码输入不一致', 'Passwords do not match', 'validation', '密码匹配校验'],
     ['validation.username_exists', '用户名已存在', 'Username already exists', 'validation', '用户名已存在'],
     ['validation.email_exists', '邮箱已注册', 'Email already registered', 'validation', '邮箱已注册'],
-    ['validation.invalid_credentials', '用户名或密码错误', 'Invalid username or password', 'validation', '凭据错误']
+    ['validation.invalid_credentials', '用户名或密码错误', 'Invalid username or password', 'validation', '凭据错误'],
+    ['auth.login_required', '请先登录', 'Please login first', 'auth', '登录验证'],
+    ['social.rate_limit_minute', '操作过于频繁，请 {seconds} 秒后再试', 'Operation too frequent, please try again after {seconds} seconds', 'social', '分钟级频控拦截'],
+    ['social.rate_limit_hour', '本小时操作次数已达上限（{limit}次），请稍后再试', 'Hourly limit reached ({limit} times), please try again later', 'social', '小时级频控拦截'],
+    ['social.rate_limit_day', '今日操作次数已达上限（{limit}次），请明天再试', 'Daily limit reached ({limit} times), please try again tomorrow', 'social', '日级频控拦截']
   ];
 
   const insertTranslation = db.prepare(`

@@ -228,7 +228,9 @@ export const adminApi = {
   createModuleParameterTemplate: (id, data) => api.post(`/admin/modules/${id}/parameter-templates`, data),
   updateModuleParameterTemplate: (templateId, data) => api.put(`/admin/modules/parameter-templates/${templateId}`, data),
   deleteModuleParameterTemplate: (templateId) => api.delete(`/admin/modules/parameter-templates/${templateId}`),
-  setModuleDefaultTemplate: (templateId) => api.post(`/admin/modules/parameter-templates/${templateId}/set-default`)
+  setModuleDefaultTemplate: (templateId) => api.post(`/admin/modules/parameter-templates/${templateId}/set-default`),
+  getSocialActionOverview: () => api.get('/admin/social-actions/overview'),
+  getSocialActionLogs: (params) => api.get('/admin/social-actions/logs', { params })
 }
 
 export const authAPI = authApi
