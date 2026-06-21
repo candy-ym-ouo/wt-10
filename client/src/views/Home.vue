@@ -147,7 +147,7 @@ onMounted(async () => {
 })
 
 const goToDetail = (patch) => {
-  router.push(`/patches/${patch.id}`)
+  router.push({ path: `/patches/${patch.id}`, query: { source: 'home' } })
 }
 
 const goToUser = (userId) => {

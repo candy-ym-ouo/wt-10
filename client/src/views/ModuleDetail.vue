@@ -193,7 +193,7 @@
               v-for="rec in wikiData.recommendedPatches"
               :key="rec.id"
               class="card patch-card recommended-patch"
-              @click="$router.push(`/patches/${rec.patch_id}`)"
+              @click="$router.push({ path: `/patches/${rec.patch_id}`, query: { source: 'module_detail' } })"
             >
               <div class="recommend-badge">
                 <el-icon><Star /></el-icon>
@@ -226,7 +226,7 @@
               v-for="patch in wikiData.patches"
               :key="patch.id"
               class="card patch-card"
-              @click="$router.push(`/patches/${patch.id}`)"
+              @click="$router.push({ path: `/patches/${patch.id}`, query: { source: 'module_detail' } })"
             >
               <div class="patch-image">🎛️</div>
               <div class="patch-title">{{ patch.title }}</div>

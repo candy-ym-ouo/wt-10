@@ -91,11 +91,11 @@
     <div class="charts-section">
       <div class="chart-card">
         <div class="chart-header">
-          <h3 class="chart-title">📈 Patch 浏览热度趋势（近7天）</h3>
+          <h3 class="chart-title">📈 Patch 浏览热度趋势（{{ trendDateRangeText }}）</h3>
           <el-select v-model="trendGranularity" size="small" style="width: 100px" @change="fetchTrendData">
-            <el-option label="按天" value="day" />
-            <el-option label="按周" value="week" />
-            <el-option label="按月" value="month" />
+            <el-option label="近7天" value="day" />
+            <el-option label="近4周" value="week" />
+            <el-option label="近6个月" value="month" />
           </el-select>
         </div>
         <div class="line-chart">
@@ -221,11 +221,11 @@
               </div>
             </div>
             <div class="rank-stats">
-              <div class="rank-stat">
+              <div class="rank-stat primary">
                 <el-icon><View /></el-icon>
-                <span>{{ formatNumber(item.views_count) }}</span>
+                <span>{{ formatNumber(item.period_views) }}</span>
               </div>
-              <div class="rank-stat">
+              <div class="rank-stat secondary">
                 <el-icon><Star /></el-icon>
                 <span>{{ formatNumber(item.likes_count) }}</span>
               </div>
@@ -388,6 +388,18 @@ const yAxisLabels = computed(() => {
   return [4, 3, 2, 1, 0].map(i => formatNumber(Math.round((maxViews / 4) * i)))
 })
 
+const trendDateRangeText = computed(() => {
+  switch (trendGranularity.value) {
+    case 'week':
+      return '近4周'
+    case 'month':
+      return '近6个月'
+    case 'day':
+    default:
+      return '近7天'
+  }
+})
+
 const pieSegments = computed(() => {
   const sources = sourceStats.value?.sources || []
   if (!sources.length) return []
@@ -416,7 +428,7 @@ const getRankClass = (rank) => {
 }
 
 const goToPatch = (id) => {
-  router.push(`/patches/${id}`)
+  router.push({ path: `/patches/${id}`, query: { source: 'admin' } })
 }
 
 const fetchDashboard = async () => {

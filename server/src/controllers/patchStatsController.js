@@ -136,7 +136,13 @@ exports.getPatchHeatTrend = async (ctx) => {
 
   if (!startDate) {
     const d = new Date();
-    d.setDate(d.getDate() - 29);
+    if (granularity === 'week') {
+      d.setDate(d.getDate() - 27);
+    } else if (granularity === 'month') {
+      d.setDate(d.getDate() - 179);
+    } else {
+      d.setDate(d.getDate() - 6);
+    }
     startDate = d.toISOString().split('T')[0];
   }
 

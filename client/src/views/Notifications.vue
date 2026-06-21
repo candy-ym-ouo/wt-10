@@ -273,7 +273,7 @@ const handleNotificationClick = async (item) => {
   if (item.link_url) {
     router.push(item.link_url)
   } else if (item.patch_id) {
-    router.push(`/patches/${item.patch_id}`)
+    router.push({ path: `/patches/${item.patch_id}`, query: { source: 'notification' } })
   }
 }
 

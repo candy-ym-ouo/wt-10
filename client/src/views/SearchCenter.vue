@@ -129,7 +129,7 @@
               v-for="item in (results.patches?.list || [])"
               :key="item.id"
               class="result-card"
-              @click="$router.push(`/patches/${item.id}`)"
+              @click="$router.push({ path: `/patches/${item.id}`, query: { source: 'search' } })"
             >
               <div class="result-thumb">
                 <img v-if="item.image_url" :src="item.image_url" />

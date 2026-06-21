@@ -102,7 +102,7 @@ const fetchData = async () => {
 }
 
 const goToDetail = (patch) => {
-  router.push(`/patches/${patch.id}`)
+  router.push({ path: `/patches/${patch.id}`, query: { source: 'collection' } })
 }
 
 const goToUser = (userId) => {

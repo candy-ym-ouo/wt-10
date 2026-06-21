@@ -374,7 +374,7 @@
 
         <div v-if="currentSubmission.patch_title" class="detail-section">
           <h4>关联Patch</h4>
-          <el-link @click="$router.push(`/patches/${currentSubmission.patch_id}`)" type="primary">
+          <el-link @click="$router.push({ path: `/patches/${currentSubmission.patch_id}`, query: { source: 'activities' } })" type="primary">
             {{ currentSubmission.patch_title }}
           </el-link>
         </div>
