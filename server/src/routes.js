@@ -162,6 +162,20 @@ router.post('/compare/:id', requireAuth, socialController.addToCompare);
 router.delete('/compare/:id', requireAuth, socialController.removeFromCompare);
 router.post('/compare/clear', requireAuth, socialController.clearCompare);
 router.get('/compare/result', socialController.comparePatches);
+router.get('/compare/result-enhanced', requireAuth, socialController.comparePatchesEnhanced);
+
+router.post('/compare/schemes', requireAuth, socialController.saveCompareScheme);
+router.get('/compare/schemes', requireAuth, socialController.getCompareSchemes);
+router.get('/compare/schemes/:id', requireAuth, socialController.getCompareSchemeDetail);
+router.put('/compare/schemes/:id', requireAuth, socialController.updateCompareScheme);
+router.delete('/compare/schemes/:id', requireAuth, socialController.deleteCompareScheme);
+router.post('/compare/schemes/:id/share', requireAuth, socialController.generateShareLink);
+router.delete('/compare/schemes/:id/share', requireAuth, socialController.revokeShareLink);
+router.get('/compare/shared/:token', socialController.getSharedScheme);
+
+router.get('/compare/history', requireAuth, socialController.getCompareHistory);
+router.delete('/compare/history/:id', requireAuth, socialController.deleteCompareHistory);
+router.delete('/compare/history', requireAuth, socialController.clearCompareHistory);
 
 router.get('/collections', collectionController.getCollections);
 router.get('/collections/:id', collectionController.getCollectionDetail);

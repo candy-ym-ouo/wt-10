@@ -128,6 +128,20 @@ export const socialApi = {
   removeFromCompare: (id) => api.delete(`/compare/${id}`),
   clearCompare: () => api.post('/compare/clear'),
   comparePatches: (ids) => api.get('/compare/result', { params: { ids } }),
+  comparePatchesEnhanced: (ids, saveHistory = true) => api.get('/compare/result-enhanced', { params: { ids, save_history: saveHistory ? '1' : '0' } }),
+  
+  saveCompareScheme: (data) => api.post('/compare/schemes', data),
+  getCompareSchemes: (params) => api.get('/compare/schemes', { params }),
+  getCompareSchemeDetail: (id) => api.get(`/compare/schemes/${id}`),
+  updateCompareScheme: (id, data) => api.put(`/compare/schemes/${id}`, data),
+  deleteCompareScheme: (id) => api.delete(`/compare/schemes/${id}`),
+  generateShareLink: (id) => api.post(`/compare/schemes/${id}/share`),
+  revokeShareLink: (id) => api.delete(`/compare/schemes/${id}/share`),
+  getSharedScheme: (token) => api.get(`/compare/shared/${token}`),
+  
+  getCompareHistory: (params) => api.get('/compare/history', { params }),
+  deleteCompareHistory: (id) => api.delete(`/compare/history/${id}`),
+  clearCompareHistory: () => api.delete('/compare/history'),
   
   followUser: (userId) => api.post(`/users/${userId}/follow`),
   checkFollowStatus: (userId) => api.get(`/users/${userId}/follow-status`),

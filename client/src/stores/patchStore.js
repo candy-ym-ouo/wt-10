@@ -182,6 +182,54 @@ export const usePatchStore = defineStore('patch', {
       return await socialAPI.comparePatches(ids.join(','))
     },
 
+    async comparePatchesEnhanced(ids, saveHistory = true) {
+      return await socialAPI.comparePatchesEnhanced(ids.join(','), saveHistory)
+    },
+
+    async saveCompareScheme(data) {
+      return await socialAPI.saveCompareScheme(data)
+    },
+
+    async fetchCompareSchemes(params = {}) {
+      return await socialAPI.getCompareSchemes(params)
+    },
+
+    async fetchCompareSchemeDetail(id) {
+      return await socialAPI.getCompareSchemeDetail(id)
+    },
+
+    async updateCompareScheme(id, data) {
+      return await socialAPI.updateCompareScheme(id, data)
+    },
+
+    async deleteCompareScheme(id) {
+      return await socialAPI.deleteCompareScheme(id)
+    },
+
+    async generateShareLink(id) {
+      return await socialAPI.generateShareLink(id)
+    },
+
+    async revokeShareLink(id) {
+      return await socialAPI.revokeShareLink(id)
+    },
+
+    async fetchSharedScheme(token) {
+      return await socialAPI.getSharedScheme(token)
+    },
+
+    async fetchCompareHistory(params = {}) {
+      return await socialAPI.getCompareHistory(params)
+    },
+
+    async deleteCompareHistory(id) {
+      return await socialAPI.deleteCompareHistory(id)
+    },
+
+    async clearCompareHistory() {
+      return await socialAPI.clearCompareHistory()
+    },
+
     async fetchVersions(id, params = {}) {
       return await patchAPI.getVersions(id, params)
     },

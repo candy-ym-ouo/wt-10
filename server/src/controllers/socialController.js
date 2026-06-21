@@ -1432,3 +1432,456 @@ exports.getMyFavorites = async (ctx) => {
     folders
   };
 };
+
+const generateShareToken = () => {
+  return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+};
+
+const addToCompareHistory = (userId, patchIds, patchTitles) => {
+  try {
+    const existing = db.prepare(`
+      SELECT id FROM compare_history 
+      WHERE user_id = ? AND patch_ids = ?
+    `).get(userId, JSON.stringify(patchIds));
+    
+    if (existing) {
+      db.prepare(`
+        UPDATE compare_history SET created_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(existing.id);
+    } else {
+      db.prepare(`
+        INSERT INTO compare_history (user_id, patch_ids, patch_titles)
+        VALUES (?, ?, ?)
+      `).run(userId, JSON.stringify(patchIds), JSON.stringify(patchTitles || []));
+      
+      const count = db.prepare('SELECT COUNT(*) as count FROM compare_history WHERE user_id = ?').get(userId);
+      if (count.count > 50) {
+        db.prepare(`
+          DELETE FROM compare_history 
+          WHERE user_id = ? 
+          ORDER BY created_at ASC 
+          LIMIT ?
+        `).run(userId, count.count - 50);
+      }
+    }
+  } catch (e) {
+    console.error('添加对比历史失败:', e);
+  }
+};
+
+exports.saveCompareScheme = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { name, description, patch_ids } = ctx.request.body || {};
+
+  if (!name || !name.trim()) {
+    ctx.status = 400;
+    ctx.body = { error: '请输入方案名称' };
+    return;
+  }
+
+  if (!patch_ids || !Array.isArray(patch_ids) || patch_ids.length < 2) {
+    ctx.status = 400;
+    ctx.body = { error: '至少需要 2 个 Patch' };
+    return;
+  }
+
+  const trimmedName = name.trim();
+  if (trimmedName.length > 100) {
+    ctx.status = 400;
+    ctx.body = { error: '方案名称不能超过 100 个字符' };
+    return;
+  }
+
+  const shareToken = generateShareToken();
+  const result = db.prepare(`
+    INSERT INTO compare_schemes (user_id, name, description, patch_ids, share_token)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    userId,
+    trimmedName,
+    description || '',
+    JSON.stringify(patch_ids),
+    shareToken
+  );
+
+  ctx.body = {
+    success: true,
+    id: result.lastInsertRowid,
+    share_token: shareToken
+  };
+};
+
+exports.getCompareSchemes = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { page = 1, limit = 20 } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const schemes = db.prepare(`
+    SELECT cs.*, 
+           (SELECT COUNT(*) FROM compare_schemes WHERE user_id = ?) as total_count
+    FROM compare_schemes cs
+    WHERE cs.user_id = ?
+    ORDER BY cs.updated_at DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, userId, limit, offset);
+
+  const total = schemes.length > 0 ? schemes[0].total_count : 0;
+
+  const result = schemes.map(s => ({
+    ...s,
+    patch_ids: JSON.parse(s.patch_ids || '[]')
+  }));
+
+  ctx.body = {
+    list: result,
+    total,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.getCompareSchemeDetail = async (ctx) => {
+  const schemeId = parseInt(ctx.params.id);
+  const userId = ctx.state.user.id;
+
+  const scheme = db.prepare(`
+    SELECT cs.*
+    FROM compare_schemes cs
+    WHERE cs.id = ? AND cs.user_id = ?
+  `).get(schemeId, userId);
+
+  if (!scheme) {
+    ctx.status = 404;
+    ctx.body = { error: '方案不存在' };
+    return;
+  }
+
+  scheme.patch_ids = JSON.parse(scheme.patch_ids || '[]');
+
+  ctx.body = scheme;
+};
+
+exports.updateCompareScheme = async (ctx) => {
+  const schemeId = parseInt(ctx.params.id);
+  const userId = ctx.state.user.id;
+  const { name, description, patch_ids, is_public } = ctx.request.body || {};
+
+  const scheme = db.prepare('SELECT * FROM compare_schemes WHERE id = ? AND user_id = ?').get(schemeId, userId);
+  if (!scheme) {
+    ctx.status = 404;
+    ctx.body = { error: '方案不存在' };
+    return;
+  }
+
+  let updates = [];
+  let params = [];
+
+  if (name !== undefined) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      ctx.status = 400;
+      ctx.body = { error: '方案名称不能为空' };
+      return;
+    }
+    if (trimmedName.length > 100) {
+      ctx.status = 400;
+      ctx.body = { error: '方案名称不能超过 100 个字符' };
+      return;
+    }
+    updates.push('name = ?');
+    params.push(trimmedName);
+  }
+
+  if (description !== undefined) {
+    updates.push('description = ?');
+    params.push(description || '');
+  }
+
+  if (patch_ids !== undefined) {
+    if (!Array.isArray(patch_ids) || patch_ids.length < 2) {
+      ctx.status = 400;
+      ctx.body = { error: '至少需要 2 个 Patch' };
+      return;
+    }
+    updates.push('patch_ids = ?');
+    params.push(JSON.stringify(patch_ids));
+  }
+
+  if (is_public !== undefined) {
+    updates.push('is_public = ?');
+    params.push(is_public ? 1 : 0);
+  }
+
+  if (updates.length > 0) {
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(schemeId);
+
+    db.prepare(`
+      UPDATE compare_schemes SET ${updates.join(', ')} WHERE id = ?
+    `).run(...params);
+  }
+
+  ctx.body = { success: true };
+};
+
+exports.deleteCompareScheme = async (ctx) => {
+  const schemeId = parseInt(ctx.params.id);
+  const userId = ctx.state.user.id;
+
+  const result = db.prepare(`
+    DELETE FROM compare_schemes WHERE id = ? AND user_id = ?
+  `).run(schemeId, userId);
+
+  if (result.changes === 0) {
+    ctx.status = 404;
+    ctx.body = { error: '方案不存在' };
+    return;
+  }
+
+  ctx.body = { success: true };
+};
+
+exports.getSharedScheme = async (ctx) => {
+  const { token } = ctx.params;
+
+  const scheme = db.prepare(`
+    SELECT cs.*, u.username as creator_name, u.avatar as creator_avatar
+    FROM compare_schemes cs
+    JOIN users u ON cs.user_id = u.id
+    WHERE cs.share_token = ?
+  `).get(token);
+
+  if (!scheme) {
+    ctx.status = 404;
+    ctx.body = { error: '分享链接无效或已过期' };
+    return;
+  }
+
+  scheme.patch_ids = JSON.parse(scheme.patch_ids || '[]');
+
+  ctx.body = scheme;
+};
+
+exports.generateShareLink = async (ctx) => {
+  const schemeId = parseInt(ctx.params.id);
+  const userId = ctx.state.user.id;
+
+  const scheme = db.prepare('SELECT * FROM compare_schemes WHERE id = ? AND user_id = ?').get(schemeId, userId);
+  if (!scheme) {
+    ctx.status = 404;
+    ctx.body = { error: '方案不存在' };
+    return;
+  }
+
+  let shareToken = scheme.share_token;
+  if (!shareToken) {
+    shareToken = generateShareToken();
+    db.prepare('UPDATE compare_schemes SET share_token = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(shareToken, schemeId);
+  }
+
+  db.prepare('UPDATE compare_schemes SET is_public = 1 WHERE id = ?').run(schemeId);
+
+  ctx.body = {
+    success: true,
+    share_token: shareToken,
+    share_url: `/compare?share=${shareToken}`
+  };
+};
+
+exports.revokeShareLink = async (ctx) => {
+  const schemeId = parseInt(ctx.params.id);
+  const userId = ctx.state.user.id;
+
+  const result = db.prepare(`
+    UPDATE compare_schemes SET share_token = NULL, is_public = 0, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND user_id = ?
+  `).run(schemeId, userId);
+
+  if (result.changes === 0) {
+    ctx.status = 404;
+    ctx.body = { error: '方案不存在' };
+    return;
+  }
+
+  ctx.body = { success: true };
+};
+
+exports.getCompareHistory = async (ctx) => {
+  const userId = ctx.state.user.id;
+  const { page = 1, limit = 20 } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const history = db.prepare(`
+    SELECT * FROM compare_history
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, limit, offset);
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM compare_history WHERE user_id = ?').get(userId);
+
+  const result = history.map(h => ({
+    ...h,
+    patch_ids: JSON.parse(h.patch_ids || '[]'),
+    patch_titles: JSON.parse(h.patch_titles || '[]')
+  }));
+
+  ctx.body = {
+    list: result,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.deleteCompareHistory = async (ctx) => {
+  const historyId = parseInt(ctx.params.id);
+  const userId = ctx.state.user.id;
+
+  const result = db.prepare(`
+    DELETE FROM compare_history WHERE id = ? AND user_id = ?
+  `).run(historyId, userId);
+
+  if (result.changes === 0) {
+    ctx.status = 404;
+    ctx.body = { error: '记录不存在' };
+    return;
+  }
+
+  ctx.body = { success: true };
+};
+
+exports.clearCompareHistory = async (ctx) => {
+  const userId = ctx.state.user.id;
+
+  db.prepare('DELETE FROM compare_history WHERE user_id = ?').run(userId);
+
+  ctx.body = { success: true };
+};
+
+const deepEqual = (a, b) => {
+  if (a === b) return true;
+  if (typeof a !== typeof b || a === null || b === null) return false;
+  if (typeof a !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every(k => deepEqual(a[k], b[k]));
+};
+
+const computeDiffInfo = (patches, comparison) => {
+  const diffInfo = {};
+
+  Object.keys(comparison).forEach(paramKey => {
+    const cells = comparison[paramKey];
+    const values = cells.map(c => JSON.stringify(c.value));
+    const uniqueValues = [...new Set(values)];
+    const hasDiff = uniqueValues.length > 1;
+
+    diffInfo[paramKey] = {
+      has_diff: hasDiff,
+      cells: cells.map(cell => {
+        const cellValueStr = JSON.stringify(cell.value);
+        const isUnique = values.filter(v => v === cellValueStr).length === 1;
+        const isMostCommon = values.filter(v => v === cellValueStr).length > 1;
+
+        return {
+          ...cell,
+          is_unique: isUnique && hasDiff,
+          is_most_common: isMostCommon
+        };
+      })
+    };
+  });
+
+  const moduleUsageDiff = patches.map(p => {
+    const modules = JSON.parse(p.modules_used || '[]');
+    return {
+      patch_id: p.id,
+      modules
+    };
+  });
+
+  const allModuleIds = [...new Set(moduleUsageDiff.flatMap(m => m.modules))];
+  const moduleDiffInfo = {};
+  allModuleIds.forEach(modId => {
+    const presentIn = moduleUsageDiff.filter(m => m.modules.includes(modId)).length;
+    moduleDiffInfo[modId] = {
+      is_unique: presentIn === 1 && patches.length > 1,
+      count: presentIn
+    };
+  });
+
+  return { diffInfo, moduleDiffInfo };
+};
+
+exports.comparePatchesEnhanced = async (ctx) => {
+  const { ids, save_history } = ctx.query;
+  const patchIds = ids ? ids.split(',').map(Number) : [];
+
+  if (patchIds.length < 2) {
+    ctx.status = 400;
+    ctx.body = { error: '至少需要 2 个 Patch 进行对比' };
+    return;
+  }
+
+  if (patchIds.length > 5) {
+    ctx.status = 400;
+    ctx.body = { error: '最多只能对比 5 个 Patch' };
+    return;
+  }
+
+  const placeholders = patchIds.map(() => '?').join(',');
+  const patches = db.prepare(`
+    SELECT p.*, u.username, u.avatar
+    FROM patches p
+    JOIN users u ON p.user_id = u.id
+    WHERE p.id IN (${placeholders})
+  `).all(...patchIds);
+
+  if (patches.length !== patchIds.length) {
+    ctx.status = 404;
+    ctx.body = { error: '部分 Patch 不存在' };
+    return;
+  }
+
+  const paramKeys = ['oscillators', 'filter', 'envelope', 'lfo', 'effects'];
+  const comparison = {};
+
+  paramKeys.forEach(key => {
+    comparison[key] = patches.map(patch => {
+      const params = JSON.parse(patch.parameters || '{}');
+      return {
+        patch_id: patch.id,
+        title: patch.title,
+        value: params[key] || null
+      };
+    });
+  });
+
+  const { diffInfo, moduleDiffInfo } = computeDiffInfo(patches, comparison);
+
+  const moduleUsage = patches.map(p => ({
+    patch_id: p.id,
+    title: p.title,
+    modules: JSON.parse(p.modules_used || '[]')
+  }));
+
+  if (save_history !== '0' && ctx.state.user) {
+    const titles = patches.map(p => p.title);
+    addToCompareHistory(ctx.state.user.id, patchIds, titles);
+  }
+
+  ctx.body = {
+    patches,
+    comparison,
+    module_usage: moduleUsage,
+    diff_info: diffInfo,
+    module_diff_info: moduleDiffInfo
+  };
+};
