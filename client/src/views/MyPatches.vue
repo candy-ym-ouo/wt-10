@@ -156,7 +156,7 @@ const fetchPatches = async () => {
         res = await patchStore.fetchMyPatches({ ...params, status: 'needs_revision' })
         break
       case 'published':
-        res = await patchStore.fetchMyPatches(params)
+        res = await patchStore.fetchMyPatches({ ...params, status: 'approved' })
         break
       default:
         res = await patchStore.fetchMyPatches({ ...params, status: 'all' })

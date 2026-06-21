@@ -204,12 +204,15 @@ exports.getPatches = async (ctx) => {
   const userId = ctx.state.user?.id || 0;
   const userRole = ctx.state.user?.role;
 
+  const isViewingOwn = user_id && parseInt(user_id) === userId;
+  
   if (status && userRole === 'admin') {
     where.push('p.status = ?');
     params.push(status);
-  } else if (status && user_id && parseInt(user_id) === userId) {
+  } else if (status && isViewingOwn) {
     where.push('p.status = ?');
     params.push(status);
+  } else if (isViewingOwn || userRole === 'admin') {
   } else {
     where.push('p.is_public = 1');
     where.push("p.status = 'approved'");
@@ -311,7 +314,7 @@ exports.getPatchDetail = async (ctx) => {
     return;
   }
 
-  if (patch.status === 'draft' || patch.status === 'scheduled') {
+  if (['draft', 'scheduled', 'rejected', 'needs_revision'].includes(patch.status)) {
     if (userId === 0) {
       ctx.status = 403;
       ctx.body = { error: '无权访问此 Patch' };
