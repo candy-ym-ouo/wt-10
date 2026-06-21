@@ -69,7 +69,10 @@ export const patchApi = {
   getVersions: (id, params) => api.get(`/patches/${id}/versions`, { params }),
   getVersionDetail: (id, versionId) => api.get(`/patches/${id}/versions/${versionId}`),
   getVersionDiff: (id, params) => api.get(`/patches/${id}/versions/diff`, { params }),
-  rollbackVersion: (id, versionId) => api.post(`/patches/${id}/versions/${versionId}/rollback`)
+  rollbackVersion: (id, versionId) => api.post(`/patches/${id}/versions/${versionId}/rollback`),
+  getRankings: (params) => api.get('/patches/rankings', { params }),
+  getViewSources: (params) => api.get('/patches/stats/sources', { params }),
+  getHeatTrend: (params) => api.get('/patches/stats/trend', { params })
 }
 
 export const moduleApi = {
@@ -162,6 +165,10 @@ export const adminApi = {
   getStats: () => api.get('/admin/stats'),
   getRecentUsers: () => api.get('/admin/users/recent'),
   getRecentPatches: () => api.get('/admin/patches/recent'),
+  getPatchStatsOverview: () => api.get('/admin/patches/stats/overview'),
+  getPatchStatsSources: (params) => api.get('/admin/patches/stats/sources', { params }),
+  getPatchStatsTrend: (params) => api.get('/admin/patches/stats/trend', { params }),
+  getPatchStatsRankings: (params) => api.get('/admin/patches/stats/rankings', { params }),
   getUsers: (params) => api.get('/admin/users', { params }),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),

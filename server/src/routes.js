@@ -9,6 +9,7 @@ const { i18nMiddleware } = require('./middleware/i18n');
 const userController = require('./controllers/userController');
 const moduleController = require('./controllers/moduleController');
 const patchController = require('./controllers/patchController');
+const patchStatsController = require('./controllers/patchStatsController');
 const socialController = require('./controllers/socialController');
 const adminController = require('./controllers/adminController');
 const collectionController = require('./controllers/collectionController');
@@ -98,6 +99,9 @@ router.put('/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleC
 router.delete('/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.deleteModule);
 
 router.get('/patches', patchController.getPatches);
+router.get('/patches/rankings', patchStatsController.getPatchRankings);
+router.get('/patches/stats/sources', patchStatsController.getPatchViewSources);
+router.get('/patches/stats/trend', patchStatsController.getPatchHeatTrend);
 router.get('/patches/:id', patchController.getPatchDetail);
 router.get('/patches/:id/versions', requireAuth, patchController.getPatchVersions);
 router.get('/patches/:id/versions/:versionId', requireAuth, patchController.getPatchVersionDetail);
@@ -184,6 +188,10 @@ router.get('/collections', collectionController.getCollections);
 router.get('/collections/:id', collectionController.getCollectionDetail);
 
 router.get('/admin/stats', requirePermission(PERMISSIONS.DASHBOARD_VIEW), adminController.getStats);
+router.get('/admin/patches/stats/overview', requirePermission(PERMISSIONS.DASHBOARD_VIEW), patchStatsController.getAdminPatchStatsOverview);
+router.get('/admin/patches/stats/sources', requirePermission(PERMISSIONS.DASHBOARD_VIEW), patchStatsController.getPatchViewSources);
+router.get('/admin/patches/stats/trend', requirePermission(PERMISSIONS.DASHBOARD_VIEW), patchStatsController.getPatchHeatTrend);
+router.get('/admin/patches/stats/rankings', requirePermission(PERMISSIONS.DASHBOARD_VIEW), patchStatsController.getPatchRankings);
 router.get('/admin/users/recent', requirePermission(PERMISSIONS.USER_VIEW), adminController.getRecentUsers);
 router.get('/admin/users', requirePermission(PERMISSIONS.USER_VIEW), adminController.getUsers);
 router.put('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), adminController.updateUser);

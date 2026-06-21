@@ -1,4 +1,5 @@
 const db = require('../db');
+const { recordPatchView } = require('./patchStatsController');
 
 const VERSION_FIELDS = [
   'title', 'description', 'modules_used', 'parameters', 'cables',
@@ -272,6 +273,7 @@ exports.getPatchDetail = async (ctx) => {
 
   if (patch.status === 'approved' && patch.is_public) {
     db.prepare('UPDATE patches SET views_count = views_count + 1 WHERE id = ?').run(id);
+    recordPatchView(ctx, id);
   }
 
   let hasPermission = true;

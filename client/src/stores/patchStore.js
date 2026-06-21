@@ -244,6 +244,18 @@ export const usePatchStore = defineStore('patch', {
 
     async rollbackVersion(id, versionId) {
       return await patchAPI.rollbackVersion(id, versionId)
+    },
+
+    async fetchRankings(params = {}) {
+      return await patchAPI.getRankings(params)
+    },
+
+    async fetchViewSources(params = {}) {
+      return await patchAPI.getViewSources(params)
+    },
+
+    async fetchHeatTrend(params = {}) {
+      return await patchAPI.getHeatTrend(params)
     }
   }
 })
