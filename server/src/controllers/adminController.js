@@ -1,5 +1,6 @@
 const db = require('../db');
 const bcrypt = require('bcryptjs');
+const { createMessage } = require('./messageController');
 
 const typeToCategory = {
   'comment': 'comment',
@@ -450,6 +451,18 @@ exports.updatePatchStatus = async (ctx) => {
         }
       }
     );
+    createMessage(patch.user_id, 'review', 'review', {
+      fromUserId: adminId,
+      targetType: 'patch',
+      targetId: patchId,
+      title: `Patch 审核结果`,
+      content: notificationContent,
+      linkUrl: `/patches/${patchId}`,
+      extraData: {
+        review_status: status,
+        review_note: review_note || null
+      }
+    });
   }
 
   ctx.body = { success: true, status, scheduled_at: scheduledAt, review_note: review_note || null };

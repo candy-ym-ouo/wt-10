@@ -32,6 +32,7 @@ const searchController = require('./controllers/searchController');
 const i18nController = require('./controllers/i18nController');
 const achievementController = require('./controllers/achievementController');
 const tagController = require('./controllers/tagController');
+const messageController = require('./controllers/messageController');
 const { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, getRoleLabel, isStaffRole } = require('./constants/permissions');
 
 const storage = multer.diskStorage({
@@ -161,6 +162,15 @@ router.post('/me/notifications/clear-read', requireAuth, socialController.clearR
 router.get('/me/notification-subscriptions', requireAuth, socialController.getNotificationSubscriptions);
 router.put('/me/notification-subscriptions', requireAuth, socialController.updateNotificationSubscription);
 router.put('/me/notification-subscriptions/batch', requireAuth, socialController.updateNotificationSubscriptionsBatch);
+
+router.get('/me/messages', requireAuth, messageController.getMyMessages);
+router.get('/me/messages/unread-count', requireAuth, messageController.getUnreadCount);
+router.put('/me/messages/:id/read', requireAuth, messageController.markMessageRead);
+router.post('/me/messages/read-all', requireAuth, messageController.markAllMessagesRead);
+router.post('/me/messages/read-batch', requireAuth, messageController.markBatchMessagesRead);
+router.delete('/me/messages/:id', requireAuth, messageController.deleteMessage);
+router.post('/me/messages/delete-batch', requireAuth, messageController.deleteBatchMessages);
+router.post('/me/messages/clear-read', requireAuth, messageController.clearReadMessages);
 
 router.post('/users/:id/follow', requireAuth, socialController.followUser);
 router.get('/users/:id/follow-status', requireAuth, socialController.checkFollowStatus);

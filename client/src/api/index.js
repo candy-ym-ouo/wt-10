@@ -572,5 +572,18 @@ export const adminTagApi = {
   getMergeLogs: (params) => api.get('/admin/tags/merge-logs', { params })
 }
 
+export const messageApi = {
+  getMyMessages: (params) => api.get('/me/messages', { params }),
+  getUnreadCount: () => api.get('/me/messages/unread-count'),
+  markRead: (id) => api.put(`/me/messages/${id}/read`),
+  markAllRead: (data) => api.post('/me/messages/read-all', data || {}),
+  markBatchRead: (ids) => api.post('/me/messages/read-batch', { ids }),
+  deleteMessage: (id) => api.delete(`/me/messages/${id}`),
+  deleteBatch: (ids) => api.post('/me/messages/delete-batch', { ids }),
+  clearRead: (data) => api.post('/me/messages/clear-read', data || {})
+}
+
+export const messageAPI = messageApi
+
 export const tagAPI = tagApi
 export const adminTagAPI = adminTagApi

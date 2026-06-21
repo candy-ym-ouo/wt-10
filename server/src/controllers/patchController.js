@@ -1,6 +1,7 @@
 const db = require('../db');
 const { recordPatchView } = require('./patchStatsController');
 const { canViewContent } = require('./userController');
+const { createMessage } = require('./messageController');
 
 const hasDuplicateTags = (tags) => {
   if (!tags || tags.length === 0) return false;
@@ -786,6 +787,13 @@ exports.addComment = async (ctx) => {
         linkUrl: `/patches/${id}#comment-${result.lastInsertRowid}`
       }
     );
+    createMessage(patch.user_id, 'comment', 'comment', {
+      fromUserId: userId,
+      targetType: 'patch',
+      targetId: id,
+      content: `${user?.username || '用户'} 评论了你的 Patch "${patch.title}": "${truncatedContent}"`,
+      linkUrl: `/patches/${id}#comment-${result.lastInsertRowid}`
+    });
   }
 
   if (replyToUser && replyToUser.id !== userId && replyToUser.id !== patch.user_id) {
@@ -801,6 +809,14 @@ exports.addComment = async (ctx) => {
         extraData: { comment_id: result.lastInsertRowid, parent_id: rootCommentId }
       }
     );
+    createMessage(replyToUser.id, 'comment_reply', 'comment', {
+      fromUserId: userId,
+      targetType: 'patch',
+      targetId: id,
+      content: `${user?.username || '用户'} 回复了你的评论: "${truncatedContent}"`,
+      linkUrl: `/patches/${id}#comment-${result.lastInsertRowid}`,
+      extraData: { comment_id: Number(result.lastInsertRowid), parent_id: rootCommentId }
+    });
   }
 
   const comment = db.prepare(`

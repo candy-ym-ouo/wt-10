@@ -1,4 +1,5 @@
 const db = require('../db');
+const { createMessage } = require('./messageController');
 
 exports.toggleLike = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
@@ -791,6 +792,13 @@ exports.toggleLike = async (ctx) => {
         patchId,
         `${user?.username || '用户'} 赞了你的 Patch "${patch.title}"`
       );
+      createMessage(patch.user_id, 'like', 'like', {
+        fromUserId: userId,
+        targetType: 'patch',
+        targetId: patchId,
+        content: `${user?.username || '用户'} 赞了你的 Patch "${patch.title}"`,
+        linkUrl: `/patches/${patchId}`
+      });
     }
     
     ctx.body = { liked: true, likes_count: db.prepare('SELECT likes_count FROM patches WHERE id = ?').get(patchId).likes_count };
@@ -1349,6 +1357,13 @@ exports.toggleFavorite = async (ctx) => {
         patchId,
         `${user?.username || '用户'} 收藏了你的 Patch "${patch.title}"`
       );
+      createMessage(patch.user_id, 'favorite', 'favorite', {
+        fromUserId: userId,
+        targetType: 'patch',
+        targetId: patchId,
+        content: `${user?.username || '用户'} 收藏了你的 Patch "${patch.title}"`,
+        linkUrl: `/patches/${patchId}`
+      });
     }
     
     ctx.body = { 

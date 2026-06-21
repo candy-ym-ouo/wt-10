@@ -66,8 +66,8 @@
           <span class="search-shortcut">⌘K</span>
         </div>
 
-        <div 
-          v-if="userStore.isLoggedIn" 
+        <div
+          v-if="userStore.isLoggedIn"
           class="notification-btn"
           @click="$router.push('/notifications')"
           :class="{ active: $route.path === '/notifications' }"
@@ -77,6 +77,62 @@
             {{ unreadCount > 99 ? '99+' : unreadCount }}
           </span>
         </div>
+
+        <el-popover
+          v-if="userStore.isLoggedIn"
+          placement="bottom-end"
+          :width="360"
+          trigger="click"
+          @show="fetchMessagePreview"
+          popper-class="message-popover"
+        >
+          <template #reference>
+            <div
+              class="message-btn"
+              :class="{ active: $route.path === '/messages' }"
+            >
+              <el-icon><ChatLineSquare /></el-icon>
+              <span v-if="messageUnreadCount > 0" class="message-badge">
+                {{ messageUnreadCount > 99 ? '99+' : messageUnreadCount }}
+              </span>
+            </div>
+          </template>
+          <div class="message-popover-content">
+            <div class="message-popover-header">
+              <span class="message-popover-title">消息中心</span>
+              <el-button link type="primary" size="small" @click="router.push('/messages'); closePopover()">查看全部</el-button>
+            </div>
+            <div v-if="messagePreviewLoading" class="message-popover-empty">
+              加载中...
+            </div>
+            <div v-else-if="messagePreviewList.length === 0" class="message-popover-empty">
+              暂无消息
+            </div>
+            <div v-else class="message-popover-list">
+              <div
+                v-for="item in messagePreviewList"
+                :key="item.id"
+                class="message-preview-item"
+                :class="{ unread: !item.is_read }"
+                @click="handlePreviewClick(item)"
+              >
+                <div class="message-preview-icon" :class="`cat-${item.category}`">
+                  <el-icon><component :is="getPreviewIcon(item.category)" /></el-icon>
+                </div>
+                <div class="message-preview-body">
+                  <div class="message-preview-text">{{ item.content }}</div>
+                  <div class="message-preview-meta">
+                    <span class="message-preview-cat">{{ getPreviewLabel(item.category) }}</span>
+                    <span class="message-preview-time">{{ formatPreviewTime(item.created_at) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="messageUnreadCount > 0" class="message-popover-footer">
+              <el-button link type="primary" size="small" @click="markAllMessagesRead">全部标记已读</el-button>
+            </div>
+          </div>
+        </el-popover>
 
         <el-button 
           v-if="userStore.isLoggedIn" 
@@ -98,6 +154,10 @@
           </div>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item command="messages">
+                <el-icon><ChatLineSquare /></el-icon>消息中心
+                <span v-if="messageUnreadCount > 0" class="dropdown-badge">{{ messageUnreadCount }}</span>
+              </el-dropdown-item>
               <el-dropdown-item command="notifications">
                 <el-icon><Bell /></el-icon>通知中心
                 <span v-if="unreadCount > 0" class="dropdown-badge">{{ unreadCount }}</span>
@@ -207,20 +267,26 @@ import {
   HomeFilled, Collection, Cpu, DataAnalysis, Plus, 
   ArrowDown, User, Document, Star, Setting, SwitchButton,
   Odometer, CollectionTag, TrendCharts, Present, Trophy, Bell,
-  Folder, ShoppingCart, Key, Money, Reading, Search
+  Folder, ShoppingCart, Key, Money, Reading, Search, ChatLineSquare,
+  ChatDotRound, EditPen
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
 import { useNotificationStore } from '@/stores/notificationStore'
-import { socialAPI, searchAPI } from '@/api'
+import { useMessageStore } from '@/stores/messageStore'
+import { socialAPI, searchAPI, messageAPI } from '@/api'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 const patchStore = usePatchStore()
 const notificationStore = useNotificationStore()
+const messageStore = useMessageStore()
 
 const unreadCount = ref(0)
+const messageUnreadCount = ref(0)
+const messagePreviewList = ref([])
+const messagePreviewLoading = ref(false)
 const showSearchDialog = ref(false)
 const dialogKeyword = ref('')
 const dialogSearchInput = ref(null)
@@ -294,22 +360,113 @@ const fetchUnreadCount = async () => {
   }
 }
 
+const fetchMessageUnreadCount = async () => {
+  if (!userStore.isLoggedIn) {
+    messageUnreadCount.value = 0
+    return
+  }
+  try {
+    const res = await messageAPI.getUnreadCount()
+    messageUnreadCount.value = res.unreadCount || 0
+    messageStore.messages.unreadCount = res.unreadCount || 0
+    messageStore.messages.countsByCategory = res.countsByCategory || {}
+  } catch (e) {
+    console.error('获取未读消息数失败:', e)
+  }
+}
+
+const fetchMessagePreview = async () => {
+  messagePreviewLoading.value = true
+  try {
+    const res = await messageAPI.getMyMessages({ page: 1, limit: 5 })
+    messagePreviewList.value = res.list || []
+  } catch (e) {
+    messagePreviewList.value = []
+  } finally {
+    messagePreviewLoading.value = false
+  }
+}
+
+const closePopover = () => {}
+
+const handlePreviewClick = async (item) => {
+  if (!item.is_read) {
+    try {
+      await messageAPI.markRead(item.id)
+      item.is_read = 1
+      if (messageUnreadCount.value > 0) messageUnreadCount.value--
+    } catch (e) { /* ignore */ }
+  }
+  if (item.link_url) {
+    router.push(item.link_url)
+  } else {
+    router.push('/messages')
+  }
+}
+
+const markAllMessagesRead = async () => {
+  try {
+    await messageAPI.markAllRead({})
+    messageUnreadCount.value = 0
+    messagePreviewList.value.forEach(m => { m.is_read = 1 })
+    messageStore.messages.unreadCount = 0
+  } catch (e) { /* ignore */ }
+}
+
+const previewIconMap = {
+  comment: ChatDotRound,
+  like: Star,
+  favorite: Collection,
+  review: EditPen
+}
+
+const previewLabelMap = {
+  comment: '评论',
+  like: '点赞',
+  favorite: '收藏',
+  review: '审核'
+}
+
+const getPreviewIcon = (category) => previewIconMap[category] || ChatLineSquare
+const getPreviewLabel = (category) => previewLabelMap[category] || '消息'
+
+const formatPreviewTime = (timeStr) => {
+  if (!timeStr) return ''
+  const date = new Date(timeStr)
+  const now = new Date()
+  const diff = now - date
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+  return date.toLocaleDateString('zh-CN')
+}
+
 watch(() => userStore.isLoggedIn, (loggedIn) => {
   if (loggedIn) {
     fetchUnreadCount()
+    fetchMessageUnreadCount()
   } else {
     unreadCount.value = 0
+    messageUnreadCount.value = 0
   }
 }, { immediate: true })
 
 onMounted(() => {
   if (userStore.isLoggedIn) {
     fetchUnreadCount()
+    fetchMessageUnreadCount()
   }
 })
 
 const handleCommand = (command) => {
   switch (command) {
+    case 'messages':
+      router.push('/messages')
+      break
     case 'notifications':
       router.push('/notifications')
       break
@@ -350,6 +507,7 @@ const handleCommand = (command) => {
       userStore.logout()
       patchStore.compareCount = 0
       notificationStore.resetNotifications()
+      messageStore.resetMessages()
       ElMessage.success('已退出登录')
       router.push('/')
       break
@@ -513,6 +671,48 @@ const handleCommand = (command) => {
   line-height: 1;
 }
 
+.message-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 20px;
+  transition: all 0.3s ease;
+}
+
+.message-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.message-btn.active {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+}
+
+.message-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #409eff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .dropdown-badge {
   margin-left: auto;
   background: #f56c6c;
@@ -630,5 +830,126 @@ const handleCommand = (command) => {
   background: rgba(255, 215, 0, 0.15);
   border-color: rgba(255, 215, 0, 0.3);
   color: #ffd700;
+}
+
+:deep(.message-popover) {
+  .el-popover__inner {
+    background: #2a2a3e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+.message-popover-content {
+  margin: -12px;
+}
+
+.message-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.message-popover-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #fff;
+}
+
+.message-popover-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+}
+
+.message-popover-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.message-preview-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.message-preview-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.message-preview-item.unread {
+  background: rgba(64, 158, 255, 0.08);
+}
+
+.message-preview-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.message-preview-icon.cat-comment {
+  background: rgba(64, 158, 255, 0.2);
+  color: #409eff;
+}
+
+.message-preview-icon.cat-like {
+  background: rgba(255, 157, 84, 0.2);
+  color: #ff9d54;
+}
+
+.message-preview-icon.cat-favorite {
+  background: rgba(216, 131, 255, 0.2);
+  color: #d883ff;
+}
+
+.message-preview-icon.cat-review {
+  background: rgba(230, 162, 60, 0.2);
+  color: #e6a23c;
+}
+
+.message-preview-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-preview-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-preview-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.message-preview-cat {
+  color: #ffd700;
+  font-weight: 600;
+}
+
+.message-preview-time {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.message-popover-footer {
+  padding: 8px 16px;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 </style>

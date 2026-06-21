@@ -1,4 +1,5 @@
 const db = require('../db');
+const { createMessage } = require('./messageController');
 
 const typeToCategory = {
   'comment': 'comment',
@@ -379,6 +380,13 @@ exports.toggleLike = async (ctx) => {
         `${user?.username || '用户'} 点赞了你的文章 "${article.title}"`,
         { category: 'like', linkUrl: `/articles/${articleId}` }
       );
+      createMessage(article.user_id, 'like', 'like', {
+        fromUserId: userId,
+        targetType: 'article',
+        targetId: articleId,
+        content: `${user?.username || '用户'} 点赞了你的文章 "${article.title}"`,
+        linkUrl: `/articles/${articleId}`
+      });
     }
     
     ctx.body = { liked: true, likes_count: count };
@@ -421,6 +429,16 @@ exports.toggleFavorite = async (ctx) => {
   } else {
     db.prepare('INSERT INTO article_favorites (user_id, article_id, folder) VALUES (?, ?, ?)').run(userId, articleId, folder);
     db.prepare('UPDATE articles SET favorites_count = favorites_count + 1 WHERE id = ?').run(articleId);
+    if (article.user_id !== userId) {
+      const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+      createMessage(article.user_id, 'favorite', 'favorite', {
+        fromUserId: userId,
+        targetType: 'article',
+        targetId: articleId,
+        content: `${user?.username || '用户'} 收藏了你的文章 "${article.title}"`,
+        linkUrl: `/articles/${articleId}`
+      });
+    }
     ctx.body = { favorited: true };
   }
 };
@@ -509,6 +527,13 @@ exports.addComment = async (ctx) => {
       `${user?.username || '用户'} 评论了你的文章 "${article.title}": "${truncatedContent}"`,
       { category: 'comment', linkUrl: `/articles/${id}#comment-${result.lastInsertRowid}` }
     );
+    createMessage(article.user_id, 'comment', 'comment', {
+      fromUserId: userId,
+      targetType: 'article',
+      targetId: id,
+      content: `${user?.username || '用户'} 评论了你的文章 "${article.title}": "${truncatedContent}"`,
+      linkUrl: `/articles/${id}#comment-${result.lastInsertRowid}`
+    });
   }
 
   if (replyToUser && replyToUser.id !== userId && replyToUser.id !== article.user_id) {
@@ -524,6 +549,14 @@ exports.addComment = async (ctx) => {
         extraData: { comment_id: result.lastInsertRowid, parent_id: rootCommentId }
       }
     );
+    createMessage(replyToUser.id, 'comment_reply', 'comment', {
+      fromUserId: userId,
+      targetType: 'article',
+      targetId: id,
+      content: `${user?.username || '用户'} 回复了你的评论: "${truncatedContent}"`,
+      linkUrl: `/articles/${id}#comment-${result.lastInsertRowid}`,
+      extraData: { comment_id: Number(result.lastInsertRowid), parent_id: rootCommentId }
+    });
   }
 
   const comment = db.prepare(`
@@ -787,6 +820,15 @@ exports.adminReviewArticle = async (ctx) => {
     `你的文章 "${article.title}" 已${status === 'approved' ? '审核通过' : status === 'rejected' ? '被驳回' : '重新进入审核'}`,
     { category: 'review', linkUrl: `/articles/${id}` }
   );
+  createMessage(article.user_id, 'review', 'review', {
+    fromUserId: adminId,
+    targetType: 'article',
+    targetId: id,
+    title: '文章审核结果',
+    content: `你的文章 "${article.title}" 已${status === 'approved' ? '审核通过' : status === 'rejected' ? '被驳回' : '重新进入审核'}`,
+    linkUrl: `/articles/${id}`,
+    extraData: { review_status: status, review_note: review_note || null }
+  });
 
   ctx.body = { success: true, message: '审核完成' };
 };

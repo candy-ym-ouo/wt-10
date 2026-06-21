@@ -141,6 +141,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/messages',
+    name: 'MessageCenter',
+    component: () => import('@/views/MessageCenter.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/feed',
     name: 'FollowingFeed',
     component: () => import('@/views/FollowingFeed.vue'),
