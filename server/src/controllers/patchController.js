@@ -255,7 +255,7 @@ exports.getPatches = async (ctx) => {
     });
   }
 
-  const whereSql = 'WHERE ' + where.join(' AND ');
+  const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
 
   let orderSql = 'ORDER BY p.created_at DESC';
   if (sort === 'popular') orderSql = 'ORDER BY p.likes_count DESC, p.views_count DESC';

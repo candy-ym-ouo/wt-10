@@ -1414,6 +1414,81 @@ exports.getMyFavorites = async (ctx) => {
   };
 };
 
+exports.getUserFavorites = async (ctx) => {
+  const userId = parseInt(ctx.params.id);
+  const currentUserId = ctx.state.user?.id;
+  const { page = 1, limit = 12 } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  const targetUser = db.prepare(`
+    SELECT id, privacy_favorites 
+    FROM users 
+    WHERE id = ?
+  `).get(userId);
+
+  if (!targetUser) {
+    ctx.status = 404;
+    ctx.body = { error: '用户不存在' };
+    return;
+  }
+
+  const isOwner = currentUserId && currentUserId === userId;
+  const privacySetting = targetUser.privacy_favorites || 'public';
+  
+  let canView = isOwner;
+  if (!canView) {
+    if (privacySetting === 'public') {
+      canView = true;
+    } else if (privacySetting === 'followers' && currentUserId) {
+      const isFollowing = db.prepare(`
+        SELECT 1 FROM follows WHERE follower_id = ? AND following_id = ?
+      `).get(currentUserId, userId);
+      canView = !!isFollowing;
+    }
+  }
+
+  if (!canView) {
+    ctx.body = {
+      list: [],
+      total: 0,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      can_view: false
+    };
+    return;
+  }
+
+  const favorites = db.prepare(`
+    SELECT f.id as favorite_id, f.folder, f.folder_id, f.created_at as favorited_at,
+           p.*, u.username, u.avatar,
+           COUNT(l.id) as real_likes,
+           CASE WHEN l.id IS NOT NULL THEN 1 ELSE 0 END as is_liked
+    FROM favorites f
+    JOIN patches p ON f.patch_id = p.id
+    JOIN users u ON p.user_id = u.id
+    LEFT JOIN likes l ON p.id = l.patch_id AND l.user_id = ?
+    WHERE f.user_id = ? AND p.is_public = 1
+    GROUP BY p.id
+    ORDER BY f.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(currentUserId || 0, userId, limit, offset);
+
+  const total = db.prepare(`
+    SELECT COUNT(*) as count 
+    FROM favorites f
+    JOIN patches p ON f.patch_id = p.id
+    WHERE f.user_id = ? AND p.is_public = 1
+  `).get(userId);
+
+  ctx.body = {
+    list: favorites,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit),
+    can_view: true
+  };
+};
+
 const generateShareToken = () => {
   return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
 };

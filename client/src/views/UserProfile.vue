@@ -88,6 +88,13 @@
         </div>
         <div 
           class="tab" 
+          :class="{ active: activeTab === 'favorites', disabled: !canViewFavorites }"
+          @click="canViewFavorites && (activeTab = 'favorites')"
+        >
+          收藏 ({{ canViewFavorites ? (user.total_favorites || 0) : 0 }})
+        </div>
+        <div 
+          class="tab" 
           :class="{ active: activeTab === 'achievements' }"
           @click="activeTab = 'achievements'; fetchAchievements()"
         >
@@ -162,6 +169,30 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div v-if="activeTab === 'favorites'" class="tab-pane">
+          <div v-if="!canViewFavorites" class="empty-state privacy-locked">
+            <el-icon class="empty-icon"><Lock /></el-icon>
+            <p>该用户的收藏夹已设为私密</p>
+            <p class="privacy-hint">关注用户后可查看</p>
+          </div>
+          <div v-else-if="favoritesLoading" class="empty-state">
+            <el-icon class="empty-icon"><Loading /></el-icon>
+            <p>加载中...</p>
+          </div>
+          <div v-else-if="userFavorites.length === 0" class="empty-state">
+            <el-icon class="empty-icon"><Star /></el-icon>
+            <p>暂无收藏</p>
+          </div>
+          <div v-else class="patch-grid">
+            <PatchCard v-for="patch in userFavorites" :key="patch.id" :patch="patch" />
+          </div>
+          <div v-if="canViewFavorites && userFavorites.length > 0 && hasMoreFavorites" class="load-more">
+            <el-button @click="loadMoreFavorites" :loading="favoritesLoadingMore">
+              加载更多
+            </el-button>
           </div>
         </div>
 
@@ -335,11 +366,17 @@ const loading = ref(true)
 const user = ref(null)
 const userPatches = ref([])
 const userArticles = ref([])
+const userFavorites = ref([])
 const activeTab = ref('patches')
 const reportDialogVisible = ref(false)
 const reportTargetDescription = ref('')
 const achievements = ref(null)
 const achievementsLoading = ref(false)
+const favoritesLoading = ref(false)
+const favoritesLoadingMore = ref(false)
+const favoritesPage = ref(1)
+const hasMoreFavorites = ref(false)
+const FAVORITES_LIMIT = 12
 
 const isMe = computed(() => userStore.user?.id === parseInt(route.params.id))
 const patchCount = computed(() => userPatches.value.length)
@@ -371,6 +408,7 @@ const showVerifiedInfo = () => {
 }
 
 const reportUser = () => {
+  if (!user.value) return
   reportTargetDescription.value = `用户资料：${user.value.username}`
   reportDialogVisible.value = true
 }
@@ -393,6 +431,8 @@ const fetchUser = async () => {
     if (route.query.tab === 'achievements') {
       activeTab.value = 'achievements'
       fetchAchievements()
+    } else if (route.query.tab === 'favorites') {
+      activeTab.value = 'favorites'
     }
   } catch (err) {
     ElMessage.error('获取用户信息失败')
@@ -421,6 +461,45 @@ const fetchAchievements = async () => {
   }
 }
 
+const fetchFavorites = async (page = 1, append = false) => {
+  if (!canViewFavorites.value) return
+  
+  try {
+    if (page === 1) {
+      favoritesLoading.value = true
+    } else {
+      favoritesLoadingMore.value = true
+    }
+    
+    const res = await userApi.getFavorites(route.params.id, {
+      page,
+      limit: FAVORITES_LIMIT
+    })
+    
+    const list = res.list || []
+    
+    if (append) {
+      userFavorites.value = [...userFavorites.value, ...list]
+    } else {
+      userFavorites.value = list
+    }
+    
+    hasMoreFavorites.value = list.length === FAVORITES_LIMIT
+    favoritesPage.value = page
+  } catch (err) {
+    ElMessage.error('获取收藏列表失败')
+    console.error(err)
+  } finally {
+    favoritesLoading.value = false
+    favoritesLoadingMore.value = false
+  }
+}
+
+const loadMoreFavorites = () => {
+  if (!hasMoreFavorites.value || favoritesLoadingMore.value) return
+  fetchFavorites(favoritesPage.value + 1, true)
+}
+
 const getStatusText = (status) => {
   const statusMap = {
     'pending': '审核中',
@@ -433,12 +512,27 @@ const getStatusText = (status) => {
 watch(() => route.params.id, () => {
   activeTab.value = 'patches'
   achievements.value = null
+  userFavorites.value = []
+  favoritesPage.value = 1
+  hasMoreFavorites.value = false
   fetchUser()
 })
 
 watch(canViewPatches, (newVal) => {
   if (!newVal && activeTab.value === 'patches') {
     activeTab.value = 'articles'
+  }
+})
+
+watch(canViewFavorites, (newVal) => {
+  if (!newVal && activeTab.value === 'favorites') {
+    activeTab.value = 'articles'
+  }
+})
+
+watch(activeTab, (newVal) => {
+  if (newVal === 'favorites' && canViewFavorites.value && userFavorites.value.length === 0) {
+    fetchFavorites(1, false)
   }
 })
 
@@ -833,5 +927,11 @@ onMounted(() => {
   font-size: 0.7rem;
   color: #ffd700;
   margin-top: 0.5rem;
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
 }
 </style>
