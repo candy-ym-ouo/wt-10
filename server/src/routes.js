@@ -81,6 +81,13 @@ router.get('/modules/:id/recommended-combinations', moduleRecommendationControll
 router.get('/modules/:id/combination-patches/:pairedId', moduleRecommendationController.getCombinationPatches);
 router.get('/modules/:id/combination-stats', moduleRecommendationController.getModuleStats);
 router.get('/modules/combinations/popular', moduleRecommendationController.getPopularCombinations);
+router.get('/modules/:id/parameter-templates', moduleController.getParameterTemplates);
+router.post('/modules/:id/parameter-templates', requireAuth, moduleController.createParameterTemplate);
+router.put('/modules/parameter-templates/:templateId', requireAuth, moduleController.updateParameterTemplate);
+router.delete('/modules/parameter-templates/:templateId', requireAuth, moduleController.deleteParameterTemplate);
+router.post('/modules/parameter-templates/:templateId/set-default', requireAuth, moduleController.setDefaultTemplate);
+router.post('/modules/parameter-templates/:templateId/use', requireAuth, moduleController.useTemplate);
+router.get('/modules/parameter-templates/batch', moduleController.getBatchTemplates);
 router.post('/manufacturers', requirePermission(PERMISSIONS.MANUFACTURER_MANAGE), moduleController.createManufacturer);
 router.post('/modules', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.createModule);
 router.put('/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.updateModule);
@@ -186,6 +193,11 @@ router.post('/admin/modules/:id/recommended-patches', requirePermission(PERMISSI
 router.put('/admin/modules/:id/recommended-patches/:recId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminUpdateRecommendedPatch);
 router.delete('/admin/modules/:id/recommended-patches/:recId', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminRemoveRecommendedPatch);
 router.put('/admin/modules/:id/recommended-patches/reorder', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminReorderRecommendedPatches);
+router.get('/admin/modules/:id/parameter-templates', requirePermission(PERMISSIONS.MODULE_VIEW), moduleController.getParameterTemplates);
+router.post('/admin/modules/:id/parameter-templates', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.createParameterTemplate);
+router.put('/admin/modules/parameter-templates/:templateId', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.updateParameterTemplate);
+router.delete('/admin/modules/parameter-templates/:templateId', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.deleteParameterTemplate);
+router.post('/admin/modules/parameter-templates/:templateId/set-default', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleController.setDefaultTemplate);
 router.get('/admin/patches/search', requirePermission(PERMISSIONS.PATCH_VIEW), wikiController.adminSearchPatches);
 router.get('/admin/articles', requirePermission(PERMISSIONS.ARTICLE_VIEW), articleController.adminGetArticles);
 router.get('/admin/articles/:id', requirePermission(PERMISSIONS.ARTICLE_VIEW), articleController.adminGetArticleDetail);

@@ -241,6 +241,86 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane :label="`参数模板 (${parameterTemplates.length})`" name="templates">
+          <div class="templates-header">
+            <div class="templates-intro">
+              <el-icon><MagicStick /></el-icon>
+              <span>保存和复用参数配置，创建 Patch 时一键带入</span>
+            </div>
+            <el-button type="primary" @click="openCreateTemplate" v-if="currentUser">
+              <el-icon><Plus /></el-icon>
+              保存为模板
+            </el-button>
+          </div>
+
+          <div class="templates-list" v-if="parameterTemplates.length > 0">
+            <div
+              v-for="tpl in parameterTemplates"
+              :key="tpl.id"
+              class="card template-card"
+            >
+              <div class="template-header">
+                <div class="template-title-row">
+                  <h4 class="template-name">{{ tpl.name }}</h4>
+                  <el-tag v-if="tpl.is_default" type="warning" size="small">
+                    <el-icon><Star /></el-icon> 默认
+                  </el-tag>
+                  <el-tag v-if="tpl.is_official" type="success" size="small">
+                    <el-icon><Medal /></el-icon> 官方
+                  </el-tag>
+                  <el-tag v-else type="info" size="small">
+                    {{ tpl.creator_name || '用户' }} 创建
+                  </el-tag>
+                </div>
+                <div class="template-meta">
+                  <span>使用次数：{{ tpl.use_count || 0 }}</span>
+                  <span>{{ formatDate(tpl.created_at) }}</span>
+                </div>
+              </div>
+              <p class="template-desc" v-if="tpl.description">{{ tpl.description }}</p>
+              <div class="template-params-preview">
+                <div class="preview-grid">
+                  <div v-for="(val, key) in getPreviewParams(tpl.parameter_values)" :key="key" class="preview-item">
+                    <span class="preview-key">{{ paramKeyLabel(key) }}</span>
+                    <span class="preview-val">{{ formatParamValue(val) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="template-actions">
+                <el-button size="small" @click="viewTemplateParams(tpl)">
+                  <el-icon><View /></el-icon> 查看详情
+                </el-button>
+                <el-button size="small" type="primary" @click="applyTemplateToPatch(tpl)">
+                  <el-icon><Promotion /></el-icon> 用于创建 Patch
+                </el-button>
+                <el-dropdown v-if="!tpl.is_official || isAdmin" @command="(cmd) => handleTemplateAction(cmd, tpl)">
+                  <el-button size="small">
+                    <el-icon><MoreFilled /></el-icon> 操作
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="setDefault" v-if="!tpl.is_default">
+                        设为默认
+                      </el-dropdown-item>
+                      <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                      <el-dropdown-item command="delete" divided style="color: #f56c6c">
+                        删除
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </div>
+          </div>
+          <div class="card empty-card" v-else>
+            <el-icon><MagicStick /></el-icon>
+            <p>暂无参数模板</p>
+            <el-button type="primary" size="small" @click="openCreateTemplate" style="margin-top: 12px;" v-if="currentUser">
+              <el-icon><Plus /></el-icon> 保存第一个模板
+            </el-button>
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane :label="`搭配推荐 (${recommendedCombinations.length})`" name="combinations">
           <div v-if="recommendedCombinations.length > 0">
             <div class="combo-filter-bar">
@@ -342,16 +422,163 @@
       <el-icon class="empty-icon"><Warning /></el-icon>
       <p>模块不存在</p>
     </div>
+
+    <el-dialog
+      v-model="createTemplateDialogVisible"
+      :title="editingTemplate ? '编辑参数模板' : '保存为参数模板'"
+      width="640px"
+    >
+      <el-form :model="templateForm" label-width="100px">
+        <el-form-item label="模板名称" required>
+          <el-input v-model="templateForm.name" placeholder="给这个参数配置起个名字" maxlength="50" show-word-limit />
+        </el-form-item>
+        <el-form-item label="模板说明">
+          <el-input v-model="templateForm.description" type="textarea" :rows="2" placeholder="简要描述这个参数模板的特点" maxlength="200" show-word-limit />
+        </el-form-item>
+        <el-form-item label="设为默认">
+          <el-switch v-model="templateForm.is_default" />
+          <div class="form-hint">设为默认后，创建 Patch 时选择此模块会优先使用该模板</div>
+        </el-form-item>
+        <el-divider content-position="left">参数预览</el-divider>
+        <div class="template-form-params">
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <div class="subparam-card">
+                <h5>🎹 振荡器</h5>
+                <el-form-item label="波形">
+                  <el-select v-model="templateForm.parameter_values.oscillators[0].type">
+                    <el-option label="锯齿波" value="saw" />
+                    <el-option label="方波" value="square" />
+                    <el-option label="三角波" value="triangle" />
+                    <el-option label="正弦波" value="sine" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="失谐">
+                  <el-slider v-model="templateForm.parameter_values.oscillators[0].detune" :min="-50" :max="50" show-input />
+                </el-form-item>
+                <el-form-item label="八度">
+                  <el-slider v-model="templateForm.parameter_values.oscillators[0].octave" :min="-3" :max="3" show-input />
+                </el-form-item>
+              </div>
+            </el-col>
+            <el-col :span="12">
+              <div class="subparam-card">
+                <h5>🔍 滤波器</h5>
+                <el-form-item label="截止">
+                  <el-slider v-model="templateForm.parameter_values.filter.cutoff" :min="20" :max="20000" show-input />
+                </el-form-item>
+                <el-form-item label="共振">
+                  <el-slider v-model="templateForm.parameter_values.filter.resonance" :min="0" :max="1" :step="0.1" show-input />
+                </el-form-item>
+                <el-form-item label="包络量">
+                  <el-slider v-model="templateForm.parameter_values.filter.envAmount" :min="0" :max="1" :step="0.1" show-input />
+                </el-form-item>
+              </div>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16" style="margin-top: 16px;">
+            <el-col :span="12">
+              <div class="subparam-card">
+                <h5>📈 包络线</h5>
+                <el-form-item label="起音">
+                  <el-slider v-model="templateForm.parameter_values.envelope.attack" :min="0" :max="2000" show-input />
+                </el-form-item>
+                <el-form-item label="衰减">
+                  <el-slider v-model="templateForm.parameter_values.envelope.decay" :min="0" :max="5000" show-input />
+                </el-form-item>
+                <el-form-item label="持续">
+                  <el-slider v-model="templateForm.parameter_values.envelope.sustain" :min="0" :max="1" :step="0.1" show-input />
+                </el-form-item>
+                <el-form-item label="释放">
+                  <el-slider v-model="templateForm.parameter_values.envelope.release" :min="0" :max="10000" show-input />
+                </el-form-item>
+              </div>
+            </el-col>
+            <el-col :span="12">
+              <div class="subparam-card">
+                <h5>〰️ LFO</h5>
+                <el-form-item label="频率">
+                  <el-slider v-model="templateForm.parameter_values.lfo.rate" :min="0.1" :max="20" :step="0.1" show-input />
+                </el-form-item>
+                <el-form-item label="深度">
+                  <el-slider v-model="templateForm.parameter_values.lfo.depth" :min="0" :max="100" show-input />
+                </el-form-item>
+                <el-form-item label="波形">
+                  <el-select v-model="templateForm.parameter_values.lfo.wave">
+                    <el-option label="正弦" value="sine" />
+                    <el-option label="三角" value="triangle" />
+                    <el-option label="方波" value="square" />
+                    <el-option label="随机" value="random" />
+                  </el-select>
+                </el-form-item>
+              </div>
+            </el-col>
+          </el-row>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="createTemplateDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitTemplateForm">
+          {{ editingTemplate ? '保存修改' : '创建模板' }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="viewTemplateDialogVisible"
+      :title="`模板详情：${viewingTemplate?.name || ''}`"
+      width="560px"
+    >
+      <div v-if="viewingTemplate" class="template-detail">
+        <div class="detail-tags" style="margin-bottom: 16px;">
+          <el-tag v-if="viewingTemplate.is_default" type="warning">
+            <el-icon><Star /></el-icon> 默认模板
+          </el-tag>
+          <el-tag v-if="viewingTemplate.is_official" type="success">
+            <el-icon><Medal /></el-icon> 官方模板
+          </el-tag>
+          <el-tag type="info">
+            使用次数：{{ viewingTemplate.use_count || 0 }}
+          </el-tag>
+        </div>
+        <p v-if="viewingTemplate.description" class="template-detail-desc">
+          {{ viewingTemplate.description }}
+        </p>
+        <el-divider>参数配置详情</el-divider>
+        <div class="detail-param-section" v-for="(val, key) in viewingTemplate.parameter_values" :key="key">
+          <h5 class="section-title">{{ paramKeyLabel(key) }}</h5>
+          <div v-if="Array.isArray(val)" class="detail-param-array">
+            <div v-for="(item, idx) in val" :key="idx" class="detail-param-item">
+              <div v-for="(v, k) in item" :key="k" class="param-row">
+                <span class="param-label">{{ paramKeyLabel(k) }}</span>
+                <span class="param-value">{{ formatParamValue(v) }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="detail-param-object">
+            <div v-for="(v, k) in val" :key="k" class="param-row">
+              <span class="param-label">{{ paramKeyLabel(k) }}</span>
+              <span class="param-value">{{ formatParamValue(v) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="viewTemplateDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Loading, ArrowLeft, Warning, Reading, InfoFilled, 
   Timer, Star, Suitcase, DocumentAdd, Setting,
-  Document, TrendCharts, Connection
+  Document, TrendCharts, Connection, MagicStick, Plus,
+  View, Promotion, MoreFilled, Medal
 } from '@element-plus/icons-vue'
 import { moduleAPI } from '@/api'
 
@@ -364,6 +591,205 @@ const activeTab = ref('overview')
 const activeTipCategory = ref('all')
 const recommendedCombinations = ref([])
 const selectedComboType = ref('')
+const parameterTemplates = ref([])
+const templatesLoading = ref(false)
+const createTemplateDialogVisible = ref(false)
+const viewTemplateDialogVisible = ref(false)
+const editingTemplate = ref(null)
+const viewingTemplate = ref(null)
+
+const currentUser = computed(() => {
+  try {
+    const user = localStorage.getItem('user')
+    return user ? JSON.parse(user) : null
+  } catch { return null }
+})
+
+const isAdmin = computed(() => currentUser.value?.role === 'admin')
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  try {
+    return new Date(dateStr).toLocaleDateString('zh-CN')
+  } catch { return '' }
+}
+
+const paramKeyLabel = (key) => {
+  const labels = {
+    oscillators: '振荡器',
+    filter: '滤波器',
+    envelope: '包络线',
+    lfo: 'LFO',
+    type: '类型',
+    detune: '失谐',
+    octave: '八度',
+    cutoff: '截止频率',
+    resonance: '共振',
+    envAmount: '包络量',
+    attack: '起音',
+    decay: '衰减',
+    sustain: '持续',
+    release: '释放',
+    rate: '频率',
+    depth: '深度',
+    wave: '波形'
+  }
+  return labels[key] || key
+}
+
+const formatParamValue = (val) => {
+  if (val === null || val === undefined) return '-'
+  if (typeof val === 'object') return JSON.stringify(val)
+  const typeLabels = {
+    saw: '锯齿波', square: '方波', triangle: '三角波', sine: '正弦波',
+    random: '随机'
+  }
+  return typeLabels[val] || String(val)
+}
+
+const getPreviewParams = (params) => {
+  if (!params) return {}
+  const result = {}
+  const sections = ['oscillators', 'filter', 'envelope', 'lfo']
+  sections.forEach(sec => {
+    if (params[sec]) {
+      if (sec === 'oscillators' && Array.isArray(params[sec]) && params[sec].length > 0) {
+        Object.assign(result, { osc_type: params[sec][0].type, osc_detune: params[sec][0].detune })
+      } else if (sec === 'filter') {
+        Object.assign(result, { filter_cutoff: params[sec].cutoff, filter_res: params[sec].resonance })
+      } else if (sec === 'envelope') {
+        Object.assign(result, { env_attack: params[sec].attack, env_release: params[sec].release })
+      } else if (sec === 'lfo') {
+        Object.assign(result, { lfo_rate: params[sec].rate, lfo_wave: params[sec].wave })
+      }
+    }
+  })
+  return Object.entries(result).slice(0, 6).reduce((acc, [k, v]) => {
+    acc[k] = v
+    return acc
+  }, {})
+}
+
+const fetchParameterTemplates = async () => {
+  if (!wikiData.value?.module?.id) return
+  try {
+    templatesLoading.value = true
+    const res = await moduleAPI.getParameterTemplates(wikiData.value.module.id)
+    parameterTemplates.value = res.list || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    templatesLoading.value = false
+  }
+}
+
+const templateForm = ref({
+  name: '',
+  description: '',
+  is_default: false,
+  parameter_values: {
+    oscillators: [{ type: 'saw', detune: 0, octave: 0 }],
+    filter: { cutoff: 5000, resonance: 0.3, envAmount: 0.5 },
+    envelope: { attack: 10, decay: 200, sustain: 0.7, release: 500 },
+    lfo: { rate: 4, depth: 20, wave: 'sine' }
+  }
+})
+
+const openCreateTemplate = () => {
+  editingTemplate.value = null
+  templateForm.value = {
+    name: '',
+    description: '',
+    is_default: false,
+    parameter_values: {
+      oscillators: [{ type: 'saw', detune: 0, octave: 0 }],
+      filter: { cutoff: 5000, resonance: 0.3, envAmount: 0.5 },
+      envelope: { attack: 10, decay: 200, sustain: 0.7, release: 500 },
+      lfo: { rate: 4, depth: 20, wave: 'sine' }
+    }
+  }
+  createTemplateDialogVisible.value = true
+}
+
+const viewTemplateParams = (tpl) => {
+  viewingTemplate.value = tpl
+  viewTemplateDialogVisible.value = true
+}
+
+const applyTemplateToPatch = async (tpl) => {
+  try {
+    await moduleAPI.useTemplate(tpl.id)
+    router.push({
+      path: '/create-patch',
+      query: {
+        template_id: tpl.id,
+        module_id: wikiData.value.module.id
+      }
+    })
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('操作失败')
+  }
+}
+
+const submitTemplateForm = async () => {
+  if (!templateForm.value.name.trim()) {
+    ElMessage.warning('请输入模板名称')
+    return
+  }
+  try {
+    const moduleId = wikiData.value.module.id
+    if (editingTemplate.value) {
+      await moduleAPI.updateParameterTemplate(editingTemplate.value.id, templateForm.value)
+      ElMessage.success('模板更新成功')
+    } else {
+      await moduleAPI.createParameterTemplate(moduleId, templateForm.value)
+      ElMessage.success('模板创建成功')
+    }
+    createTemplateDialogVisible.value = false
+    fetchParameterTemplates()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error(e.error || '操作失败')
+  }
+}
+
+const handleTemplateAction = async (cmd, tpl) => {
+  try {
+    if (cmd === 'setDefault') {
+      await moduleAPI.setDefaultTemplate(tpl.id)
+      ElMessage.success('已设为默认')
+      fetchParameterTemplates()
+    } else if (cmd === 'edit') {
+      editingTemplate.value = tpl
+      templateForm.value = {
+        name: tpl.name,
+        description: tpl.description || '',
+        is_default: !!tpl.is_default,
+        parameter_values: JSON.parse(JSON.stringify(tpl.parameter_values || {}))
+      }
+      createTemplateDialogVisible.value = true
+    } else if (cmd === 'delete') {
+      await ElMessageBox.confirm(`确定要删除模板"${tpl.name}"吗？`, '删除确认', {
+        type: 'warning'
+      })
+      await moduleAPI.deleteParameterTemplate(tpl.id)
+      ElMessage.success('删除成功')
+      fetchParameterTemplates()
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+      ElMessage.error(e.error || '操作失败')
+    }
+  }
+}
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'templates' && parameterTemplates.value.length === 0) {
+    fetchParameterTemplates()
+  }
+})
 
 const tipCategories = [
   { value: 'all', label: '全部' },
@@ -1000,5 +1426,177 @@ onMounted(async () => {
 
 .combo-actions .el-button {
   flex: 1;
+}
+
+.templates-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.templates-intro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 215, 0, 0.8);
+  background: rgba(255, 215, 0, 0.1);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+}
+
+.templates-intro .el-icon {
+  color: #ffd700;
+}
+
+.templates-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.template-card {
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.template-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.template-header {
+  margin-bottom: 12px;
+}
+
+.template-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.template-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.template-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.template-desc {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 12px 0;
+}
+
+.template-params-preview {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 16px;
+}
+
+.preview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.preview-key {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.preview-val {
+  color: #ffd700;
+  font-weight: 500;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+
+.form-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.subparam-card {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.subparam-card h5 {
+  margin: 0 0 16px 0;
+  color: #ffd700;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.template-detail-desc {
+  background: rgba(255, 215, 0, 0.08);
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.7;
+  font-size: 13px;
+  margin: 0;
+}
+
+.detail-param-section {
+  margin-bottom: 20px;
+}
+
+.detail-param-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  margin: 0 0 12px 0;
+  padding-left: 10px;
+  border-left: 3px solid #ffd700;
+  color: #ffd700;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.param-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.detail-param-item {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 8px;
 }
 </style>

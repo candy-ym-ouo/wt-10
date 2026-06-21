@@ -36,15 +36,77 @@
         </el-form-item>
 
         <el-form-item label="使用模块">
-          <el-select
-            v-model="form.modules_used"
-            multiple
-            filterable
-            placeholder="选择使用的模块"
-            style="width: 100%"
-          >
-            <el-option v-for="mod in moduleList" :key="mod.id" :label="mod.name" :value="mod.id" />
-          </el-select>
+          <div class="modules-input-wrapper">
+            <el-select
+              v-model="form.modules_used"
+              multiple
+              filterable
+              placeholder="选择使用的模块"
+              style="width: 100%"
+              @change="onModulesChange"
+            >
+              <el-option v-for="mod in moduleList" :key="mod.id" :label="mod.name" :value="mod.id" />
+            </el-select>
+            <el-dropdown
+              class="template-apply-dropdown"
+              @command="applyTemplateForModule"
+              :disabled="form.modules_used.length === 0"
+              trigger="click"
+            >
+              <el-button type="warning">
+                <el-icon><MagicStick /></el-icon>
+                应用模板
+                <el-icon><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="modId in form.modules_used"
+                    :key="modId"
+                    :disabled="!moduleTemplates[modId] || moduleTemplates[modId].length === 0"
+                  >
+                    <span class="dd-mod-name">{{ getModuleName(modId) }}</span>
+                    <el-dropdown
+                      @command="(tid) => applyTemplateForModule({ moduleId: modId, templateId: tid })"
+                      trigger="hover"
+                      :disabled="!moduleTemplates[modId] || moduleTemplates[modId].length === 0"
+                    >
+                      <span class="dd-template-hint">选择模板 →</span>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item
+                            v-for="tpl in moduleTemplates[modId] || []"
+                            :key="tpl.id"
+                            :command="tpl.id"
+                          >
+                            <div class="dd-tpl-item">
+                              <span class="dd-tpl-name">
+                                <el-icon v-if="tpl.is_default" style="color: #e6a23c"><Star /></el-icon>
+                                {{ tpl.name }}
+                              </span>
+                              <span class="dd-tpl-tag" v-if="tpl.is_official">官方</span>
+                              <span class="dd-tpl-tag" v-else>自定义</span>
+                            </div>
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                  </el-dropdown-item>
+                  <el-dropdown-item divided command="apply-all-defaults" v-if="hasAnyDefaultTemplate">
+                    <el-icon><Promotion /></el-icon>
+                    一键应用全部默认模板
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+          <div class="applied-templates-tip" v-if="appliedTemplateNames.length > 0">
+            <el-icon style="color: #67c23a"><CircleCheck /></el-icon>
+            <span>已应用模板：{{ appliedTemplateNames.join('、') }}</span>
+            <el-button text size="small" type="danger" @click="clearAppliedTemplates">
+              清除
+            </el-button>
+          </div>
         </el-form-item>
 
         <el-divider content-position="left">🎚️ 参数设置</el-divider>
@@ -224,13 +286,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { usePatchStore } from '@/stores/patchStore'
 import { moduleAPI } from '@/api'
+import { 
+  MagicStick, ArrowDown, Star, Promotion, CircleCheck 
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const patchStore = usePatchStore()
 
 const formRef = ref()
@@ -239,6 +305,127 @@ const savingDraft = ref(false)
 const scheduling = ref(false)
 const moduleList = ref([])
 const useScheduled = ref(false)
+const moduleTemplates = ref({})
+const appliedTemplates = ref({})
+
+const appliedTemplateNames = computed(() => {
+  return Object.values(appliedTemplates.value).map(t => t.name).filter(Boolean)
+})
+
+const hasAnyDefaultTemplate = computed(() => {
+  return form.modules_used.some(modId => {
+    const tpls = moduleTemplates.value[modId] || []
+    return tpls.some(t => t.is_default)
+  })
+})
+
+const getModuleName = (modId) => {
+  const mod = moduleList.value.find(m => m.id === modId)
+  return mod ? mod.name : `模块 #${modId}`
+}
+
+const fetchTemplatesForModules = async (moduleIds) => {
+  if (!moduleIds || moduleIds.length === 0) {
+    moduleTemplates.value = {}
+    return
+  }
+  try {
+    const res = await moduleAPI.getBatchParameterTemplates(moduleIds)
+    moduleTemplates.value = res.templates || {}
+  } catch (e) {
+    console.error('获取模块模板失败:', e)
+  }
+}
+
+const onModulesChange = (newModules) => {
+  fetchTemplatesForModules(newModules)
+  Object.keys(appliedTemplates.value).forEach(modId => {
+    if (!newModules.includes(parseInt(modId))) {
+      delete appliedTemplates.value[modId]
+    }
+  })
+}
+
+const deepMergeParams = (target, source) => {
+  if (!source || typeof source !== 'object') return target
+  const result = { ...target }
+  for (const [key, val] of Object.entries(source)) {
+    if (Array.isArray(val)) {
+      result[key] = JSON.parse(JSON.stringify(val))
+    } else if (val && typeof val === 'object') {
+      result[key] = deepMergeParams(result[key] || {}, val)
+    } else {
+      result[key] = val
+    }
+  }
+  return result
+}
+
+const applyTemplateParams = (template) => {
+  if (!template || !template.parameter_values) return
+  const existingParams = JSON.parse(JSON.stringify(form.parameters || {}))
+  form.parameters = deepMergeParams(existingParams, template.parameter_values)
+}
+
+const applyTemplateForModule = async (command) => {
+  if (command === 'apply-all-defaults') {
+    for (const modId of form.modules_used) {
+      const defaultTpl = (moduleTemplates.value[modId] || []).find(t => t.is_default)
+      if (defaultTpl) {
+        try {
+          await moduleAPI.useTemplate(defaultTpl.id)
+          applyTemplateParams(defaultTpl)
+          appliedTemplates.value[modId] = defaultTpl
+        } catch (e) { console.error(e) }
+      }
+    }
+    if (appliedTemplateNames.value.length > 0) {
+      ElMessage.success(`已应用 ${appliedTemplateNames.value.length} 个默认模板`)
+    } else {
+      ElMessage.info('没有找到默认模板')
+    }
+    return
+  }
+
+  if (command && command.moduleId && command.templateId) {
+    const { moduleId, templateId } = command
+    const tpl = (moduleTemplates.value[moduleId] || []).find(t => t.id === templateId)
+    if (!tpl) return
+    try {
+      await moduleAPI.useTemplate(templateId)
+      applyTemplateParams(tpl)
+      appliedTemplates.value[moduleId] = tpl
+      ElMessage.success(`已应用模板：${tpl.name}`)
+    } catch (e) {
+      console.error(e)
+      ElMessage.error('应用模板失败')
+    }
+  }
+}
+
+const clearAppliedTemplates = () => {
+  appliedTemplates.value = {}
+  ElMessage.info('已清除模板记录（参数不会被回退）')
+}
+
+const applyTemplateFromQuery = async () => {
+  const templateId = route.query.template_id
+  const moduleId = route.query.module_id
+  if (templateId && moduleId) {
+    try {
+      const parsedModuleId = parseInt(moduleId)
+      if (!form.modules_used.includes(parsedModuleId)) {
+        form.modules_used.push(parsedModuleId)
+      }
+      const tpl = await moduleAPI.useTemplate(templateId)
+      applyTemplateParams(tpl)
+      appliedTemplates.value[parsedModuleId] = tpl
+      ElMessage.success(`已从模块详情页应用模板：${tpl.name}`)
+    } catch (e) {
+      console.error('应用模板失败:', e)
+    }
+  }
+}
 
 const commonTags = ['bass', 'pad', 'lead', 'drums', 'ambient', 'techno', 'house', 'experimental', 'classic', 'modern']
 
@@ -296,7 +483,11 @@ const disabledDate = (time) => {
 
 onMounted(async () => {
   const res = await moduleAPI.getModules({ limit: 100 })
-  moduleList.value = res.list
+  moduleList.value = res.list || []
+  if (form.modules_used.length > 0) {
+    fetchTemplatesForModules(form.modules_used)
+  }
+  applyTemplateFromQuery()
 })
 
 const submit = async () => {
@@ -373,5 +564,71 @@ const schedulePublish = async () => {
 
 :deep(.el-form-item__label) {
   color: rgba(255, 255, 255, 0.7);
+}
+
+.modules-input-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.modules-input-wrapper .el-select {
+  flex: 1;
+}
+
+.template-apply-dropdown {
+  flex-shrink: 0;
+}
+
+.applied-templates-tip {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(103, 194, 58, 0.1);
+  border: 1px solid rgba(103, 194, 58, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.applied-templates-tip .el-button {
+  margin-left: auto;
+}
+
+.dd-mod-name {
+  font-weight: 600;
+  color: #ffd700;
+  margin-right: 16px;
+}
+
+.dd-template-hint {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.dd-tpl-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dd-tpl-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.dd-tpl-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
 }
 </style>

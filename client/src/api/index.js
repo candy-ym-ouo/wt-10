@@ -87,7 +87,14 @@ export const moduleApi = {
   createManufacturer: (data) => api.post('/manufacturers', data),
   createModule: (data) => api.post('/modules', data),
   updateModule: (id, data) => api.put(`/modules/${id}`, data),
-  deleteModule: (id) => api.delete(`/modules/${id}`)
+  deleteModule: (id) => api.delete(`/modules/${id}`),
+  getParameterTemplates: (id) => api.get(`/modules/${id}/parameter-templates`),
+  createParameterTemplate: (id, data) => api.post(`/modules/${id}/parameter-templates`, data),
+  updateParameterTemplate: (templateId, data) => api.put(`/modules/parameter-templates/${templateId}`, data),
+  deleteParameterTemplate: (templateId) => api.delete(`/modules/parameter-templates/${templateId}`),
+  setDefaultTemplate: (templateId) => api.post(`/modules/parameter-templates/${templateId}/set-default`),
+  useTemplate: (templateId) => api.post(`/modules/parameter-templates/${templateId}/use`),
+  getBatchParameterTemplates: (moduleIds) => api.get('/modules/parameter-templates/batch', { params: { module_ids: moduleIds.join(',') } })
 }
 
 export const socialApi = {
@@ -188,7 +195,12 @@ export const adminApi = {
   recalculateCombinations: () => api.post('/admin/modules/combinations/recalculate'),
   getCombinationConfig: () => api.get('/admin/modules/combinations/config'),
   updateCombinationConfig: (data) => api.put('/admin/modules/combinations/config', data),
-  batchUpdateCombinationConfig: (data) => api.post('/admin/modules/combinations/config/batch', data)
+  batchUpdateCombinationConfig: (data) => api.post('/admin/modules/combinations/config/batch', data),
+  getModuleParameterTemplates: (id) => api.get(`/admin/modules/${id}/parameter-templates`),
+  createModuleParameterTemplate: (id, data) => api.post(`/admin/modules/${id}/parameter-templates`, data),
+  updateModuleParameterTemplate: (templateId, data) => api.put(`/admin/modules/parameter-templates/${templateId}`, data),
+  deleteModuleParameterTemplate: (templateId) => api.delete(`/admin/modules/parameter-templates/${templateId}`),
+  setModuleDefaultTemplate: (templateId) => api.post(`/admin/modules/parameter-templates/${templateId}/set-default`)
 }
 
 export const authAPI = authApi
