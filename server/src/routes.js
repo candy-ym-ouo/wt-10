@@ -118,6 +118,7 @@ router.post('/patches/:id/versions/:versionId/rollback', requireAuth, patchContr
 router.post('/patches', requireAuth, patchController.createPatch);
 router.put('/patches/:id', requireAuth, patchController.updatePatch);
 router.delete('/patches/:id', requireAuth, patchController.deletePatch);
+router.post('/patches/:id/restore', requireAuth, patchController.restorePatch);
 router.post('/patches/:id/comments', requireAuth, patchController.addComment);
 router.delete('/patches/:id/comments/:commentId', requireAuth, patchController.deleteComment);
 router.post('/patches/comments/:commentId/like', requireAuth, patchController.toggleCommentLike);
@@ -150,6 +151,7 @@ router.put('/me/favorite-folders/reorder', requireAuth, socialController.reorder
 router.get('/me/patches', requireAuth, socialController.getMyPatches);
 router.get('/me/drafts', requireAuth, socialController.getMyDrafts);
 router.get('/me/scheduled', requireAuth, socialController.getMyScheduled);
+router.get('/me/trash', requireAuth, socialController.getMyTrash);
 router.get('/me/stats', requireAuth, socialController.getCreatorStats);
 router.get('/me/notifications', requireAuth, socialController.getMyNotifications);
 router.put('/me/notifications/:id/read', requireAuth, socialController.markNotificationRead);
@@ -215,10 +217,13 @@ router.put('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), admin
 router.delete('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), adminController.deleteUser);
 router.get('/admin/patches/recent', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getRecentPatches);
 router.get('/admin/patches', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getAllPatches);
+router.get('/admin/patches/trash', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getTrashPatches);
 router.get('/admin/patches/versions', requirePermission(PERMISSIONS.PATCH_VIEW), patchController.adminGetAllPatchVersions);
 router.put('/admin/patches/:id/status', requireAnyPermission([PERMISSIONS.PATCH_REVIEW, PERMISSIONS.PATCH_MANAGE]), adminController.updatePatchStatus);
 router.put('/admin/patches/:id/public', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.togglePatchPublic);
 router.delete('/admin/patches/:id', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.adminDeletePatch);
+router.post('/admin/patches/:id/restore', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.adminRestorePatch);
+router.delete('/admin/patches/:id/permanent', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.permanentDeletePatch);
 router.get('/admin/modules', requirePermission(PERMISSIONS.MODULE_VIEW), adminController.getAllModules);
 router.post('/admin/modules', requirePermission(PERMISSIONS.MODULE_MANAGE), adminController.createModule);
 router.put('/admin/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), adminController.updateModule);

@@ -35,7 +35,7 @@ exports.getModuleWiki = async (ctx) => {
     FROM module_recommended_patches mrp
     JOIN patches p ON mrp.patch_id = p.id
     JOIN users u ON p.user_id = u.id
-    WHERE mrp.module_id = ? AND p.status = 'approved' AND p.is_public = 1
+    WHERE mrp.module_id = ? AND p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
     ORDER BY mrp.sort_order ASC, mrp.id ASC
   `).all(moduleId);
 
@@ -43,7 +43,7 @@ exports.getModuleWiki = async (ctx) => {
     SELECT p.*, u.username
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.modules_used LIKE ? AND p.status = 'approved' AND p.is_public = 1
+    WHERE p.modules_used LIKE ? AND p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
     ORDER BY p.created_at DESC
     LIMIT 10
   `).all(`%${moduleId}%`);
@@ -121,7 +121,7 @@ exports.getRecommendedPatches = async (ctx) => {
     FROM module_recommended_patches mrp
     JOIN patches p ON mrp.patch_id = p.id
     JOIN users u ON p.user_id = u.id
-    WHERE mrp.module_id = ? AND p.status = 'approved' AND p.is_public = 1
+    WHERE mrp.module_id = ? AND p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
     ORDER BY mrp.sort_order ASC, mrp.id ASC
   `).all(moduleId);
   ctx.body = patches;

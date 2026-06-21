@@ -137,7 +137,7 @@ exports.profile = async (ctx) => {
              EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited
       FROM patches p
       LEFT JOIN likes l ON p.id = l.patch_id
-      WHERE p.user_id = ? AND p.is_public = 1
+      WHERE p.user_id = ? AND p.is_public = 1 AND p.deleted_at IS NULL
       GROUP BY p.id
       ORDER BY p.created_at DESC
     `).all(currentUserId || 0, currentUserId || 0, userId);

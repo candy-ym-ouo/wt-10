@@ -63,6 +63,7 @@ db.exec(`
     is_paid INTEGER DEFAULT 0,
     price REAL DEFAULT 0,
     preview_content TEXT,
+    deleted_at DATETIME,
     scheduled_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

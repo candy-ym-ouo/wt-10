@@ -304,7 +304,7 @@ exports.adminGetVerificationDetail = async (ctx) => {
       SUM(likes_count) as total_likes,
       SUM(views_count) as total_views,
       SUM(favorites_count) as total_favorites
-    FROM patches WHERE user_id = ?
+    FROM patches WHERE user_id = ? AND deleted_at IS NULL
   `).get(verification.user_id);
 
   ctx.body = { verification, patchStats };

@@ -755,11 +755,11 @@ const handleAction = async (cmd) => {
     router.push(`/edit/${patch.value.id}`)
   } else if (cmd === 'delete') {
     try {
-      await ElMessageBox.confirm('确定要删除这个 Patch 吗？', '确认删除', {
+      await ElMessageBox.confirm('确定要删除这个 Patch 吗？将移入回收站，可随时恢复。', '确认删除', {
         type: 'warning'
       })
       await patchStore.deletePatch(patch.value.id)
-      ElMessage.success('删除成功')
+      ElMessage.success('已移入回收站')
       router.push('/patches')
     } catch {}
   } else if (cmd === 'report') {

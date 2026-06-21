@@ -166,7 +166,7 @@ exports.addPatchToCollection = async (ctx) => {
     return;
   }
 
-  const patch = db.prepare('SELECT id FROM patches WHERE id = ?').get(patch_id);
+  const patch = db.prepare('SELECT id FROM patches WHERE id = ? AND deleted_at IS NULL').get(patch_id);
   if (!patch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };

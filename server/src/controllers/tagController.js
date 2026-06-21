@@ -85,7 +85,7 @@ const suggestTags = (ctx) => {
 };
 
 const recalculateUsageCounts = () => {
-  const patchRows = db.prepare("SELECT tags FROM patches WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''").all();
+  const patchRows = db.prepare("SELECT tags FROM patches WHERE tags IS NOT NULL AND tags != '[]' AND tags != '' AND deleted_at IS NULL").all();
   const articleRows = db.prepare("SELECT tags FROM articles WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''").all();
 
   const tagCountMap = {};
@@ -189,7 +189,7 @@ const mergeTags = (ctx) => {
     const trimmedSrc = srcTag.trim();
 
     const patchRows = db.prepare(
-      "SELECT id, tags FROM patches WHERE tags LIKE ?"
+      "SELECT id, tags FROM patches WHERE tags LIKE ? AND deleted_at IS NULL"
     ).all(`%"${trimmedSrc}"%`);
     updateTagsInRows(patchRows);
 
@@ -255,7 +255,7 @@ const updateTag = (ctx) => {
       return;
     }
 
-    const patchRows = db.prepare("SELECT id, tags FROM patches WHERE tags LIKE ?").all(`%"${existing.name}"%`);
+    const patchRows = db.prepare("SELECT id, tags FROM patches WHERE tags LIKE ? AND deleted_at IS NULL").all(`%"${existing.name}"%`);
     for (const row of patchRows) {
       try {
         const tags = JSON.parse(row.tags || '[]');

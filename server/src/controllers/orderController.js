@@ -82,7 +82,7 @@ const createOrder = async (ctx) => {
     return;
   }
 
-  const patchStmt = db.prepare('SELECT * FROM patches WHERE id = ?');
+  const patchStmt = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NULL');
   const patch = patchStmt.get(patch_id);
   if (!patch) {
     ctx.status = 404;
@@ -200,7 +200,7 @@ const checkPermission = async (ctx) => {
     return;
   }
 
-  const patchStmt = db.prepare('SELECT user_id, is_paid FROM patches WHERE id = ?');
+  const patchStmt = db.prepare('SELECT user_id, is_paid FROM patches WHERE id = ? AND deleted_at IS NULL');
   const patch = patchStmt.get(patchId);
 
   if (!patch) {

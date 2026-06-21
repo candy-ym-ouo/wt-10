@@ -40,20 +40,21 @@ const createNotification = (userId, type, fromUserId, patchId, content, options 
 exports.getStats = async (ctx) => {
   const stats = {
     users: db.prepare('SELECT COUNT(*) as count FROM users').get().count,
-    patches: db.prepare('SELECT COUNT(*) as count FROM patches').get().count,
+    patches: db.prepare('SELECT COUNT(*) as count FROM patches WHERE deleted_at IS NULL').get().count,
     modules: db.prepare('SELECT COUNT(*) as count FROM modules').get().count,
     manufacturers: db.prepare('SELECT COUNT(*) as count FROM manufacturers').get().count,
     likes: db.prepare('SELECT COUNT(*) as count FROM likes').get().count,
     comments: db.prepare('SELECT COUNT(*) as count FROM comments').get().count,
-    total_views: db.prepare('SELECT COALESCE(SUM(views_count), 0) as total FROM patches').get().total,
+    total_views: db.prepare('SELECT COALESCE(SUM(views_count), 0) as total FROM patches WHERE deleted_at IS NULL').get().total,
     new_users_today: db.prepare("SELECT COUNT(*) as count FROM users WHERE DATE(created_at) = DATE('now')").get().count,
-    new_patches_today: db.prepare("SELECT COUNT(*) as count FROM patches WHERE DATE(created_at) = DATE('now')").get().count
+    new_patches_today: db.prepare("SELECT COUNT(*) as count FROM patches WHERE DATE(created_at) = DATE('now') AND deleted_at IS NULL").get().count
   };
 
   const recentPatches = db.prepare(`
     SELECT p.*, u.username
     FROM patches p
     JOIN users u ON p.user_id = u.id
+    WHERE p.deleted_at IS NULL
     ORDER BY p.created_at DESC
     LIMIT 5
   `).all();
@@ -146,7 +147,7 @@ exports.getAllPatches = async (ctx) => {
   const { page = 1, limit = 20, search, user_id, status } = ctx.query;
   const offset = (page - 1) * limit;
 
-  let where = [];
+  let where = ['p.deleted_at IS NULL'];
   let params = [];
 
   if (search) {
@@ -193,8 +194,82 @@ exports.togglePatchPublic = async (ctx) => {
 
 exports.adminDeletePatch = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
+  const patch = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NULL').get(patchId);
+
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
+  db.prepare('UPDATE patches SET deleted_at = CURRENT_TIMESTAMP, is_public = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(patchId);
+  ctx.body = { success: true, message: '已移入回收站' };
+};
+
+exports.adminRestorePatch = async (ctx) => {
+  const patchId = parseInt(ctx.params.id);
+  const patch = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NOT NULL').get(patchId);
+
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: '回收站中不存在此 Patch' };
+    return;
+  }
+
+  const restoreIsPublic = ['approved', 'pending', 'scheduled'].includes(patch.status) ? 1 : 0;
+  db.prepare('UPDATE patches SET deleted_at = NULL, is_public = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(restoreIsPublic, patchId);
+  ctx.body = { success: true, message: '已恢复' };
+};
+
+exports.getTrashPatches = async (ctx) => {
+  const { page = 1, limit = 20, search, user_id } = ctx.query;
+  const offset = (page - 1) * limit;
+
+  let where = ['p.deleted_at IS NOT NULL'];
+  let params = [];
+
+  if (search) {
+    where.push('(p.title LIKE ? OR p.description LIKE ?)');
+    params.push(`%${search}%`, `%${search}%`);
+  }
+  if (user_id) {
+    where.push('p.user_id = ?');
+    params.push(parseInt(user_id));
+  }
+
+  const whereSql = 'WHERE ' + where.join(' AND ');
+
+  const patches = db.prepare(`
+    SELECT p.*, u.username, u.avatar, u.is_creator_verified
+    FROM patches p
+    JOIN users u ON p.user_id = u.id
+    ${whereSql}
+    ORDER BY p.deleted_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+
+  const total = db.prepare(`SELECT COUNT(*) as count FROM patches p ${whereSql}`).get(...params);
+
+  ctx.body = {
+    list: patches,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.permanentDeletePatch = async (ctx) => {
+  const patchId = parseInt(ctx.params.id);
+  const patch = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NOT NULL').get(patchId);
+
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: '回收站中不存在此 Patch，仅可永久删除已在回收站中的 Patch' };
+    return;
+  }
+
   db.prepare('DELETE FROM patches WHERE id = ?').run(patchId);
-  ctx.body = { success: true };
+  ctx.body = { success: true, message: '已永久删除' };
 };
 
 exports.getAllModules = async (ctx) => {
@@ -361,7 +436,7 @@ exports.updatePatchStatus = async (ctx) => {
     return;
   }
 
-  const patch = db.prepare('SELECT user_id, title, status as old_status FROM patches WHERE id = ?').get(patchId);
+  const patch = db.prepare('SELECT user_id, title, status as old_status FROM patches WHERE id = ? AND deleted_at IS NULL').get(patchId);
   if (!patch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };

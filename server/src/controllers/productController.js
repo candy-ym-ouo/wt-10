@@ -90,7 +90,7 @@ const createProduct = async (ctx) => {
     return;
   }
 
-  const patchStmt = db.prepare('SELECT * FROM patches WHERE id = ?');
+  const patchStmt = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NULL');
   const patch = patchStmt.get(patch_id);
   if (!patch) {
     ctx.status = 404;

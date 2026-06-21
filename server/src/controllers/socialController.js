@@ -23,7 +23,7 @@ exports.getMyPatches = async (ctx) => {
   const offset = (page - 1) * limit;
   const userId = ctx.state.user.id;
 
-  let where = 'p.user_id = ?';
+  let where = 'p.user_id = ? AND p.deleted_at IS NULL';
   let params = [userId];
 
   if (status && status !== 'all') {
@@ -71,7 +71,7 @@ exports.getCompareList = async (ctx) => {
       SELECT p.*, u.username, u.avatar
       FROM patches p
       JOIN users u ON p.user_id = u.id
-      WHERE p.id IN (${placeholders})
+      WHERE p.id IN (${placeholders}) AND p.deleted_at IS NULL AND p.deleted_at IS NULL
     `).all(...patchIds);
   }
 
@@ -144,19 +144,19 @@ exports.getCreatorStats = async (ctx) => {
       COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejected_count,
       COALESCE(SUM(views_count), 0) as total_views
     FROM patches 
-    WHERE user_id = ?
+    WHERE user_id = ? AND deleted_at IS NULL
   `).get(userId);
 
   const likesStats = db.prepare(`
     SELECT COALESCE(SUM(likes_count), 0) as total_likes
     FROM patches 
-    WHERE user_id = ? AND status = 'approved' AND is_public = 1
+    WHERE user_id = ? AND status = 'approved' AND is_public = 1 AND deleted_at IS NULL
   `).get(userId);
 
   const favoritesStats = db.prepare(`
     SELECT COALESCE(SUM(favorites_count), 0) as total_favorites
     FROM patches 
-    WHERE user_id = ? AND status = 'approved' AND is_public = 1
+    WHERE user_id = ? AND status = 'approved' AND is_public = 1 AND deleted_at IS NULL
   `).get(userId);
 
   const myFavoritesStats = db.prepare(`
@@ -195,13 +195,13 @@ exports.getMyDrafts = async (ctx) => {
     SELECT p.*, COUNT(l.id) as real_likes
     FROM patches p
     LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE p.user_id = ? AND p.status = 'draft'
+    WHERE p.user_id = ? AND p.status = 'draft' AND p.deleted_at IS NULL
     GROUP BY p.id
     ORDER BY p.updated_at DESC
     LIMIT ? OFFSET ?
   `).all(userId, limit, offset);
 
-  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND status = 'draft'").get(userId);
+  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND status = 'draft' AND deleted_at IS NULL").get(userId);
 
   ctx.body = {
     list: drafts,
@@ -220,16 +220,41 @@ exports.getMyScheduled = async (ctx) => {
     SELECT p.*, COUNT(l.id) as real_likes
     FROM patches p
     LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE p.user_id = ? AND p.status = 'scheduled'
+    WHERE p.user_id = ? AND p.status = 'scheduled' AND p.deleted_at IS NULL
     GROUP BY p.id
     ORDER BY p.scheduled_at ASC
     LIMIT ? OFFSET ?
   `).all(userId, limit, offset);
 
-  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND status = 'scheduled'").get(userId);
+  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND status = 'scheduled' AND deleted_at IS NULL").get(userId);
 
   ctx.body = {
     list: scheduled,
+    total: total.count,
+    page: parseInt(page),
+    limit: parseInt(limit)
+  };
+};
+
+exports.getMyTrash = async (ctx) => {
+  const { page = 1, limit = 12 } = ctx.query;
+  const offset = (page - 1) * limit;
+  const userId = ctx.state.user.id;
+
+  const patches = db.prepare(`
+    SELECT p.*, COUNT(l.id) as real_likes
+    FROM patches p
+    LEFT JOIN likes l ON p.id = l.patch_id
+    WHERE p.user_id = ? AND p.deleted_at IS NOT NULL
+    GROUP BY p.id
+    ORDER BY p.deleted_at DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, limit, offset);
+
+  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND deleted_at IS NOT NULL").get(userId);
+
+  ctx.body = {
+    list: patches,
     total: total.count,
     page: parseInt(page),
     limit: parseInt(limit)
@@ -766,7 +791,7 @@ exports.toggleLike = async (ctx) => {
   const patchId = parseInt(ctx.params.id);
   const userId = ctx.state.user.id;
 
-  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ?').get(patchId);
+  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ? AND deleted_at IS NULL').get(patchId);
   if (!patch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };
@@ -826,7 +851,7 @@ exports.comparePatches = async (ctx) => {
     SELECT p.*, u.username, u.avatar
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.id IN (${placeholders})
+    WHERE p.id IN (${placeholders}) AND p.deleted_at IS NULL
   `).all(...patchIds);
 
   const paramKeys = ['oscillators', 'filter', 'envelope', 'lfo', 'effects'];
@@ -1285,7 +1310,7 @@ exports.toggleFavorite = async (ctx) => {
   const userId = ctx.state.user.id;
   const { folder = 'default', folder_id } = ctx.request.body;
   
-  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ?').get(patchId);
+  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ? AND deleted_at IS NULL').get(patchId);
   if (!patch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };
@@ -1912,7 +1937,7 @@ exports.comparePatchesEnhanced = async (ctx) => {
     SELECT p.*, u.username, u.avatar
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.id IN (${placeholders})
+    WHERE p.id IN (${placeholders}) AND p.deleted_at IS NULL
   `).all(...patchIds);
 
   if (patches.length !== patchIds.length) {

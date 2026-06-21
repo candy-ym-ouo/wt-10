@@ -34,14 +34,14 @@ exports.globalSearch = async (ctx) => {
              u.username, u.avatar, u.is_creator_verified
       FROM patches p
       LEFT JOIN users u ON p.user_id = u.id
-      WHERE p.is_public = 1 AND p.status = 'approved'
+      WHERE p.is_public = 1 AND p.status = 'approved' AND p.deleted_at IS NULL
         AND (p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ?)
       ORDER BY p.likes_count DESC, p.views_count DESC
       LIMIT ? OFFSET ?
     `).all(likeKw, likeKw, likeKw, limitNum, offset);
     const patchCount = db.prepare(`
       SELECT COUNT(*) as count FROM patches
-      WHERE is_public = 1 AND status = 'approved'
+      WHERE is_public = 1 AND status = 'approved' AND deleted_at IS NULL
         AND (title LIKE ? OR description LIKE ? OR tags LIKE ?)
     `).get(likeKw, likeKw, likeKw);
     results.patches = { list: patches, total: patchCount.count };

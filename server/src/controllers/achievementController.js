@@ -7,7 +7,7 @@ const calculateUserStats = (userId) => {
       COALESCE(SUM(likes_count), 0) as total_likes,
       COALESCE(SUM(favorites_count), 0) as total_favorites
     FROM patches 
-    WHERE user_id = ? AND status = 'approved' AND is_public = 1
+    WHERE user_id = ? AND status = 'approved' AND is_public = 1 AND deleted_at IS NULL
   `).get(userId);
 
   return {
@@ -262,7 +262,7 @@ exports.deleteAchievementRule = async (ctx) => {
 };
 
 exports.recalculateAllAchievements = async (ctx) => {
-  const patchRows = db.prepare('SELECT id, favorites_count FROM patches').all();
+  const patchRows = db.prepare('SELECT id, favorites_count FROM patches WHERE deleted_at IS NULL').all();
   const fixStmt = db.prepare(`
     UPDATE patches SET favorites_count = (
       SELECT COUNT(*) FROM favorites WHERE patch_id = ?

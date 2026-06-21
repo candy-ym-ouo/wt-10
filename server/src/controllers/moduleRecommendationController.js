@@ -37,7 +37,7 @@ function calculateModuleCombinations() {
   const patches = db.prepare(`
     SELECT id, modules_used, likes_count
     FROM patches
-    WHERE status = 'approved' AND is_public = 1 AND modules_used IS NOT NULL
+    WHERE status = 'approved' AND is_public = 1 AND modules_used IS NOT NULL AND deleted_at IS NULL
   `).all();
 
   const comboCounts = new Map();
@@ -179,7 +179,7 @@ exports.getRecommendedCombinations = async (ctx) => {
     SELECT p.id, p.title, p.likes_count, p.views_count, u.username
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.status = 'approved' AND p.is_public = 1
+    WHERE p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
       AND p.modules_used LIKE ? AND p.modules_used LIKE ?
     ORDER BY p.likes_count DESC, p.created_at DESC
     LIMIT 3
@@ -187,7 +187,7 @@ exports.getRecommendedCombinations = async (ctx) => {
 
   const patchCountStmt = db.prepare(`
     SELECT COUNT(*) as count FROM patches
-    WHERE status = 'approved' AND is_public = 1
+    WHERE status = 'approved' AND is_public = 1 AND deleted_at IS NULL
       AND modules_used LIKE ? AND modules_used LIKE ?
   `);
 
@@ -195,7 +195,7 @@ exports.getRecommendedCombinations = async (ctx) => {
     SELECT p.id, p.title, p.likes_count, u.username
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.status = 'approved' AND p.is_public = 1
+    WHERE p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
       AND p.modules_used LIKE ? AND p.modules_used LIKE ?
     ORDER BY p.likes_count DESC
     LIMIT 1
@@ -230,7 +230,7 @@ exports.getCombinationPatches = async (ctx) => {
     SELECT p.*, u.username, u.avatar
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.status = 'approved' AND p.is_public = 1
+    WHERE p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
       AND p.modules_used LIKE ? AND p.modules_used LIKE ?
     ORDER BY p.likes_count DESC, p.created_at DESC
     LIMIT ? OFFSET ?
@@ -238,7 +238,7 @@ exports.getCombinationPatches = async (ctx) => {
 
   const total = db.prepare(`
     SELECT COUNT(*) as count FROM patches p
-    WHERE p.status = 'approved' AND p.is_public = 1
+    WHERE p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
       AND p.modules_used LIKE ? AND p.modules_used LIKE ?
   `).get(`%${moduleId}%`, `%${pairedId}%`);
 
@@ -554,7 +554,7 @@ exports.getSimilarPatches = async (ctx) => {
   const defaultMinScore = parseFloatSafe(config.min_similarity_score, 0.1);
   const { limit = defaultLimit, min_score = defaultMinScore } = ctx.query;
 
-  const patch = db.prepare('SELECT id, modules_used, likes_count FROM patches WHERE id = ?').get(patchId);
+  const patch = db.prepare('SELECT id, modules_used, likes_count FROM patches WHERE id = ? AND deleted_at IS NULL').get(patchId);
   if (!patch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };
@@ -628,7 +628,7 @@ exports.getSimilarPatches = async (ctx) => {
            u.username, u.avatar
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.status = 'approved' AND p.is_public = 1
+    WHERE p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
       AND p.id != ?
       AND (${moduleConditions})
     ORDER BY p.likes_count DESC, p.created_at DESC
@@ -745,7 +745,7 @@ exports.getModulePatchRecommendations = async (ctx) => {
     SELECT p.*, u.username, u.avatar
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.status = 'approved' AND p.is_public = 1
+    WHERE p.status = 'approved' AND p.is_public = 1 AND p.deleted_at IS NULL
       AND p.modules_used LIKE ?
     ORDER BY p.likes_count DESC, p.created_at DESC
     LIMIT ?
@@ -777,7 +777,7 @@ exports.recalculateAffinity = async (ctx) => {
     const patches = db.prepare(`
       SELECT id, modules_used, likes_count
       FROM patches
-      WHERE status = 'approved' AND is_public = 1 AND modules_used IS NOT NULL
+      WHERE status = 'approved' AND is_public = 1 AND modules_used IS NOT NULL AND deleted_at IS NULL
     `).all();
 
     const insertStmt = db.prepare(`

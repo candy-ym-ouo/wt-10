@@ -40,7 +40,7 @@ const getTargetInfo = (targetType, targetId) => {
                u.username as author_name, u.avatar as author_avatar
         FROM patches p
         JOIN users u ON p.user_id = u.id
-        WHERE p.id = ?
+        WHERE p.id = ? AND p.deleted_at IS NULL
       `).get(targetId);
     case 'comment':
       return db.prepare(`

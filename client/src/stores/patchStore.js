@@ -41,6 +41,10 @@ export const usePatchStore = defineStore('patch', {
       return await patchAPI.delete(id)
     },
 
+    async restorePatch(id) {
+      return await patchAPI.restore(id)
+    },
+
     async toggleLike(id) {
       return await patchAPI.toggleLike(id)
     },
@@ -135,6 +139,10 @@ export const usePatchStore = defineStore('patch', {
 
     async fetchMyScheduled(params = {}) {
       return await socialAPI.getMyScheduled(params)
+    },
+
+    async fetchMyTrash(params = {}) {
+      return await socialAPI.getMyTrash(params)
     },
 
     async fetchCreatorStats() {

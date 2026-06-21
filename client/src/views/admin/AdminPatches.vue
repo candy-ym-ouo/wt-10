@@ -278,14 +278,14 @@ const submitReview = async () => {
 const deletePatch = async (patch) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除 Patch "${patch.title}" 吗？此操作不可恢复！`,
+      `确定要删除 Patch "${patch.title}" 吗？将移入回收站，可在回收站中恢复。`,
       '确认删除',
-      { type: 'danger' }
+      { type: 'warning' }
     )
     
     await adminApi.deletePatch(patch.id)
     patches.value = patches.value.filter(p => p.id !== patch.id)
-    ElMessage.success('删除成功')
+    ElMessage.success('已移入回收站')
   } catch (err) {
     if (err !== 'cancel') {
       ElMessage.error('删除失败')

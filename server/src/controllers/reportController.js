@@ -18,21 +18,22 @@ exports.getOverview = async (ctx) => {
 
   const stats = {
     totalUsers: db.prepare('SELECT COUNT(*) as count FROM users').get().count,
-    totalPatches: db.prepare('SELECT COUNT(*) as count FROM patches').get().count,
+    totalPatches: db.prepare('SELECT COUNT(*) as count FROM patches WHERE deleted_at IS NULL').get().count,
     totalModules: db.prepare('SELECT COUNT(*) as count FROM modules').get().count,
     totalManufacturers: db.prepare('SELECT COUNT(*) as count FROM manufacturers').get().count,
     totalLikes: db.prepare('SELECT COUNT(*) as count FROM likes').get().count,
     totalFavorites: db.prepare('SELECT COUNT(*) as count FROM favorites').get().count,
     totalComments: db.prepare('SELECT COUNT(*) as count FROM comments').get().count,
     totalDownloads: db.prepare('SELECT COUNT(*) as count FROM download_records').get().count || 0,
-    totalViews: db.prepare('SELECT COALESCE(SUM(views_count), 0) as total FROM patches').get().total,
+    totalViews: db.prepare('SELECT COALESCE(SUM(views_count), 0) as total FROM patches WHERE deleted_at IS NULL').get().total,
     newUsers: db.prepare(`SELECT COUNT(*) as count FROM users ${dateWhere}`).get(...dateParams).count,
-    newPatches: db.prepare(`SELECT COUNT(*) as count FROM patches ${dateWhere}`).get(...dateParams).count
+    newPatches: db.prepare(`SELECT COUNT(*) as count FROM patches WHERE deleted_at IS NULL ${dateWhere ? dateWhere.replace('WHERE', 'AND') : ''}`).get(...dateParams).count
   };
 
   const patchesByStatus = db.prepare(`
     SELECT status, COUNT(*) as count
     FROM patches
+    WHERE deleted_at IS NULL
     GROUP BY status
   `).all();
 
@@ -62,7 +63,7 @@ exports.getOverview = async (ctx) => {
   const dailyNewPatches = db.prepare(`
     SELECT DATE(created_at) as date, COUNT(*) as count
     FROM patches
-    ${dateWhere || "WHERE created_at >= date('now', '-30 days')"}
+    ${dateWhere ? dateWhere.replace('WHERE', 'WHERE deleted_at IS NULL AND') : "WHERE deleted_at IS NULL AND created_at >= date('now', '-30 days')"}
     GROUP BY DATE(created_at)
     ORDER BY date DESC
     LIMIT 30
@@ -144,7 +145,7 @@ exports.getUserStats = async (ctx) => {
 const buildPatchStatsQuery = (options = {}) => {
   const { search, user_id, status, sort_by = 'views_count', sort_order = 'desc' } = options;
 
-  let where = [];
+  let where = ['p.deleted_at IS NULL'];
   let params = [];
 
   if (search) {

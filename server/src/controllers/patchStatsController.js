@@ -222,7 +222,7 @@ exports.getPatchRankings = async (ctx) => {
     FROM patches p
     LEFT JOIN patch_view_daily_stats pv ON p.id = pv.patch_id AND ${dateJoinCondition}
     LEFT JOIN users u ON p.user_id = u.id
-    WHERE p.is_public = 1 AND p.status = 'approved'
+    WHERE p.is_public = 1 AND p.status = 'approved' AND p.deleted_at IS NULL
     GROUP BY p.id
     ORDER BY ${orderSql}
     LIMIT ?
@@ -274,7 +274,7 @@ exports.getAdminPatchStatsOverview = async (ctx) => {
     FROM patches p
     LEFT JOIN patch_view_daily_stats pv ON p.id = pv.patch_id AND pv.source = 'all'
     LEFT JOIN users u ON p.user_id = u.id
-    WHERE p.is_public = 1 AND p.status = 'approved'
+    WHERE p.is_public = 1 AND p.status = 'approved' AND p.deleted_at IS NULL
     GROUP BY p.id
     ORDER BY total_views DESC
     LIMIT 5

@@ -208,6 +208,8 @@ exports.getPatches = async (ctx) => {
 
   const isViewingOwn = user_id && parseInt(user_id) === userId;
   
+  where.push('p.deleted_at IS NULL');
+
   if (user_id && !isViewingOwn && userRole !== 'admin') {
     const targetUser = db.prepare(`
       SELECT privacy_patches FROM users WHERE id = ?
@@ -341,7 +343,7 @@ exports.getPatchDetail = async (ctx) => {
     FROM patches p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE p.id = ?
+    WHERE p.id = ? AND p.deleted_at IS NULL
     GROUP BY p.id
   `).get(userId, userId, id);
 
@@ -539,7 +541,7 @@ exports.createPatch = async (ctx) => {
 
 exports.updatePatch = async (ctx) => {
   const id = parseInt(ctx.params.id);
-  const oldPatch = db.prepare('SELECT * FROM patches WHERE id = ?').get(id);
+  const oldPatch = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!oldPatch) {
     ctx.status = 404;
@@ -699,7 +701,7 @@ exports.updatePatch = async (ctx) => {
 
 exports.deletePatch = async (ctx) => {
   const id = parseInt(ctx.params.id);
-  const patch = db.prepare('SELECT * FROM patches WHERE id = ?').get(id);
+  const patch = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!patch) {
     ctx.status = 404;
@@ -713,8 +715,29 @@ exports.deletePatch = async (ctx) => {
     return;
   }
 
-  db.prepare('DELETE FROM patches WHERE id = ?').run(id);
-  ctx.body = { success: true };
+  db.prepare('UPDATE patches SET deleted_at = CURRENT_TIMESTAMP, is_public = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+  ctx.body = { success: true, message: '已移入回收站' };
+};
+
+exports.restorePatch = async (ctx) => {
+  const id = parseInt(ctx.params.id);
+  const patch = db.prepare('SELECT * FROM patches WHERE id = ? AND deleted_at IS NOT NULL').get(id);
+
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: '回收站中不存在此 Patch' };
+    return;
+  }
+
+  if (patch.user_id !== ctx.state.user.id && ctx.state.user.role !== 'admin') {
+    ctx.status = 403;
+    ctx.body = { error: '无权限恢复' };
+    return;
+  }
+
+  const restoreIsPublic = ['approved', 'pending', 'scheduled'].includes(patch.status) ? 1 : 0;
+  db.prepare('UPDATE patches SET deleted_at = NULL, is_public = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(restoreIsPublic, id);
+  ctx.body = { success: true, message: '已恢复' };
 };
 
 exports.addComment = async (ctx) => {
@@ -728,7 +751,7 @@ exports.addComment = async (ctx) => {
     return;
   }
 
-  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ?').get(id);
+  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!patch) {
     ctx.status = 404;
     ctx.body = { error: 'Patch 不存在' };

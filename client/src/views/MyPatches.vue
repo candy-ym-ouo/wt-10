@@ -17,6 +17,7 @@
       <el-tab-pane label="📋 待修改" name="needs_revision" />
       <el-tab-pane label="⏰ 定时发布" name="scheduled" />
       <el-tab-pane label="📝 草稿箱" name="draft" />
+      <el-tab-pane label="🗑️ 回收站" name="trash" />
       <el-tab-pane label="💾 全部" name="all" />
     </el-tabs>
 
@@ -35,8 +36,8 @@
 
     <div v-else class="grid-patches">
       <div v-for="patch in patches" :key="patch.id" class="card patch-card">
-        <div class="patch-status-badge" :class="`status-${patch.status}`">
-          {{ getStatusLabel(patch.status) }}
+        <div class="patch-status-badge" :class="`status-${activeTab === 'trash' ? 'deleted' : patch.status}`">
+          {{ activeTab === 'trash' ? '🗑️ 已删除' : getStatusLabel(patch.status) }}
         </div>
         <div class="patch-image">🎛️</div>
         <div class="patch-title">{{ patch.title }}</div>
@@ -61,23 +62,30 @@
           </div>
         </div>
         <div class="patch-actions">
-          <el-button size="small" @click="$router.push(`/patches/${patch.id}`)">
-            <el-icon><View /></el-icon> 查看
-          </el-button>
-          <el-button size="small" type="primary" @click="$router.push(`/edit/${patch.id}`)">
-            <el-icon><Edit /></el-icon> 编辑
-          </el-button>
-          <el-button 
-            v-if="patch.status === 'draft'" 
-            size="small" 
-            type="success" 
-            @click="publishNow(patch)"
-          >
-            🚀 立即发布
-          </el-button>
-          <el-button size="small" type="danger" @click="deletePatch(patch)">
-            <el-icon><Delete /></el-icon> 删除
-          </el-button>
+          <template v-if="activeTab === 'trash'">
+            <el-button size="small" type="success" @click="restorePatch(patch)">
+              🔄 恢复
+            </el-button>
+          </template>
+          <template v-else>
+            <el-button size="small" @click="$router.push(`/patches/${patch.id}`)">
+              <el-icon><View /></el-icon> 查看
+            </el-button>
+            <el-button size="small" type="primary" @click="$router.push(`/edit/${patch.id}`)">
+              <el-icon><Edit /></el-icon> 编辑
+            </el-button>
+            <el-button 
+              v-if="patch.status === 'draft'" 
+              size="small" 
+              type="success" 
+              @click="publishNow(patch)"
+            >
+              🚀 立即发布
+            </el-button>
+            <el-button size="small" type="danger" @click="deletePatch(patch)">
+              <el-icon><Delete /></el-icon> 删除
+            </el-button>
+          </template>
         </div>
       </div>
     </div>
@@ -123,6 +131,8 @@ const emptyText = computed(() => {
       return '没有需要修改的 Patch'
     case 'published':
       return '还没有发布任何 Patch'
+    case 'trash':
+      return '回收站是空的'
     default:
       return '还没有创建任何 Patch'
   }
@@ -157,6 +167,9 @@ const fetchPatches = async () => {
         break
       case 'published':
         res = await patchStore.fetchMyPatches({ ...params, status: 'approved' })
+        break
+      case 'trash':
+        res = await patchStore.fetchMyTrash(params)
         break
       default:
         res = await patchStore.fetchMyPatches({ ...params, status: 'all' })
@@ -201,11 +214,22 @@ const publishNow = async (patch) => {
 
 const deletePatch = async (patch) => {
   try {
-    await ElMessageBox.confirm(`确定要删除 "${patch.title}" 吗？`, '确认删除', {
+    await ElMessageBox.confirm(`确定要删除 "${patch.title}" 吗？将移入回收站，可随时恢复。`, '确认删除', {
       type: 'warning'
     })
     await patchStore.deletePatch(patch.id)
-    ElMessage.success('删除成功')
+    ElMessage.success('已移入回收站')
+    fetchPatches()
+  } catch {}
+}
+
+const restorePatch = async (patch) => {
+  try {
+    await ElMessageBox.confirm(`确定要恢复 "${patch.title}" 吗？`, '确认恢复', {
+      type: 'info'
+    })
+    await patchStore.restorePatch(patch.id)
+    ElMessage.success('已恢复')
     fetchPatches()
   } catch {}
 }
@@ -267,6 +291,11 @@ const deletePatch = async (patch) => {
 .status-needs_revision {
   background: rgba(230, 162, 60, 0.2);
   color: #e6a23c;
+}
+
+.status-deleted {
+  background: rgba(245, 108, 108, 0.2);
+  color: #f56c6c;
 }
 
 .patch-scheduled {

@@ -148,7 +148,7 @@ exports.getModuleDetail = async (ctx) => {
     SELECT p.*, u.username
     FROM patches p
     JOIN users u ON p.user_id = u.id
-    WHERE p.modules_used LIKE ?
+    WHERE p.modules_used LIKE ? AND p.deleted_at IS NULL
     ORDER BY p.created_at DESC
     LIMIT 10
   `).all(`%${id}%`);

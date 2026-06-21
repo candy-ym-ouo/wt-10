@@ -243,6 +243,12 @@ const routes = [
         meta: { permission: PERMISSIONS.PATCH_VIEW }
       },
       {
+        path: 'patch-trash',
+        name: 'AdminPatchTrash',
+        component: () => import('@/views/admin/AdminPatchTrash.vue'),
+        meta: { permission: PERMISSIONS.PATCH_VIEW }
+      },
+      {
         path: 'patch-versions',
         name: 'AdminPatchVersions',
         component: () => import('@/views/admin/AdminPatchVersions.vue'),
