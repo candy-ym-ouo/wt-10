@@ -373,6 +373,12 @@ const routes = [
         name: 'AdminI18n',
         component: () => import('@/views/admin/AdminTranslations.vue'),
         meta: { permission: PERMISSIONS.I18N_VIEW }
+      },
+      {
+        path: 'achievements',
+        name: 'AdminAchievements',
+        component: () => import('@/views/admin/AdminAchievements.vue'),
+        meta: { permission: PERMISSIONS.ACHIEVEMENT_VIEW }
       }
     ]
   },

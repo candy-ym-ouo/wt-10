@@ -77,6 +77,13 @@
         </div>
         <div 
           class="tab" 
+          :class="{ active: activeTab === 'achievements' }"
+          @click="activeTab = 'achievements'; fetchAchievements()"
+        >
+          成就徽章 ({{ achievements?.unlocked_count || 0 }}/{{ achievements?.total_count || 0 }})
+        </div>
+        <div 
+          class="tab" 
           :class="{ active: activeTab === 'followers' }"
           @click="activeTab = 'followers'"
         >
@@ -141,6 +148,122 @@
             </div>
           </div>
         </div>
+
+        <div v-if="activeTab === 'achievements'" class="tab-pane">
+          <div v-if="achievementsLoading" class="empty-state">
+            <el-icon class="empty-icon"><Loading /></el-icon>
+            <p>加载中...</p>
+          </div>
+          <div v-else-if="achievements" class="achievements-content">
+            <div class="achievements-overview">
+              <div class="overview-stat">
+                <span class="stat-number">{{ achievements.unlocked_count }}</span>
+                <span class="stat-label">已解锁</span>
+              </div>
+              <div class="overview-stat">
+                <span class="stat-number">{{ achievements.total_count }}</span>
+                <span class="stat-label">成就总数</span>
+              </div>
+              <div class="overview-stat">
+                <span class="stat-number">{{ Math.round(achievements.unlocked_count / achievements.total_count * 100) }}%</span>
+                <span class="stat-label">完成度</span>
+              </div>
+            </div>
+
+            <div class="achievement-category">
+              <h3 class="category-title">
+                <span class="category-icon">📝</span>
+                发布成就
+              </h3>
+              <div class="achievement-grid">
+                <div 
+                  v-for="achievement in achievements.achievements.patch" 
+                  :key="achievement.id" 
+                  class="achievement-item"
+                  :class="{ unlocked: achievement.is_unlocked }"
+                >
+                  <div class="achievement-icon">{{ achievement.icon }}</div>
+                  <div class="achievement-name">{{ achievement.name }}</div>
+                  <div class="achievement-desc">{{ achievement.description }}</div>
+                  <el-progress 
+                    :percentage="achievement.progress_percent" 
+                    :stroke-width="6"
+                    :show-text="false"
+                    :status="achievement.is_unlocked ? 'success' : ''"
+                  />
+                  <div class="achievement-progress-text">
+                    {{ achievement.progress }} / {{ achievement.threshold }}
+                  </div>
+                  <div v-if="achievement.is_unlocked && achievement.unlocked_at" class="unlocked-date">
+                    {{ formatDate(achievement.unlocked_at) }} 解锁
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="achievement-category">
+              <h3 class="category-title">
+                <span class="category-icon">❤️</span>
+                人气成就
+              </h3>
+              <div class="achievement-grid">
+                <div 
+                  v-for="achievement in achievements.achievements.like" 
+                  :key="achievement.id" 
+                  class="achievement-item"
+                  :class="{ unlocked: achievement.is_unlocked }"
+                >
+                  <div class="achievement-icon">{{ achievement.icon }}</div>
+                  <div class="achievement-name">{{ achievement.name }}</div>
+                  <div class="achievement-desc">{{ achievement.description }}</div>
+                  <el-progress 
+                    :percentage="achievement.progress_percent" 
+                    :stroke-width="6"
+                    :show-text="false"
+                    :status="achievement.is_unlocked ? 'success' : ''"
+                  />
+                  <div class="achievement-progress-text">
+                    {{ achievement.progress }} / {{ achievement.threshold }}
+                  </div>
+                  <div v-if="achievement.is_unlocked && achievement.unlocked_at" class="unlocked-date">
+                    {{ formatDate(achievement.unlocked_at) }} 解锁
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="achievement-category">
+              <h3 class="category-title">
+                <span class="category-icon">⭐</span>
+                收藏成就
+              </h3>
+              <div class="achievement-grid">
+                <div 
+                  v-for="achievement in achievements.achievements.favorite" 
+                  :key="achievement.id" 
+                  class="achievement-item"
+                  :class="{ unlocked: achievement.is_unlocked }"
+                >
+                  <div class="achievement-icon">{{ achievement.icon }}</div>
+                  <div class="achievement-name">{{ achievement.name }}</div>
+                  <div class="achievement-desc">{{ achievement.description }}</div>
+                  <el-progress 
+                    :percentage="achievement.progress_percent" 
+                    :stroke-width="6"
+                    :show-text="false"
+                    :status="achievement.is_unlocked ? 'success' : ''"
+                  />
+                  <div class="achievement-progress-text">
+                    {{ achievement.progress }} / {{ achievement.threshold }}
+                  </div>
+                  <div v-if="achievement.is_unlocked && achievement.unlocked_at" class="unlocked-date">
+                    {{ formatDate(achievement.unlocked_at) }} 解锁
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         
         <div v-else-if="activeTab === 'followers'" class="tab-pane">
           <FollowList 
@@ -180,7 +303,7 @@ import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading, Document, Star, User, WarningFilled, View, ChatDotRound } from '@element-plus/icons-vue'
-import { userApi, patchApi, articleApi } from '@/api'
+import { userApi, patchApi, articleApi, achievementApi } from '@/api'
 import { useUserStore } from '@/stores/userStore'
 import PatchCard from '@/components/PatchCard.vue'
 import FollowButton from '@/components/FollowButton.vue'
@@ -199,6 +322,8 @@ const userArticles = ref([])
 const activeTab = ref('patches')
 const reportDialogVisible = ref(false)
 const reportTargetDescription = ref('')
+const achievements = ref(null)
+const achievementsLoading = ref(false)
 
 const isMe = computed(() => userStore.user?.id === parseInt(route.params.id))
 const patchCount = computed(() => userPatches.value.length)
@@ -234,6 +359,11 @@ const fetchUser = async () => {
     
     const articlesRes = await articleApi.getList({ user_id: route.params.id, limit: 20 })
     userArticles.value = articlesRes.list || []
+    
+    if (route.query.tab === 'achievements') {
+      activeTab.value = 'achievements'
+      fetchAchievements()
+    }
   } catch (err) {
     ElMessage.error('获取用户信息失败')
     console.error(err)
@@ -244,6 +374,21 @@ const fetchUser = async () => {
 
 const goToArticle = (article) => {
   router.push(`/articles/${article.id}`)
+}
+
+const fetchAchievements = async () => {
+  if (achievements.value) return
+  
+  try {
+    achievementsLoading.value = true
+    const res = await achievementApi.getUserAchievements(route.params.id)
+    achievements.value = res
+  } catch (err) {
+    ElMessage.error('获取成就数据失败')
+    console.error(err)
+  } finally {
+    achievementsLoading.value = false
+  }
 }
 
 const getStatusText = (status) => {
@@ -257,6 +402,7 @@ const getStatusText = (status) => {
 
 watch(() => route.params.id, () => {
   activeTab.value = 'patches'
+  achievements.value = null
   fetchUser()
 })
 
@@ -494,5 +640,118 @@ onMounted(() => {
 .empty-icon {
   font-size: 48px;
   margin-bottom: 16px;
+}
+
+.achievements-content {
+  animation: fadeIn 0.3s ease;
+}
+
+.achievements-overview {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.overview-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.achievement-category {
+  margin-bottom: 2rem;
+}
+
+.category-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.category-icon {
+  font-size: 1.4rem;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.achievement-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  opacity: 0.5;
+  filter: grayscale(0.5);
+}
+
+.achievement-item.unlocked {
+  opacity: 1;
+  filter: none;
+  background: rgba(255, 215, 0, 0.05);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.achievement-item.unlocked:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.15);
+}
+
+.achievement-item .achievement-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.achievement-item .achievement-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 0.25rem;
+}
+
+.achievement-item .achievement-desc {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.75rem;
+  min-height: 2rem;
+}
+
+.achievement-progress-text {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 0.5rem;
+}
+
+.unlocked-date {
+  font-size: 0.7rem;
+  color: #ffd700;
+  margin-top: 0.5rem;
 }
 </style>

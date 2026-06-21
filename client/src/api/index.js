@@ -524,3 +524,20 @@ export const i18nApi = {
 }
 
 export const i18nAPI = i18nApi
+
+export const achievementApi = {
+  getUserAchievements: (userId) => api.get(`/users/${userId}/achievements`),
+  getMyAchievements: () => api.get('/me/achievements')
+}
+
+export const adminAchievementApi = {
+  getRules: (params) => api.get('/admin/achievements', { params }),
+  createRule: (data) => api.post('/admin/achievements', data),
+  updateRule: (id, data) => api.put(`/admin/achievements/${id}`, data),
+  deleteRule: (id) => api.delete(`/admin/achievements/${id}`),
+  recalculateAll: () => api.post('/admin/achievements/recalculate'),
+  recalculateUser: (userId) => api.post(`/admin/achievements/users/${userId}/recalculate`)
+}
+
+export const achievementAPI = achievementApi
+export const adminAchievementAPI = adminAchievementApi

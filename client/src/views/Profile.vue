@@ -78,6 +78,10 @@
               <el-icon><Tools /></el-icon>
               <span>创作者工作台</span>
             </div>
+            <div class="quick-link" @click="goToAchievements">
+              <el-icon><Trophy /></el-icon>
+              <span>我的成就</span>
+            </div>
           </div>
         </div>
       </el-col>
@@ -159,6 +163,45 @@
               </div>
             </div>
           </div>
+
+          <div class="achievements-section">
+            <div class="section-header-row">
+              <h4 class="subsection-title">
+                <el-icon><Trophy /></el-icon> 我的成就
+              </h4>
+              <span class="view-more" @click="goToAchievements">查看全部 →</span>
+            </div>
+            <div v-if="achievementsLoading" class="achievements-loading">
+              <el-icon class="loading-icon"><Loading /></el-icon>
+              <span>加载中...</span>
+            </div>
+            <div v-else-if="achievements" class="achievements-preview">
+              <div class="achievement-stats-row">
+                <div class="achievement-stat">
+                  <span class="stat-num">{{ achievements.unlocked_count }}</span>
+                  <span class="stat-desc">已解锁</span>
+                </div>
+                <div class="achievement-stat">
+                  <span class="stat-num">{{ achievements.total_count }}</span>
+                  <span class="stat-desc">总成就</span>
+                </div>
+                <div class="achievement-stat">
+                  <span class="stat-num">{{ Math.round(achievements.unlocked_count / achievements.total_count * 100) }}%</span>
+                  <span class="stat-desc">完成度</span>
+                </div>
+              </div>
+              <div class="unlocked-achievements">
+                <div 
+                  v-for="achievement in getAllUnlocked().slice(0, 6)" 
+                  :key="achievement.id" 
+                  class="mini-achievement"
+                  :title="achievement.name"
+                >
+                  <span class="mini-icon">{{ achievement.icon }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </el-col>
     </el-row>
@@ -168,10 +211,10 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Document, Star, Medal, Tools, Folder } from '@element-plus/icons-vue'
+import { Document, Star, Medal, Tools, Folder, Trophy, Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
-import { patchAPI, socialApi, creatorVerificationAPI } from '@/api'
+import { patchAPI, socialApi, creatorVerificationAPI, achievementApi } from '@/api'
 import { useRouter } from 'vue-router'
 import CreatorBadge from '@/components/CreatorBadge.vue'
 
@@ -184,6 +227,8 @@ const saving = ref(false)
 const stats = ref({ patches: 0, drafts: 0, scheduled: 0, likes: 0, favorites: 0 })
 const verificationStatus = ref(null)
 const favoriteFolders = ref([])
+const achievements = ref(null)
+const achievementsLoading = ref(false)
 
 const form = reactive({
   username: '',
@@ -202,6 +247,10 @@ const rules = {
 
 const goToVerification = () => {
   router.push('/creator-verification')
+}
+
+const goToAchievements = () => {
+  router.push(`/users/${userStore.user?.id}?tab=achievements`)
 }
 
 const loadVerificationStatus = async () => {
@@ -226,6 +275,7 @@ onMounted(() => {
   loadStats()
   loadVerificationStatus()
   loadFavoriteFolders()
+  loadAchievements()
 })
 
 const loadFavoriteFolders = async () => {
@@ -274,6 +324,29 @@ const loadStats = async () => {
   } catch (e) {
     console.error(e)
   }
+}
+
+const loadAchievements = async () => {
+  try {
+    achievementsLoading.value = true
+    const res = await achievementApi.getMyAchievements()
+    achievements.value = res
+  } catch (e) {
+    console.error('加载成就数据失败:', e)
+  } finally {
+    achievementsLoading.value = false
+  }
+}
+
+const getAllUnlocked = () => {
+  if (!achievements.value?.achievements) return []
+  const all = []
+  Object.values(achievements.value.achievements).forEach(list => {
+    list.forEach(a => {
+      if (a.is_unlocked) all.push(a)
+    })
+  })
+  return all.sort((a, b) => new Date(b.unlocked_at) - new Date(a.unlocked_at))
 }
 
 const submit = async () => {
@@ -453,5 +526,116 @@ const submit = async () => {
 .folder-count {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.achievements-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-header-row .subsection-title {
+  margin-bottom: 0;
+}
+
+.view-more {
+  font-size: 13px;
+  color: #ffd700;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.view-more:hover {
+  opacity: 0.8;
+}
+
+.achievements-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+
+.loading-icon {
+  animation: spin 1s linear infinite;
+  font-size: 18px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.achievements-preview {
+  background: rgba(255, 215, 0, 0.03);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.achievement-stats-row {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.achievement-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.achievement-stat .stat-num {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.achievement-stat .stat-desc {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.unlocked-achievements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.mini-achievement {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.mini-achievement:hover {
+  transform: scale(1.1);
+  border-color: rgba(255, 215, 0, 0.5);
+  background: rgba(255, 215, 0, 0.1);
+}
+
+.mini-icon {
+  font-size: 1.5rem;
 }
 </style>

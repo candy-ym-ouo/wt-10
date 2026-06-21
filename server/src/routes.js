@@ -28,6 +28,7 @@ const openPlatformController = require('./controllers/openPlatformController');
 const patchLabController = require('./controllers/patchLabController');
 const searchController = require('./controllers/searchController');
 const i18nController = require('./controllers/i18nController');
+const achievementController = require('./controllers/achievementController');
 const { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, getRoleLabel, isStaffRole } = require('./constants/permissions');
 
 const storage = multer.diskStorage({
@@ -69,6 +70,8 @@ router.post('/auth/login', userController.login);
 router.get('/auth/me', requireAuth, userController.currentUser);
 router.put('/auth/profile', requireAuth, userController.updateProfile);
 router.get('/users/:id', userController.profile);
+router.get('/users/:id/achievements', achievementController.getUserAchievements);
+router.get('/me/achievements', requireAuth, achievementController.getMyAchievements);
 
 router.get('/manufacturers', moduleController.getManufacturers);
 router.get('/modules', moduleController.getModules);
@@ -409,6 +412,13 @@ router.get('/admin/search/ad-placements', requirePermission(PERMISSIONS.SEARCH_V
 router.post('/admin/search/ad-placements', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminCreateAdPlacement);
 router.put('/admin/search/ad-placements/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminUpdateAdPlacement);
 router.delete('/admin/search/ad-placements/:id', requirePermission(PERMISSIONS.SEARCH_MANAGE), searchController.adminDeleteAdPlacement);
+
+router.get('/admin/achievements', requirePermission(PERMISSIONS.ACHIEVEMENT_VIEW), achievementController.getAchievementRules);
+router.post('/admin/achievements', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.createAchievementRule);
+router.put('/admin/achievements/:id', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.updateAchievementRule);
+router.delete('/admin/achievements/:id', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.deleteAchievementRule);
+router.post('/admin/achievements/recalculate', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.recalculateAllAchievements);
+router.post('/admin/achievements/users/:id/recalculate', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.recalculateUserAchievements);
 
 router.get('/admin/roles', requireAdmin, async (ctx) => {
   ctx.body = {
