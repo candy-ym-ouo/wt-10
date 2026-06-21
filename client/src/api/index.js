@@ -52,7 +52,9 @@ export const authApi = {
 }
 
 export const userApi = {
-  getById: (id) => api.get(`/users/${id}`)
+  getById: (id) => api.get(`/users/${id}`),
+  getPrivacySettings: () => api.get('/me/privacy-settings'),
+  updatePrivacySettings: (data) => api.put('/me/privacy-settings', data)
 }
 
 export const patchApi = {

@@ -35,8 +35,15 @@
             </el-button>
           </div>
           <p class="bio">{{ user.bio || '这个人很懒，什么都没写~' }}</p>
+          <p v-if="canViewEmail && user.email" class="profile-email">
+            <el-icon><Message /></el-icon> {{ user.email }}
+          </p>
           <div class="stats">
-            <span class="stat-item" @click="activeTab = 'patches'">
+            <span 
+              class="stat-item" 
+              :class="{ 'stat-disabled': !canViewPatches }"
+              @click="canViewPatches && (activeTab = 'patches')"
+            >
               <strong>{{ user.total_patches || patchCount }}</strong>
               <span>Patch</span>
             </span>
@@ -56,7 +63,7 @@
               <strong>{{ user.total_likes || 0 }}</strong>
               <span>获赞</span>
             </span>
-            <span class="stat-item">
+            <span class="stat-item" :class="{ 'stat-disabled': !canViewFavorites }">
               <strong>{{ user.total_favorites || 0 }}</strong>
               <span>被收藏</span>
             </span>
@@ -67,8 +74,8 @@
       <div class="tabs">
         <div 
           class="tab" 
-          :class="{ active: activeTab === 'patches' }"
-          @click="activeTab = 'patches'"
+          :class="{ active: activeTab === 'patches', disabled: !canViewPatches }"
+          @click="canViewPatches && (activeTab = 'patches')"
         >
           发布的 Patch
         </div>
@@ -104,7 +111,12 @@
 
       <div class="tab-content">
         <div v-if="activeTab === 'patches'" class="tab-pane">
-          <div v-if="userPatches.length === 0" class="empty-state">
+          <div v-if="!canViewPatches" class="empty-state privacy-locked">
+            <el-icon class="empty-icon"><Lock /></el-icon>
+            <p>该用户的 Patch 列表已设为私密</p>
+            <p class="privacy-hint">关注用户后可查看</p>
+          </div>
+          <div v-else-if="userPatches.length === 0" class="empty-state">
             <el-icon class="empty-icon"><Document /></el-icon>
             <p>暂无发布的 Patch</p>
           </div>
@@ -306,7 +318,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Loading, Document, Star, User, WarningFilled, View, ChatDotRound } from '@element-plus/icons-vue'
+import { Loading, Document, Star, User, WarningFilled, View, ChatDotRound, Lock, Message } from '@element-plus/icons-vue'
 import { userApi, patchApi, articleApi, achievementApi } from '@/api'
 import { useUserStore } from '@/stores/userStore'
 import PatchCard from '@/components/PatchCard.vue'
@@ -332,6 +344,21 @@ const achievementsLoading = ref(false)
 const isMe = computed(() => userStore.user?.id === parseInt(route.params.id))
 const patchCount = computed(() => userPatches.value.length)
 const articleCount = computed(() => userArticles.value.length)
+
+const canViewPatches = computed(() => {
+  if (isMe.value) return true
+  return user.value?.privacy_settings?.patches_visible !== false
+})
+
+const canViewFavorites = computed(() => {
+  if (isMe.value) return true
+  return user.value?.privacy_settings?.favorites_visible !== false
+})
+
+const canViewEmail = computed(() => {
+  if (isMe.value) return true
+  return user.value?.privacy_settings?.email_visible !== false
+})
 
 const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleDateString('zh-CN')
@@ -409,6 +436,12 @@ watch(() => route.params.id, () => {
   fetchUser()
 })
 
+watch(canViewPatches, (newVal) => {
+  if (!newVal && activeTab.value === 'patches') {
+    activeTab.value = 'articles'
+  }
+})
+
 onMounted(() => {
   fetchUser()
 })
@@ -460,6 +493,15 @@ onMounted(() => {
   line-height: 1.6;
 }
 
+.profile-email {
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .stats {
   display: flex;
   gap: 2rem;
@@ -484,6 +526,15 @@ onMounted(() => {
   color: #fff;
   font-size: 1.2rem;
   font-weight: 700;
+}
+
+.stat-item.stat-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.stat-item.stat-disabled:hover {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .tabs {
@@ -512,6 +563,15 @@ onMounted(() => {
 .tab.active {
   color: #ffd700;
   border-bottom-color: #ffd700;
+}
+
+.tab.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.tab.disabled:hover {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .tab-content {
@@ -643,6 +703,23 @@ onMounted(() => {
 .empty-icon {
   font-size: 48px;
   margin-bottom: 16px;
+}
+
+.privacy-locked {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.privacy-locked .empty-icon {
+  color: #ffd700;
+  opacity: 0.6;
+}
+
+.privacy-hint {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 8px;
 }
 
 .achievements-content {

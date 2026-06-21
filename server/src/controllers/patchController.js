@@ -1,5 +1,6 @@
 const db = require('../db');
 const { recordPatchView } = require('./patchStatsController');
+const { canViewContent } = require('./userController');
 
 const hasDuplicateTags = (tags) => {
   if (!tags || tags.length === 0) return false;
@@ -205,6 +206,22 @@ exports.getPatches = async (ctx) => {
   const userRole = ctx.state.user?.role;
 
   const isViewingOwn = user_id && parseInt(user_id) === userId;
+  
+  if (user_id && !isViewingOwn && userRole !== 'admin') {
+    const targetUser = db.prepare(`
+      SELECT privacy_patches FROM users WHERE id = ?
+    `).get(parseInt(user_id));
+    
+    if (targetUser && !canViewContent(targetUser.privacy_patches, parseInt(user_id), userId)) {
+      ctx.body = {
+        list: [],
+        total: 0,
+        page: parseInt(page),
+        limit: parseInt(limit)
+      };
+      return;
+    }
+  }
   
   if (status && userRole === 'admin') {
     where.push('p.status = ?');

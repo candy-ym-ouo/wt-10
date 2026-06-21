@@ -118,6 +118,50 @@
         </div>
 
         <div class="card" style="margin-top: 24px;">
+          <h3 class="section-title">
+            <el-icon><Lock /></el-icon> 隐私设置
+          </h3>
+          <div class="privacy-settings">
+            <div class="privacy-item">
+              <div class="privacy-item-header">
+                <span class="privacy-item-title">邮箱可见性</span>
+                <span class="privacy-item-desc">控制谁可以看到你的邮箱地址</span>
+              </div>
+              <el-radio-group v-model="privacySettings.privacy_email" size="default">
+                <el-radio-button v-for="opt in privacyOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </el-radio-button>
+              </el-radio-group>
+            </div>
+            <div class="privacy-item">
+              <div class="privacy-item-header">
+                <span class="privacy-item-title">收藏夹可见性</span>
+                <span class="privacy-item-desc">控制谁可以看到你的收藏夹和被收藏统计</span>
+              </div>
+              <el-radio-group v-model="privacySettings.privacy_favorites" size="default">
+                <el-radio-button v-for="opt in privacyOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </el-radio-button>
+              </el-radio-group>
+            </div>
+            <div class="privacy-item">
+              <div class="privacy-item-header">
+                <span class="privacy-item-title">已发布 Patch 可见性</span>
+                <span class="privacy-item-desc">控制谁可以看到你发布的 Patch 列表</span>
+              </div>
+              <el-radio-group v-model="privacySettings.privacy_patches" size="default">
+                <el-radio-button v-for="opt in privacyOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </el-radio-button>
+              </el-radio-group>
+            </div>
+            <el-button type="primary" class="btn-primary" @click="savePrivacySettings" :loading="privacySaving">
+              保存隐私设置
+            </el-button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 24px;">
           <h3 class="section-title">数据统计</h3>
           <div class="stats-grid" style="grid-template-columns: repeat(6, 1fr);">
             <div class="stat-card" @click="router.push('/my-patches?tab=published')" style="cursor: pointer;">
@@ -215,10 +259,10 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Document, Star, Medal, Tools, Folder, Trophy, Loading } from '@element-plus/icons-vue'
+import { Document, Star, Medal, Tools, Folder, Trophy, Loading, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
-import { socialApi, creatorVerificationAPI, achievementApi } from '@/api'
+import { socialApi, creatorVerificationAPI, achievementApi, userApi } from '@/api'
 import { useRouter } from 'vue-router'
 import CreatorBadge from '@/components/CreatorBadge.vue'
 
@@ -233,6 +277,18 @@ const verificationStatus = ref(null)
 const favoriteFolders = ref([])
 const achievements = ref(null)
 const achievementsLoading = ref(false)
+const privacySaving = ref(false)
+const privacySettings = reactive({
+  privacy_email: 'public',
+  privacy_favorites: 'public',
+  privacy_patches: 'public'
+})
+
+const privacyOptions = [
+  { value: 'public', label: '公开', desc: '所有人可见' },
+  { value: 'followers', label: '仅粉丝', desc: '仅关注你的人可见' },
+  { value: 'private', label: '仅自己', desc: '只有你自己可见' }
+]
 
 const form = reactive({
   username: '',
@@ -269,6 +325,29 @@ const loadVerificationStatus = async () => {
   }
 }
 
+const loadPrivacySettings = async () => {
+  try {
+    const res = await userApi.getPrivacySettings()
+    privacySettings.privacy_email = res.privacy_email || 'public'
+    privacySettings.privacy_favorites = res.privacy_favorites || 'public'
+    privacySettings.privacy_patches = res.privacy_patches || 'public'
+  } catch (e) {
+    console.error('加载隐私设置失败:', e)
+  }
+}
+
+const savePrivacySettings = async () => {
+  try {
+    privacySaving.value = true
+    await userApi.updatePrivacySettings(privacySettings)
+    ElMessage.success('隐私设置已保存')
+  } catch (e) {
+    ElMessage.error(e.error || '保存失败')
+  } finally {
+    privacySaving.value = false
+  }
+}
+
 onMounted(() => {
   if (userStore.user) {
     form.username = userStore.user.username
@@ -280,6 +359,7 @@ onMounted(() => {
   loadVerificationStatus()
   loadFavoriteFolders()
   loadAchievements()
+  loadPrivacySettings()
 })
 
 const loadFavoriteFolders = async () => {
@@ -446,6 +526,50 @@ const submit = async () => {
 
 :deep(.el-form-item__label) {
   color: rgba(255, 255, 255, 0.7);
+}
+
+.privacy-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.privacy-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.privacy-item:hover {
+  border-color: rgba(255, 215, 0, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.privacy-item-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.privacy-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.privacy-item-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.section-title .el-icon {
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 .favorite-folders-section {

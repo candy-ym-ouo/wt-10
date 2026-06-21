@@ -73,6 +73,8 @@ router.put('/auth/profile', requireAuth, userController.updateProfile);
 router.get('/users/:id', userController.profile);
 router.get('/users/:id/achievements', achievementController.getUserAchievements);
 router.get('/me/achievements', requireAuth, achievementController.getMyAchievements);
+router.get('/me/privacy-settings', requireAuth, userController.getPrivacySettings);
+router.put('/me/privacy-settings', requireAuth, userController.updatePrivacySettings);
 
 router.get('/manufacturers', moduleController.getManufacturers);
 router.get('/modules', moduleController.getModules);

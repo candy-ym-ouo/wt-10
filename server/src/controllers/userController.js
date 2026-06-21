@@ -109,7 +109,8 @@ exports.profile = async (ctx) => {
   
   const user = db.prepare(`
     SELECT id, username, email, avatar, bio, created_at, followers_count, following_count,
-           is_creator_verified, creator_verified_at, total_patches, total_likes, total_favorites
+           is_creator_verified, creator_verified_at, total_patches, total_likes, total_favorites,
+           privacy_email, privacy_favorites, privacy_patches
     FROM users WHERE id = ?
   `).get(userId);
 
@@ -119,25 +120,47 @@ exports.profile = async (ctx) => {
     return;
   }
 
-  const patches = db.prepare(`
-    SELECT p.*, COUNT(l.id) as likes_count,
-           EXISTS(SELECT 1 FROM likes WHERE user_id = ? AND patch_id = p.id) as is_liked,
-           EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited
-    FROM patches p
-    LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE p.user_id = ? AND p.is_public = 1
-    GROUP BY p.id
-    ORDER BY p.created_at DESC
-  `).all(currentUserId || 0, currentUserId || 0, userId);
+  const isOwner = currentUserId && currentUserId === userId;
+  const canViewEmail = isOwner || canViewContent(user.privacy_email, userId, currentUserId);
+  const canViewPatches = isOwner || canViewContent(user.privacy_patches, userId, currentUserId);
+  const canViewFavorites = isOwner || canViewContent(user.privacy_favorites, userId, currentUserId);
+
+  if (!canViewEmail) {
+    delete user.email;
+  }
+
+  let patches = [];
+  if (canViewPatches) {
+    patches = db.prepare(`
+      SELECT p.*, COUNT(l.id) as likes_count,
+             EXISTS(SELECT 1 FROM likes WHERE user_id = ? AND patch_id = p.id) as is_liked,
+             EXISTS(SELECT 1 FROM favorites WHERE user_id = ? AND patch_id = p.id) as is_favorited
+      FROM patches p
+      LEFT JOIN likes l ON p.id = l.patch_id
+      WHERE p.user_id = ? AND p.is_public = 1
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `).all(currentUserId || 0, currentUserId || 0, userId);
+  }
 
   const isFollowing = currentUserId ? db.prepare(`
     SELECT 1 FROM follows WHERE follower_id = ? AND following_id = ?
   `).get(currentUserId, userId) : null;
 
+  const visibleTotalPatches = canViewPatches ? user.total_patches : 0;
+  const visibleTotalFavorites = canViewFavorites ? user.total_favorites : 0;
+
   ctx.body = { 
     ...user, 
+    total_patches: visibleTotalPatches,
+    total_favorites: visibleTotalFavorites,
     patches, 
-    is_following: !!isFollowing 
+    is_following: !!isFollowing,
+    privacy_settings: {
+      email_visible: canViewEmail,
+      patches_visible: canViewPatches,
+      favorites_visible: canViewFavorites
+    }
   };
 };
 
@@ -163,3 +186,108 @@ exports.updateProfile = async (ctx) => {
 exports.currentUser = async (ctx) => {
   ctx.body = ctx.state.user;
 };
+
+const PRIVACY_LEVELS = {
+  PUBLIC: 'public',
+  FOLLOWERS: 'followers',
+  PRIVATE: 'private'
+};
+
+const isValidPrivacyLevel = (level) => {
+  return Object.values(PRIVACY_LEVELS).includes(level);
+};
+
+const canViewContent = (privacySetting, ownerId, currentUserId) => {
+  if (!privacySetting || privacySetting === PRIVACY_LEVELS.PUBLIC) {
+    return true;
+  }
+  if (!currentUserId) {
+    return false;
+  }
+  if (currentUserId === ownerId) {
+    return true;
+  }
+  if (privacySetting === PRIVACY_LEVELS.FOLLOWERS) {
+    const isFollowing = db.prepare(`
+      SELECT 1 FROM follows WHERE follower_id = ? AND following_id = ?
+    `).get(currentUserId, ownerId);
+    return !!isFollowing;
+  }
+  if (privacySetting === PRIVACY_LEVELS.PRIVATE) {
+    return false;
+  }
+  return true;
+};
+
+exports.getPrivacySettings = async (ctx) => {
+  const userId = ctx.state.user.id;
+
+  const user = db.prepare(`
+    SELECT privacy_email, privacy_favorites, privacy_patches
+    FROM users WHERE id = ?
+  `).get(userId);
+
+  ctx.body = {
+    privacy_email: user?.privacy_email || PRIVACY_LEVELS.PUBLIC,
+    privacy_favorites: user?.privacy_favorites || PRIVACY_LEVELS.PUBLIC,
+    privacy_patches: user?.privacy_patches || PRIVACY_LEVELS.PUBLIC
+  };
+};
+
+exports.updatePrivacySettings = async (ctx) => {
+  const { privacy_email, privacy_favorites, privacy_patches } = ctx.request.body;
+  const userId = ctx.state.user.id;
+
+  const updates = {};
+  if (privacy_email !== undefined) {
+    if (!isValidPrivacyLevel(privacy_email)) {
+      ctx.status = 400;
+      ctx.body = { error: '邮箱隐私设置值无效' };
+      return;
+    }
+    updates.privacy_email = privacy_email;
+  }
+  if (privacy_favorites !== undefined) {
+    if (!isValidPrivacyLevel(privacy_favorites)) {
+      ctx.status = 400;
+      ctx.body = { error: '收藏夹隐私设置值无效' };
+      return;
+    }
+    updates.privacy_favorites = privacy_favorites;
+  }
+  if (privacy_patches !== undefined) {
+    if (!isValidPrivacyLevel(privacy_patches)) {
+      ctx.status = 400;
+      ctx.body = { error: 'Patch 隐私设置值无效' };
+      return;
+    }
+    updates.privacy_patches = privacy_patches;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    ctx.status = 400;
+    ctx.body = { error: '没有提供要更新的设置' };
+    return;
+  }
+
+  const setClauses = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+  const values = Object.values(updates);
+  values.push(userId);
+
+  const stmt = db.prepare(`
+    UPDATE users 
+    SET ${setClauses}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+  stmt.run(...values);
+
+  const user = db.prepare(`
+    SELECT privacy_email, privacy_favorites, privacy_patches
+    FROM users WHERE id = ?
+  `).get(userId);
+
+  ctx.body = user;
+};
+
+exports.PRIVACY_LEVELS = PRIVACY_LEVELS;
+exports.canViewContent = canViewContent;
