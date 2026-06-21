@@ -26,7 +26,7 @@
           />
         </el-form-item>
 
-        <el-form-item label="标签">
+        <el-form-item label="标签" prop="tags">
           <el-select
             v-model="form.tags"
             multiple
@@ -38,7 +38,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="使用模块">
+        <el-form-item label="使用模块" prop="modules_used">
           <div class="modules-input-wrapper">
             <el-select
               v-model="form.modules_used"
@@ -558,8 +558,84 @@ const form = reactive({
   parameters: {}
 })
 
+const hasDuplicateTags = (tags) => {
+  const seen = new Set()
+  for (const tag of tags) {
+    const normalized = String(tag).trim().toLowerCase()
+    if (seen.has(normalized)) {
+      return true
+    }
+    seen.add(normalized)
+  }
+  return false
+}
+
+const getEmptyParams = () => {
+  const emptyParams = []
+  for (const moduleId of form.modules_used) {
+    const params = moduleParamsList.value[moduleId] || []
+    const moduleParams = form.parameters[String(moduleId)] || {}
+    for (const param of params) {
+      const value = moduleParams[param.name]
+      if (value === null || value === undefined || value === '') {
+        emptyParams.push({
+          moduleId,
+          moduleName: getModuleName(moduleId),
+          paramName: param.label || param.name
+        })
+      }
+    }
+  }
+  return emptyParams
+}
+
+const validateBeforePublish = () => {
+  if (!form.modules_used || form.modules_used.length === 0) {
+    ElMessage.error('请至少选择一个使用的模块')
+    return false
+  }
+
+  if (form.tags && hasDuplicateTags(form.tags)) {
+    ElMessage.error('存在重复的标签，请去除重复项')
+    return false
+  }
+
+  const emptyParams = getEmptyParams()
+  if (emptyParams.length > 0) {
+    const firstEmpty = emptyParams[0]
+    ElMessage.error(`模块 "${firstEmpty.moduleName}" 的参数 "${firstEmpty.paramName}" 为空，请填写完整`)
+    return false
+  }
+
+  return true
+}
+
 const rules = {
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+  modules_used: [
+    {
+      validator: (rule, value, callback) => {
+        if (!value || value.length === 0) {
+          callback(new Error('请至少选择一个使用的模块'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
+  ],
+  tags: [
+    {
+      validator: (rule, value, callback) => {
+        if (value && hasDuplicateTags(value)) {
+          callback(new Error('存在重复的标签'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
+  ],
   price: [
     { 
       validator: (rule, value, callback) => {
@@ -631,6 +707,7 @@ onMounted(async () => {
 const submit = async () => {
   try {
     await formRef.value.validate()
+    if (!validateBeforePublish()) return
     saving.value = true
     const data = { ...form, status: 'approved' }
     await patchStore.updatePatch(route.params.id, data)
@@ -668,6 +745,7 @@ const schedulePublish = async () => {
       ElMessage.warning('请选择发布时间')
       return
     }
+    if (!validateBeforePublish()) return
     scheduling.value = true
     const data = { ...form, status: 'scheduled', scheduled_at: form.scheduled_at }
     await patchStore.updatePatch(route.params.id, data)

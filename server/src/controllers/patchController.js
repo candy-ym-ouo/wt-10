@@ -1,6 +1,59 @@
 const db = require('../db');
 const { recordPatchView } = require('./patchStatsController');
 
+const hasDuplicateTags = (tags) => {
+  if (!tags || tags.length === 0) return false;
+  const seen = new Set();
+  for (const tag of tags) {
+    const normalized = String(tag).trim().toLowerCase();
+    if (seen.has(normalized)) {
+      return true;
+    }
+    seen.add(normalized);
+  }
+  return false;
+};
+
+const validatePatchData = (modulesUsed, parameters, tags, isDraft = false) => {
+  if (isDraft) {
+    return { valid: true };
+  }
+
+  if (!modulesUsed || modulesUsed.length === 0) {
+    return { valid: false, error: '请至少选择一个使用的模块' };
+  }
+
+  if (tags && hasDuplicateTags(tags)) {
+    return { valid: false, error: '存在重复的标签，请去除重复项' };
+  }
+
+  const paramsObj = parameters || {};
+  for (const moduleId of modulesUsed) {
+    const mid = String(moduleId);
+    const moduleParams = db.prepare(
+      'SELECT id, name, label FROM module_parameters WHERE module_id = ? ORDER BY sort_order'
+    ).all(moduleId);
+
+    if (moduleParams.length > 0) {
+      const patchModuleParams = paramsObj[mid] || {};
+      for (const param of moduleParams) {
+        const value = patchModuleParams[param.name];
+        if (value === null || value === undefined || value === '') {
+          const module = db.prepare('SELECT name FROM modules WHERE id = ?').get(moduleId);
+          const moduleName = module ? module.name : `模块 #${moduleId}`;
+          const paramName = param.label || param.name;
+          return {
+            valid: false,
+            error: `模块 "${moduleName}" 的参数 "${paramName}" 为空，请填写完整`
+          };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+};
+
 const VERSION_FIELDS = [
   'title', 'description', 'modules_used', 'parameters', 'cables',
   'audio_url', 'image_url', 'patch_file', 'tags', 'is_public',
@@ -348,6 +401,14 @@ exports.createPatch = async (ctx) => {
     return;
   }
 
+  const isDraft = status === 'draft';
+  const validation = validatePatchData(modules_used, parameters, tags, isDraft);
+  if (!validation.valid) {
+    ctx.status = 400;
+    ctx.body = { error: validation.error };
+    return;
+  }
+
   const validStatuses = ['draft', 'pending', 'approved', 'scheduled', 'rejected'];
   let patchStatus = status || 'approved';
   if (!validStatuses.includes(patchStatus)) {
@@ -463,6 +524,28 @@ exports.updatePatch = async (ctx) => {
   if (patchStatus !== undefined && !validStatuses.includes(patchStatus)) {
     ctx.status = 400;
     ctx.body = { error: '无效的状态值' };
+    return;
+  }
+
+  const finalStatus = patchStatus !== undefined ? patchStatus : oldPatch.status;
+  const isDraft = finalStatus === 'draft';
+  
+  const finalModulesUsed = modules_used !== undefined 
+    ? modules_used 
+    : (oldPatch.modules_used ? JSON.parse(oldPatch.modules_used) : []);
+  
+  const finalParameters = parameters !== undefined 
+    ? parameters 
+    : (oldPatch.parameters ? JSON.parse(oldPatch.parameters) : {});
+  
+  const finalTags = tags !== undefined 
+    ? tags 
+    : (oldPatch.tags ? JSON.parse(oldPatch.tags) : []);
+
+  const validation = validatePatchData(finalModulesUsed, finalParameters, finalTags, isDraft);
+  if (!validation.valid) {
+    ctx.status = 400;
+    ctx.body = { error: validation.error };
     return;
   }
 
