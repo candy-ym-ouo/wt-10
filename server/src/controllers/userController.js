@@ -109,7 +109,7 @@ exports.profile = async (ctx) => {
   
   const user = db.prepare(`
     SELECT id, username, email, avatar, bio, created_at, followers_count, following_count,
-           is_creator_verified, creator_verified_at
+           is_creator_verified, creator_verified_at, total_patches, total_likes, total_favorites
     FROM users WHERE id = ?
   `).get(userId);
 

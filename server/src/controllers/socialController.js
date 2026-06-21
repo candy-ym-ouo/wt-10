@@ -149,11 +149,17 @@ exports.getCreatorStats = async (ctx) => {
   const likesStats = db.prepare(`
     SELECT COALESCE(SUM(likes_count), 0) as total_likes
     FROM patches 
-    WHERE user_id = ?
+    WHERE user_id = ? AND status = 'approved' AND is_public = 1
   `).get(userId);
 
   const favoritesStats = db.prepare(`
-    SELECT COUNT(*) as total_favorites
+    SELECT COALESCE(SUM(favorites_count), 0) as total_favorites
+    FROM patches 
+    WHERE user_id = ? AND status = 'approved' AND is_public = 1
+  `).get(userId);
+
+  const myFavoritesStats = db.prepare(`
+    SELECT COUNT(*) as my_favorites_count
     FROM favorites 
     WHERE user_id = ?
   `).get(userId);
@@ -174,6 +180,7 @@ exports.getCreatorStats = async (ctx) => {
     totalViews: patchesStats.total_views || 0,
     totalLikes: likesStats.total_likes || 0,
     totalFavorites: favoritesStats.total_favorites || 0,
+    myFavoritesCount: myFavoritesStats.my_favorites_count || 0,
     unreadNotifications: unreadCount.unread_count || 0
   };
 };
@@ -790,41 +797,6 @@ exports.toggleLike = async (ctx) => {
   }
 };
 
-exports.toggleFavorite = async (ctx) => {
-  const patchId = parseInt(ctx.params.id);
-  const userId = ctx.state.user.id;
-  const { folder = 'default' } = ctx.request.body;
-
-  const patch = db.prepare('SELECT user_id, title FROM patches WHERE id = ?').get(patchId);
-  if (!patch) {
-    ctx.status = 404;
-    ctx.body = { error: 'Patch 不存在' };
-    return;
-  }
-
-  const existing = db.prepare('SELECT * FROM favorites WHERE user_id = ? AND patch_id = ?').get(userId, patchId);
-
-  if (existing) {
-    db.prepare('DELETE FROM favorites WHERE id = ?').run(existing.id);
-    ctx.body = { favorited: false };
-  } else {
-    db.prepare('INSERT INTO favorites (user_id, patch_id, folder) VALUES (?, ?, ?)').run(userId, patchId, folder);
-    
-    if (patch.user_id !== userId) {
-      const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
-      createNotification(
-        patch.user_id,
-        'favorite',
-        userId,
-        patchId,
-        `${user?.username || '用户'} 收藏了你的 Patch "${patch.title}"`
-      );
-    }
-    
-    ctx.body = { favorited: true };
-  }
-};
-
 exports.comparePatches = async (ctx) => {
   const { ids } = ctx.query;
   const patchIds = ids ? ids.split(',').map(Number) : [];
@@ -1290,7 +1262,13 @@ exports.batchDeleteFavorites = async (ctx) => {
   const result = db.prepare(`
     DELETE FROM favorites WHERE user_id = ? AND patch_id IN (${placeholders})
   `).run(...params);
-  
+
+  if (result.changes > 0) {
+    patch_ids.forEach(pid => {
+      db.prepare('UPDATE patches SET favorites_count = MAX(0, favorites_count - 1) WHERE id = ?').run(Number(pid));
+    });
+  }
+
   ctx.body = { success: true, deleted_count: result.changes };
 };
 
@@ -1310,6 +1288,7 @@ exports.toggleFavorite = async (ctx) => {
   
   if (existing) {
     db.prepare('DELETE FROM favorites WHERE id = ?').run(existing.id);
+    db.prepare('UPDATE patches SET favorites_count = MAX(0, favorites_count - 1) WHERE id = ?').run(patchId);
     ctx.body = { favorited: false };
   } else {
     let folderIdToSet = null;
@@ -1358,6 +1337,8 @@ exports.toggleFavorite = async (ctx) => {
       INSERT INTO favorites (user_id, patch_id, folder, folder_id) 
       VALUES (?, ?, ?, ?)
     `).run(userId, patchId, folderName, folderIdToSet);
+    
+    db.prepare('UPDATE patches SET favorites_count = favorites_count + 1 WHERE id = ?').run(patchId);
     
     if (patch.user_id !== userId) {
       const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);

@@ -119,7 +119,7 @@
 
         <div class="card" style="margin-top: 24px;">
           <h3 class="section-title">数据统计</h3>
-          <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+          <div class="stats-grid" style="grid-template-columns: repeat(6, 1fr);">
             <div class="stat-card" @click="router.push('/my-patches?tab=published')" style="cursor: pointer;">
               <div class="stat-value">{{ stats.patches }}</div>
               <div class="stat-label">🚀 已发布</div>
@@ -134,11 +134,15 @@
             </div>
             <div class="stat-card">
               <div class="stat-value">{{ stats.likes }}</div>
-              <div class="stat-label">获得的点赞</div>
+              <div class="stat-label">❤️ 获得的点赞</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ stats.beingFavorited }}</div>
+              <div class="stat-label">⭐ 被收藏次数</div>
             </div>
             <div class="stat-card" @click="router.push('/favorites')" style="cursor: pointer;">
-              <div class="stat-value">{{ stats.favorites }}</div>
-              <div class="stat-label">收藏的 Patch</div>
+              <div class="stat-value">{{ stats.myFavorites }}</div>
+              <div class="stat-label">📌 我收藏的</div>
             </div>
           </div>
 
@@ -214,7 +218,7 @@ import { ElMessage } from 'element-plus'
 import { Document, Star, Medal, Tools, Folder, Trophy, Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { usePatchStore } from '@/stores/patchStore'
-import { patchAPI, socialApi, creatorVerificationAPI, achievementApi } from '@/api'
+import { socialApi, creatorVerificationAPI, achievementApi } from '@/api'
 import { useRouter } from 'vue-router'
 import CreatorBadge from '@/components/CreatorBadge.vue'
 
@@ -224,7 +228,7 @@ const router = useRouter()
 
 const formRef = ref()
 const saving = ref(false)
-const stats = ref({ patches: 0, drafts: 0, scheduled: 0, likes: 0, favorites: 0 })
+const stats = ref({ patches: 0, drafts: 0, scheduled: 0, likes: 0, beingFavorited: 0, myFavorites: 0 })
 const verificationStatus = ref(null)
 const favoriteFolders = ref([])
 const achievements = ref(null)
@@ -301,25 +305,19 @@ const goToFolder = (folderId) => {
 
 const loadStats = async () => {
   try {
-    const [myPatches, favorites, myDrafts, myScheduled] = await Promise.all([
-      patchAPI.getList({ user_id: userStore.user?.id, limit: 1 }),
-      socialApi.getMyFavorites({ limit: 1 }),
+    const [creatorStats, myDrafts, myScheduled] = await Promise.all([
+      socialApi.getCreatorStats(),
       socialApi.getMyDrafts({ limit: 1 }).catch(() => ({ total: 0 })),
       socialApi.getMyScheduled({ limit: 1 }).catch(() => ({ total: 0 }))
     ])
-    
-    let totalLikes = 0
-    if (myPatches.list && myPatches.list.length > 0) {
-      const allPatches = await patchAPI.getList({ user_id: userStore.user?.id, limit: 100 })
-      totalLikes = allPatches.list.reduce((sum, p) => sum + (p.likes_count || 0), 0)
-    }
 
     stats.value = {
-      patches: myPatches.total || 0,
-      drafts: myDrafts.total || 0,
-      scheduled: myScheduled.total || 0,
-      likes: totalLikes,
-      favorites: favorites.total || 0
+      patches: creatorStats.publishedPatches || 0,
+      drafts: myDrafts.total || creatorStats.totalDrafts || 0,
+      scheduled: myScheduled.total || creatorStats.totalScheduled || 0,
+      likes: creatorStats.totalLikes || 0,
+      beingFavorited: creatorStats.totalFavorites || 0,
+      myFavorites: creatorStats.myFavoritesCount || 0
     }
   } catch (e) {
     console.error(e)

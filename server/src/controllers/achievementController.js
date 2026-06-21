@@ -262,6 +262,21 @@ exports.deleteAchievementRule = async (ctx) => {
 };
 
 exports.recalculateAllAchievements = async (ctx) => {
+  const patchRows = db.prepare('SELECT id, favorites_count FROM patches').all();
+  const fixStmt = db.prepare(`
+    UPDATE patches SET favorites_count = (
+      SELECT COUNT(*) FROM favorites WHERE patch_id = ?
+    ) WHERE id = ?
+  `);
+  let fixedCount = 0;
+  patchRows.forEach(row => {
+    const realCount = db.prepare('SELECT COUNT(*) as cnt FROM favorites WHERE patch_id = ?').get(row.id).cnt;
+    if (row.favorites_count !== realCount) {
+      fixStmt.run(row.id, row.id);
+      fixedCount++;
+    }
+  });
+
   const users = db.prepare('SELECT id FROM users').all();
   
   let updatedCount = 0;
@@ -272,7 +287,8 @@ exports.recalculateAllAchievements = async (ctx) => {
 
   ctx.body = {
     message: '统计完成',
-    updated_users: updatedCount
+    updated_users: updatedCount,
+    fixed_favorites_count: fixedCount
   };
 };
 

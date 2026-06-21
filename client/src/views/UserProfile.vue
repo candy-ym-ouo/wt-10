@@ -37,7 +37,7 @@
           <p class="bio">{{ user.bio || '这个人很懒，什么都没写~' }}</p>
           <div class="stats">
             <span class="stat-item" @click="activeTab = 'patches'">
-              <strong>{{ patchCount }}</strong>
+              <strong>{{ user.total_patches || patchCount }}</strong>
               <span>Patch</span>
             </span>
             <span class="stat-item" @click="activeTab = 'articles'">
@@ -53,8 +53,12 @@
               <span>关注</span>
             </span>
             <span class="stat-item">
-              <el-icon><Star /></el-icon>
-              <span>{{ favoriteCount }} 收藏</span>
+              <strong>{{ user.total_likes || 0 }}</strong>
+              <span>获赞</span>
+            </span>
+            <span class="stat-item">
+              <strong>{{ user.total_favorites || 0 }}</strong>
+              <span>被收藏</span>
             </span>
           </div>
         </div>
@@ -328,7 +332,6 @@ const achievementsLoading = ref(false)
 const isMe = computed(() => userStore.user?.id === parseInt(route.params.id))
 const patchCount = computed(() => userPatches.value.length)
 const articleCount = computed(() => userArticles.value.length)
-const favoriteCount = computed(() => user.value?.favorites_count || 0)
 
 const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleDateString('zh-CN')

@@ -1092,6 +1092,42 @@ setInterval(processScheduledPatches, 60 * 1000);
 console.log('定时发布调度器已启动（每分钟检查一次）');
 setTimeout(processScheduledPatches, 5000);
 
+const { updateUserAchievements, calculateUserStats } = require('./controllers/achievementController');
+
+const recalcAchievementStats = () => {
+  try {
+    const patchRows = db.prepare('SELECT id, favorites_count FROM patches').all();
+    const fixStmt = db.prepare(`
+      UPDATE patches SET favorites_count = (
+        SELECT COUNT(*) FROM favorites WHERE patch_id = ?
+      ) WHERE id = ?
+    `);
+    let fixedCount = 0;
+    patchRows.forEach(row => {
+      const realCount = db.prepare('SELECT COUNT(*) as cnt FROM favorites WHERE patch_id = ?').get(row.id).cnt;
+      if (row.favorites_count !== realCount) {
+        fixStmt.run(row.id, row.id);
+        fixedCount++;
+      }
+    });
+    if (fixedCount > 0) {
+      console.log(`[成就统计] 修正了 ${fixedCount} 个 Patch 的收藏计数`);
+    }
+
+    const users = db.prepare('SELECT id FROM users').all();
+    users.forEach(user => {
+      updateUserAchievements(user.id);
+    });
+    console.log(`[成就统计] 已更新 ${users.length} 个用户的成就数据`);
+  } catch (e) {
+    console.error('[成就统计] 计算失败:', e);
+  }
+};
+
+setInterval(recalcAchievementStats, 30 * 60 * 1000);
+console.log('成就统计调度器已启动（每30分钟计算一次）');
+setTimeout(recalcAchievementStats, 10000);
+
 app.listen(PORT, () => {
   console.log(`
   ╔════════════════════════════════════════════════════════╗

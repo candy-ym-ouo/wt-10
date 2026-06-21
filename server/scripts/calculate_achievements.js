@@ -3,6 +3,28 @@ const db = require('../src/db');
 
 console.log('开始计算所有用户成就...');
 
+console.log('步骤 1: 修正 patches.favorites_count...');
+const patchRows = db.prepare('SELECT id, favorites_count FROM patches').all();
+const fixStmt = db.prepare(`
+  UPDATE patches SET favorites_count = (
+    SELECT COUNT(*) FROM favorites WHERE patch_id = ?
+  ) WHERE id = ?
+`);
+let fixedCount = 0;
+patchRows.forEach(row => {
+  const realCount = db.prepare('SELECT COUNT(*) as cnt FROM favorites WHERE patch_id = ?').get(row.id).cnt;
+  if (row.favorites_count !== realCount) {
+    fixStmt.run(row.id, row.id);
+    fixedCount++;
+  }
+});
+if (fixedCount > 0) {
+  console.log(`修正了 ${fixedCount} 个 Patch 的 favorites_count`);
+} else {
+  console.log('所有 Patch 的 favorites_count 已正确');
+}
+
+console.log('\n步骤 2: 计算所有用户成就...');
 const calculateUserStats = (userId) => {
   const patchStats = db.prepare(`
     SELECT 
@@ -88,32 +110,28 @@ const updateUserAchievements = (userId) => {
   return { stats, newlyUnlocked };
 };
 
-const main = () => {
-  const users = db.prepare('SELECT id, username FROM users').all();
-  
-  let totalUnlocked = 0;
-  let processedUsers = 0;
+const users = db.prepare('SELECT id, username FROM users').all();
 
-  users.forEach(user => {
-    const result = updateUserAchievements(user.id);
-    if (result.newlyUnlocked.length > 0) {
-      console.log(`用户 ${user.username} (ID: ${user.id}) 新解锁 ${result.newlyUnlocked.length} 个成就：`);
-      result.newlyUnlocked.forEach(a => {
-        console.log(`  - ${a.icon} ${a.name} (${a.category} Lv.${a.level})`);
-      });
-      totalUnlocked += result.newlyUnlocked.length;
-    }
-    processedUsers++;
-  });
+let totalUnlocked = 0;
+let processedUsers = 0;
 
-  console.log(`\n统计完成！`);
-  console.log(`处理用户数: ${processedUsers}`);
-  console.log(`新解锁成就: ${totalUnlocked} 个`);
+users.forEach(user => {
+  const result = updateUserAchievements(user.id);
+  if (result.newlyUnlocked.length > 0) {
+    console.log(`用户 ${user.username} (ID: ${user.id}) 新解锁 ${result.newlyUnlocked.length} 个成就：`);
+    result.newlyUnlocked.forEach(a => {
+      console.log(`  - ${a.icon} ${a.name} (${a.category} Lv.${a.level})`);
+    });
+    totalUnlocked += result.newlyUnlocked.length;
+  }
+  processedUsers++;
+});
 
-  const totalAchievements = db.prepare('SELECT COUNT(*) as cnt FROM achievement_rules WHERE is_active = 1').get().cnt;
-  const unlockedCount = db.prepare('SELECT COUNT(*) as cnt FROM user_achievements WHERE is_unlocked = 1').get().cnt;
-  console.log(`成就规则总数: ${totalAchievements}`);
-  console.log(`用户获得成就总数: ${unlockedCount}`);
-};
+console.log(`\n统计完成！`);
+console.log(`处理用户数: ${processedUsers}`);
+console.log(`新解锁成就: ${totalUnlocked} 个`);
 
-main();
+const totalAchievements = db.prepare('SELECT COUNT(*) as cnt FROM achievement_rules WHERE is_active = 1').get().cnt;
+const unlockedCount = db.prepare('SELECT COUNT(*) as cnt FROM user_achievements WHERE is_unlocked = 1').get().cnt;
+console.log(`成就规则总数: ${totalAchievements}`);
+console.log(`用户获得成就总数: ${unlockedCount}`);
