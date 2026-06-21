@@ -197,24 +197,98 @@ exports.adminDeletePatch = async (ctx) => {
 };
 
 exports.getAllModules = async (ctx) => {
-  const { page = 1, limit = 20 } = ctx.query;
+  const { 
+    page = 1, 
+    limit = 20, 
+    keyword,
+    type, 
+    manufacturer_id, 
+    hp_min,
+    hp_max,
+    hp,
+    power,
+    status
+  } = ctx.query;
   const offset = (page - 1) * limit;
+
+  let where = [];
+  let params = [];
+
+  if (keyword) {
+    where.push('(mod.name LIKE ? OR m.name LIKE ? OR mod.description LIKE ?)');
+    params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+  }
+  if (type) {
+    if (type.includes(',')) {
+      const types = type.split(',').filter(t => t.trim());
+      const placeholders = types.map(() => '?').join(',');
+      where.push(`mod.type IN (${placeholders})`);
+      params.push(...types);
+    } else {
+      where.push('mod.type = ?');
+      params.push(type);
+    }
+  }
+  if (manufacturer_id) {
+    if (String(manufacturer_id).includes(',')) {
+      const manuIds = String(manufacturer_id).split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (manuIds.length) {
+        const placeholders = manuIds.map(() => '?').join(',');
+        where.push(`mod.manufacturer_id IN (${placeholders})`);
+        params.push(...manuIds);
+      }
+    } else {
+      where.push('mod.manufacturer_id = ?');
+      params.push(manufacturer_id);
+    }
+  }
+  if (hp !== undefined && hp !== '') {
+    where.push('mod.hp = ?');
+    params.push(parseInt(hp));
+  }
+  if (hp_min !== undefined && hp_min !== '') {
+    where.push('mod.hp >= ?');
+    params.push(parseInt(hp_min));
+  }
+  if (hp_max !== undefined && hp_max !== '') {
+    where.push('mod.hp <= ?');
+    params.push(parseInt(hp_max));
+  }
+  if (power) {
+    where.push('mod.power LIKE ?');
+    params.push(`%${power}%`);
+  }
+  if (status) {
+    where.push('mod.status = ?');
+    params.push(status);
+  }
+
+  const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
 
   const modules = db.prepare(`
     SELECT mod.*, m.name as manufacturer_name
     FROM modules mod
     LEFT JOIN manufacturers m ON mod.manufacturer_id = m.id
+    ${whereSql}
     ORDER BY mod.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(limit, offset);
+  `).all(...params, limit, offset);
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM modules').get();
+  const totalStmt = db.prepare(`SELECT COUNT(*) as count FROM modules mod LEFT JOIN manufacturers m ON mod.manufacturer_id = m.id ${whereSql}`);
+  const total = totalStmt.get(...params);
+
+  const moduleTypes = db.prepare('SELECT DISTINCT type FROM modules ORDER BY type').all().map(r => r.type);
+  const hpValues = db.prepare('SELECT DISTINCT hp FROM modules WHERE hp IS NOT NULL ORDER BY hp').all().map(r => r.hp);
+  const powerValues = db.prepare("SELECT DISTINCT power FROM modules WHERE power IS NOT NULL AND power != '' ORDER BY power").all().map(r => r.power);
 
   ctx.body = {
     list: modules,
     total: total.count,
     page: parseInt(page),
-    limit: parseInt(limit)
+    limit: parseInt(limit),
+    types: moduleTypes,
+    hp_values: hpValues,
+    power_values: powerValues
   };
 };
 

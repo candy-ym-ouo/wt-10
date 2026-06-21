@@ -6,6 +6,8 @@ export const useModuleStore = defineStore('module', {
     modules: [],
     manufacturers: [],
     moduleTypes: [],
+    hpValues: [],
+    powerValues: [],
     total: 0,
     loading: false
   }),
@@ -24,6 +26,8 @@ export const useModuleStore = defineStore('module', {
         this.modules = res.list || res || []
         this.total = res.total || 0
         this.moduleTypes = res.types || []
+        this.hpValues = res.hp_values || []
+        this.powerValues = res.power_values || []
         return res
       } finally {
         this.loading = false

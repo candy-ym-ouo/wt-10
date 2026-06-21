@@ -35,10 +35,62 @@
           :value="m.id" 
         />
       </el-select>
+      <el-select v-model="typeFilter" placeholder="类型筛选" class="filter-select" @change="fetchModules" clearable>
+        <el-option v-for="t in moduleTypes" :key="t" :label="t" :value="t" />
+      </el-select>
+      <el-button @click="showAdvancedFilter = !showAdvancedFilter">
+        <el-icon><Filter /></el-icon>
+        高级筛选
+        <el-icon class="arrow-icon" :class="{ expanded: showAdvancedFilter }"><ArrowDown /></el-icon>
+      </el-button>
+      <el-button v-if="hasActiveFilters" type="danger" plain @click="resetFilters">
+        <el-icon><Refresh /></el-icon>
+        重置
+      </el-button>
       <el-button type="primary" @click="fetchModules">
         <el-icon><Search /></el-icon>
         搜索
       </el-button>
+    </div>
+
+    <div v-show="showAdvancedFilter" class="advanced-filter-panel">
+      <el-row :gutter="20">
+        <el-col :span="6">
+          <div class="filter-group">
+            <span class="filter-label">类型多选</span>
+            <el-checkbox-group v-model="selectedTypes" @change="fetchModules">
+              <el-checkbox v-for="t in moduleTypes" :key="t" :label="t" />
+            </el-checkbox-group>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="filter-group">
+            <span class="filter-label">宽度 (HP)</span>
+            <div class="hp-filter">
+              <el-input-number v-model="hpMin" :min="1" :max="100" placeholder="最小" @change="fetchModules" />
+              <span class="hp-separator">-</span>
+              <el-input-number v-model="hpMax" :min="1" :max="100" placeholder="最大" @change="fetchModules" />
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="filter-group">
+            <span class="filter-label">功耗</span>
+            <el-select v-model="powerFilter" placeholder="选择功耗" @change="fetchModules" clearable style="width: 100%">
+              <el-option v-for="p in powerValues" :key="p" :label="p" :value="p" />
+            </el-select>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="filter-group">
+            <span class="filter-label">状态</span>
+            <el-select v-model="statusFilter" placeholder="选择状态" @change="fetchModules" clearable style="width: 100%">
+              <el-option label="正常" value="active" />
+              <el-option label="下架" value="inactive" />
+            </el-select>
+          </div>
+        </el-col>
+      </el-row>
     </div>
 
     <div class="table-card">
@@ -157,10 +209,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Connection } from '@element-plus/icons-vue'
+import { Search, Plus, Connection, Filter, ArrowDown, Refresh } from '@element-plus/icons-vue'
 import { adminApi, moduleApi } from '@/api'
 
 const router = useRouter()
@@ -168,11 +220,46 @@ const router = useRouter()
 const loading = ref(true)
 const keyword = ref('')
 const manufacturerFilter = ref('')
+const typeFilter = ref('')
 const modules = ref([])
 const manufacturers = ref([])
+const moduleTypes = ref([])
+const powerValues = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
+
+const showAdvancedFilter = ref(false)
+const selectedTypes = ref([])
+const hpMin = ref(null)
+const hpMax = ref(null)
+const powerFilter = ref('')
+const statusFilter = ref('')
+
+const hasActiveFilters = computed(() => {
+  return (
+    keyword.value ||
+    manufacturerFilter.value ||
+    typeFilter.value ||
+    selectedTypes.value.length > 0 ||
+    hpMin.value !== null ||
+    hpMax.value !== null ||
+    powerFilter.value ||
+    statusFilter.value
+  )
+})
+
+const resetFilters = () => {
+  keyword.value = ''
+  manufacturerFilter.value = ''
+  typeFilter.value = ''
+  selectedTypes.value = []
+  hpMin.value = null
+  hpMax.value = null
+  powerFilter.value = ''
+  statusFilter.value = ''
+  fetchModules()
+}
 
 const formData = reactive({
   name: '',
@@ -206,11 +293,29 @@ const fetchManufacturers = async () => {
 const fetchModules = async () => {
   try {
     loading.value = true
-    const res = await adminApi.getModules({ 
-      keyword: keyword.value, 
-      manufacturer_id: manufacturerFilter.value 
-    })
+    const params = { 
+      keyword: keyword.value
+    }
+    
+    if (selectedTypes.value.length > 0) {
+      params.type = selectedTypes.value.join(',')
+    } else if (typeFilter.value) {
+      params.type = typeFilter.value
+    }
+    
+    if (manufacturerFilter.value) {
+      params.manufacturer_id = manufacturerFilter.value
+    }
+    
+    if (hpMin.value !== null && hpMin.value !== '') params.hp_min = hpMin.value
+    if (hpMax.value !== null && hpMax.value !== '') params.hp_max = hpMax.value
+    if (powerFilter.value) params.power = powerFilter.value
+    if (statusFilter.value) params.status = statusFilter.value
+
+    const res = await adminApi.getModules(params)
     modules.value = res.list || res || []
+    moduleTypes.value = res.types || []
+    powerValues.value = res.power_values || []
   } catch (err) {
     ElMessage.error('获取模块列表失败')
     console.error(err)
@@ -324,6 +429,8 @@ onMounted(async () => {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .search-input {
@@ -331,7 +438,47 @@ onMounted(async () => {
 }
 
 .filter-select {
-  width: 200px;
+  width: 180px;
+}
+
+.arrow-icon {
+  transition: transform 0.3s ease;
+  margin-left: 4px;
+}
+
+.arrow-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.advanced-filter-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.hp-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hp-separator {
+  color: var(--text-secondary);
 }
 
 .table-card {
