@@ -274,6 +274,14 @@ exports.getAllModules = async (ctx) => {
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
+  modules.forEach(mod => {
+    try {
+      mod.combination_count = db.prepare('SELECT COUNT(*) as count FROM module_combination_stats WHERE module_id = ?').get(mod.id).count;
+    } catch (e) {
+      mod.combination_count = 0;
+    }
+  });
+
   const totalStmt = db.prepare(`SELECT COUNT(*) as count FROM modules mod LEFT JOIN manufacturers m ON mod.manufacturer_id = m.id ${whereSql}`);
   const total = totalStmt.get(...params);
 

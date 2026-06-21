@@ -88,6 +88,7 @@ router.get('/modules/:id/recommended-patches', wikiController.getRecommendedPatc
 router.get('/modules/:id/recommended-combinations', moduleRecommendationController.getRecommendedCombinations);
 router.get('/modules/:id/combination-patches/:pairedId', moduleRecommendationController.getCombinationPatches);
 router.get('/modules/:id/combination-stats', moduleRecommendationController.getModuleStats);
+router.get('/modules/:id/patch-recommendations', moduleRecommendationController.getModulePatchRecommendations);
 router.get('/modules/combinations/popular', moduleRecommendationController.getPopularCombinations);
 router.get('/modules/:id/parameter-templates', moduleController.getParameterTemplates);
 router.post('/modules/:id/parameter-templates', requireAuth, moduleController.createParameterTemplate);
@@ -106,6 +107,7 @@ router.get('/patches/rankings', patchStatsController.getPatchRankings);
 router.get('/patches/stats/sources', patchStatsController.getPatchViewSources);
 router.get('/patches/stats/trend', patchStatsController.getPatchHeatTrend);
 router.get('/patches/:id', patchController.getPatchDetail);
+router.get('/patches/:id/similar', moduleRecommendationController.getSimilarPatches);
 router.get('/patches/:id/versions', requireAuth, patchController.getPatchVersions);
 router.get('/patches/:id/versions/:versionId', requireAuth, patchController.getPatchVersionDetail);
 router.get('/patches/:id/versions/diff', requireAuth, patchController.getPatchVersionDiff);
@@ -245,6 +247,7 @@ router.put('/admin/modules/combinations/:comboId', requirePermission(PERMISSIONS
 router.delete('/admin/modules/combinations/:comboId', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.adminRemoveRecommendedCombination);
 router.put('/admin/modules/:id/combinations/reorder', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.adminReorderRecommendedCombinations);
 router.post('/admin/modules/combinations/recalculate', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.recalculateStats);
+router.post('/admin/modules/combinations/recalculate-affinity', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.recalculateAffinity);
 router.get('/admin/modules/combinations/config', requirePermission(PERMISSIONS.MODULE_VIEW), moduleRecommendationController.getConfig);
 router.put('/admin/modules/combinations/config', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.updateConfig);
 router.post('/admin/modules/combinations/config/batch', requirePermission(PERMISSIONS.MODULE_MANAGE), moduleRecommendationController.batchUpdateConfig);

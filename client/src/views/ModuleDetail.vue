@@ -371,6 +371,16 @@
                 <div class="combo-stats">
                   <span>共同出现 {{ combo.co_occurrence_count || 0 }} 次</span>
                   <span v-if="combo.avg_patch_likes">平均点赞 {{ combo.avg_patch_likes }}</span>
+                  <span v-if="combo.patch_count">关联 Patch {{ combo.patch_count }} 个</span>
+                </div>
+
+                <div class="combo-top-patch" v-if="combo.top_patch">
+                  <el-icon><Star /></el-icon>
+                  <span class="top-patch-label">最佳 Patch：</span>
+                  <span class="top-patch-name">{{ combo.top_patch.title }}</span>
+                  <span class="top-patch-likes">
+                    <el-icon><Star /></el-icon> {{ combo.top_patch.likes_count || 0 }}
+                  </span>
                 </div>
 
                 <div class="combo-reason" v-if="combo.reason">
@@ -1313,6 +1323,48 @@ onMounted(async () => {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
   margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.combo-top-patch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 215, 0, 0.06);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.combo-top-patch .el-icon {
+  color: #ffd700;
+  flex-shrink: 0;
+}
+
+.top-patch-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.top-patch-name {
+  color: rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.top-patch-likes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.top-patch-likes .el-icon {
+  color: #ff6b6b;
 }
 
 .combo-reason {

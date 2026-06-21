@@ -104,6 +104,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="hp" label="HP" width="80" />
+        <el-table-column prop="combination_count" label="组合数" width="90">
+          <template #default="{ row }">
+            <el-tag v-if="row.combination_count > 0" size="small" type="warning">
+              {{ row.combination_count }}
+            </el-tag>
+            <span v-else style="color: rgba(255,255,255,0.3)">0</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'">

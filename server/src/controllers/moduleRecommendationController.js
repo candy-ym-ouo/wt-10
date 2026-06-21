@@ -185,8 +185,27 @@ exports.getRecommendedCombinations = async (ctx) => {
     LIMIT 3
   `);
 
+  const patchCountStmt = db.prepare(`
+    SELECT COUNT(*) as count FROM patches
+    WHERE status = 'approved' AND is_public = 1
+      AND modules_used LIKE ? AND modules_used LIKE ?
+  `);
+
+  const topPatchStmt = db.prepare(`
+    SELECT p.id, p.title, p.likes_count, u.username
+    FROM patches p
+    JOIN users u ON p.user_id = u.id
+    WHERE p.status = 'approved' AND p.is_public = 1
+      AND p.modules_used LIKE ? AND p.modules_used LIKE ?
+    ORDER BY p.likes_count DESC
+    LIMIT 1
+  `);
+
   combined.forEach(item => {
     item.sample_patches = patchSample.all(`%${moduleId}%`, `%${item.paired_module_id}%`);
+    item.patch_count = patchCountStmt.get(`%${moduleId}%`, `%${item.paired_module_id}%`).count;
+    const topPatch = topPatchStmt.get(`%${moduleId}%`, `%${item.paired_module_id}%`);
+    item.top_patch = topPatch || null;
   });
 
   ctx.body = {
@@ -526,4 +545,297 @@ exports.adminGetCombinationStatsList = async (ctx) => {
     page: parseInt(page),
     limit: parseInt(limit)
   };
+};
+
+exports.getSimilarPatches = async (ctx) => {
+  const patchId = parseInt(ctx.params.id);
+  const config = getConfig();
+  const defaultLimit = parseIntSafe(config.max_similar_patches, 8);
+  const defaultMinScore = parseFloatSafe(config.min_similarity_score, 0.1);
+  const { limit = defaultLimit, min_score = defaultMinScore } = ctx.query;
+
+  const patch = db.prepare('SELECT id, modules_used, likes_count FROM patches WHERE id = ?').get(patchId);
+  if (!patch) {
+    ctx.status = 404;
+    ctx.body = { error: 'Patch 不存在' };
+    return;
+  }
+
+  let similarFromDB = [];
+  try {
+    similarFromDB = db.prepare(`
+      SELECT ps.similar_patch_id, ps.similarity_score, ps.shared_count, ps.shared_modules,
+             p.title, p.description, p.likes_count, p.views_count, p.tags,
+             p.modules_used, p.created_at, p.image_url,
+             u.username, u.avatar
+      FROM patch_similarity ps
+      JOIN patches p ON ps.similar_patch_id = p.id
+      JOIN users u ON p.user_id = u.id
+      WHERE ps.patch_id = ?
+        AND p.status = 'approved' AND p.is_public = 1
+        AND ps.similarity_score >= ?
+      ORDER BY ps.similarity_score DESC
+      LIMIT ?
+    `).all(patchId, min_score, limit);
+  } catch (e) {
+    similarFromDB = [];
+  }
+
+  if (similarFromDB.length > 0) {
+    similarFromDB.forEach(p => {
+      try {
+        p.tags = JSON.parse(p.tags || '[]');
+      } catch { p.tags = []; }
+      try {
+        p.shared_modules = JSON.parse(p.shared_modules || '[]');
+      } catch { p.shared_modules = []; }
+      try {
+        const mUsed = JSON.parse(p.modules_used || '[]');
+        p.module_count = Array.isArray(mUsed) ? mUsed.length : 0;
+      } catch { p.module_count = 0; }
+      delete p.modules_used;
+    });
+
+    ctx.body = {
+      list: similarFromDB,
+      source_patch_id: patchId,
+      total: similarFromDB.length
+    };
+    return;
+  }
+
+  let sourceModules = [];
+  try {
+    sourceModules = JSON.parse(patch.modules_used) || [];
+    sourceModules = [...new Set(sourceModules)];
+  } catch (e) {
+    sourceModules = [];
+  }
+
+  if (sourceModules.length === 0) {
+    ctx.body = { list: [], source_patch_id: patchId, total: 0 };
+    return;
+  }
+
+  const moduleConditions = sourceModules.map(() => 'p.modules_used LIKE ?').join(' AND ');
+  const moduleParams = sourceModules.map(id => `%"${id}"%`);
+
+  const candidates = db.prepare(`
+    SELECT p.id, p.title, p.description, p.likes_count, p.views_count, p.tags,
+           p.modules_used, p.created_at, p.image_url,
+           u.username, u.avatar
+    FROM patches p
+    JOIN users u ON p.user_id = u.id
+    WHERE p.status = 'approved' AND p.is_public = 1
+      AND p.id != ?
+      AND (${moduleConditions})
+    ORDER BY p.likes_count DESC, p.created_at DESC
+    LIMIT 50
+  `).all(patchId, ...moduleParams);
+
+  const scored = candidates.map(candidate => {
+    let candidateModules = [];
+    try {
+      candidateModules = JSON.parse(candidate.modules_used) || [];
+      candidateModules = [...new Set(candidateModules)];
+    } catch (e) {
+      candidateModules = [];
+    }
+
+    const sourceSet = new Set(sourceModules);
+    const shared = candidateModules.filter(m => sourceSet.has(m));
+    const unionSize = new Set([...sourceModules, ...candidateModules]).size;
+    const jaccard = unionSize > 0 ? shared.length / unionSize : 0;
+    const overlapRatio = shared.length / Math.max(Math.min(sourceModules.length, candidateModules.length), 1);
+    const likesBoost = Math.min((candidate.likes_count || 0) / 50, 1) * 0.1;
+    const similarityScore = jaccard * 0.5 + overlapRatio * 0.4 + likesBoost;
+
+    return {
+      similar_patch_id: candidate.id,
+      title: candidate.title,
+      description: candidate.description,
+      likes_count: candidate.likes_count,
+      views_count: candidate.views_count,
+      username: candidate.username,
+      avatar: candidate.avatar,
+      created_at: candidate.created_at,
+      image_url: candidate.image_url,
+      similarity_score: parseFloat(similarityScore.toFixed(4)),
+      shared_count: shared.length,
+      shared_modules: shared,
+      module_count: candidateModules.length
+    };
+  });
+
+  scored.sort((a, b) => b.similarity_score - a.similarity_score);
+
+  const results = scored
+    .filter(p => p.similarity_score >= parseFloat(min_score))
+    .slice(0, parseIntSafe(limit, defaultLimit));
+
+  ctx.body = {
+    list: results,
+    source_patch_id: patchId,
+    total: results.length
+  };
+};
+
+exports.getModulePatchRecommendations = async (ctx) => {
+  const moduleId = parseInt(ctx.params.id);
+  const config = getConfig();
+  const defaultLimit = parseIntSafe(config.max_recommendations, 8);
+  const { limit = defaultLimit, sort_by = 'affinity' } = ctx.query;
+
+  const module = db.prepare('SELECT id FROM modules WHERE id = ?').get(moduleId);
+  if (!module) {
+    ctx.status = 404;
+    ctx.body = { error: '模块不存在' };
+    return;
+  }
+
+  let affinityPatches = [];
+  try {
+    affinityPatches = db.prepare(`
+      SELECT mpa.affinity_score, mpa.shared_module_count, mpa.combination_weight,
+             p.id, p.title, p.description, p.likes_count, p.views_count, p.tags,
+             p.modules_used, p.created_at, p.image_url,
+             u.username, u.avatar
+      FROM module_patch_affinity mpa
+      JOIN patches p ON mpa.patch_id = p.id
+      JOIN users u ON p.user_id = u.id
+      WHERE mpa.module_id = ?
+        AND p.status = 'approved' AND p.is_public = 1
+      ORDER BY mpa.${sort_by === 'combination' ? 'combination_weight' : sort_by === 'shared' ? 'shared_module_count' : 'affinity_score'} DESC
+      LIMIT ?
+    `).all(moduleId, limit);
+  } catch (e) {
+    affinityPatches = [];
+  }
+
+  if (affinityPatches.length > 0) {
+    affinityPatches.forEach(p => {
+      try {
+        p.tags = JSON.parse(p.tags || '[]');
+      } catch { p.tags = []; }
+      try {
+        const mUsed = JSON.parse(p.modules_used || '[]');
+        p.module_count = Array.isArray(mUsed) ? mUsed.length : 0;
+        const moduleSet = new Set(mUsed);
+        p.uses_current_module = moduleSet.has(moduleId);
+      } catch { p.module_count = 0; p.uses_current_module = false; }
+      delete p.modules_used;
+    });
+
+    ctx.body = {
+      list: affinityPatches,
+      module_id: moduleId,
+      total: affinityPatches.length
+    };
+    return;
+  }
+
+  const patches = db.prepare(`
+    SELECT p.*, u.username, u.avatar
+    FROM patches p
+    JOIN users u ON p.user_id = u.id
+    WHERE p.status = 'approved' AND p.is_public = 1
+      AND p.modules_used LIKE ?
+    ORDER BY p.likes_count DESC, p.created_at DESC
+    LIMIT ?
+  `).all(`%${moduleId}%`, limit);
+
+  patches.forEach(p => {
+    try {
+      p.tags = JSON.parse(p.tags || '[]');
+    } catch { p.tags = []; }
+    p.affinity_score = 0;
+    p.shared_module_count = 0;
+    p.combination_weight = 0;
+    p.uses_current_module = true;
+    try {
+      const mUsed = JSON.parse(p.modules_used || '[]');
+      p.module_count = Array.isArray(mUsed) ? mUsed.length : 0;
+    } catch { p.module_count = 0; }
+  });
+
+  ctx.body = {
+    list: patches,
+    module_id: moduleId,
+    total: patches.length
+  };
+};
+
+exports.recalculateAffinity = async (ctx) => {
+  try {
+    const patches = db.prepare(`
+      SELECT id, modules_used, likes_count
+      FROM patches
+      WHERE status = 'approved' AND is_public = 1 AND modules_used IS NOT NULL
+    `).all();
+
+    const insertStmt = db.prepare(`
+      INSERT INTO module_patch_affinity (module_id, patch_id, affinity_score, shared_module_count, combination_weight, last_calculated_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(module_id, patch_id) DO UPDATE SET
+        affinity_score = excluded.affinity_score,
+        shared_module_count = excluded.shared_module_count,
+        combination_weight = excluded.combination_weight,
+        last_calculated_at = CURRENT_TIMESTAMP
+    `);
+
+    const batch = [];
+    const batchSize = 100;
+    const runBatch = db.transaction((items) => {
+      items.forEach(item => insertStmt.run(...item));
+    });
+
+    let patchCount = 0;
+
+    patches.forEach(patch => {
+      let moduleIds = [];
+      try {
+        moduleIds = JSON.parse(patch.modules_used) || [];
+      } catch (e) { return; }
+      if (!Array.isArray(moduleIds) || moduleIds.length === 0) return;
+
+      const uniqueIds = [...new Set(moduleIds)];
+      patchCount++;
+
+      uniqueIds.forEach(mid => {
+        const comboStats = db.prepare(`
+          SELECT COALESCE(SUM(confidence_score), 0) as total_confidence,
+                 COUNT(*) as combo_count
+          FROM module_combination_stats
+          WHERE module_id = ?
+        `).get(mid);
+
+        const affinityScore = (comboStats.combo_count || 0) * 0.3 +
+          (comboStats.total_confidence || 0) * 0.4 +
+          uniqueIds.length * 0.1 +
+          (patch.likes_count || 0) * 0.002;
+
+        const combinationWeight = (comboStats.total_confidence || 0) * (comboStats.combo_count || 0);
+
+        batch.push([mid, patch.id, parseFloat(affinityScore.toFixed(4)), uniqueIds.length, parseFloat(combinationWeight.toFixed(4))]);
+
+        if (batch.length >= batchSize) {
+          runBatch(batch);
+          batch.length = 0;
+        }
+      });
+    });
+
+    if (batch.length > 0) {
+      runBatch(batch);
+    }
+
+    ctx.body = {
+      success: true,
+      patches_processed: patchCount,
+      message: '关联评分重新计算完成'
+    };
+  } catch (e) {
+    ctx.status = 500;
+    ctx.body = { error: '重新计算失败: ' + e.message };
+  }
 };

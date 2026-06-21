@@ -260,6 +260,17 @@ exports.getPatches = async (ctx) => {
   let orderSql = 'ORDER BY p.created_at DESC';
   if (sort === 'popular') orderSql = 'ORDER BY p.likes_count DESC, p.views_count DESC';
   if (sort === 'views') orderSql = 'ORDER BY p.views_count DESC';
+  if (sort === 'recommended') orderSql = 'ORDER BY p.likes_count DESC, p.views_count DESC, p.created_at DESC';
+
+  let joinSql = '';
+  if (sort === 'recommended' && modules) {
+    try {
+      joinSql = `LEFT JOIN module_patch_affinity mpa ON mpa.patch_id = p.id AND mpa.module_id IN (${String(modules).split(',').map(() => '?').join(',')})`;
+      const moduleIds = String(modules).split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m));
+      params.unshift(...moduleIds);
+      orderSql = 'ORDER BY COALESCE(SUM(mpa.affinity_score), 0) DESC, p.likes_count DESC';
+    } catch (e) {}
+  }
 
   const patches = db.prepare(`
     SELECT p.*, u.username, u.avatar, u.is_creator_verified, u.creator_verified_at,
@@ -279,6 +290,7 @@ exports.getPatches = async (ctx) => {
     FROM patches p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN likes l ON p.id = l.patch_id
+    ${joinSql}
     ${whereSql}
     GROUP BY p.id
     ${orderSql}

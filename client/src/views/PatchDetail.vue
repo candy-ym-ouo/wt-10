@@ -382,6 +382,43 @@
               </div>
             </div>
           </div>
+
+          <div class="card" v-if="similarPatches.length > 0">
+            <div class="param-section">
+              <h3>🔗 相似推荐</h3>
+              <p class="similar-hint">基于共享模块的相似 Patch</p>
+              <div class="similar-list">
+                <div
+                  v-for="sp in similarPatches"
+                  :key="sp.similar_patch_id"
+                  class="similar-item"
+                  @click="$router.push(`/patches/${sp.similar_patch_id}`)"
+                >
+                  <div class="similar-main">
+                    <div class="similar-title">{{ sp.title }}</div>
+                    <div class="similar-meta">
+                      <span>by {{ sp.username }}</span>
+                      <span class="similar-likes">
+                        <el-icon><Star /></el-icon> {{ sp.likes_count || 0 }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="similar-score">
+                    <el-progress
+                      type="circle"
+                      :percentage="Math.round((sp.similarity_score || 0) * 100)"
+                      :width="40"
+                      :stroke-width="4"
+                      color="#ffd700"
+                    />
+                  </div>
+                  <div class="similar-shared" v-if="sp.shared_count > 0">
+                    <el-tag size="small" type="warning">{{ sp.shared_count }} 个共享模块</el-tag>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </el-col>
       </el-row>
     </template>
@@ -435,7 +472,7 @@ import {
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
 import { useProductStore } from '@/stores/productStore'
-import { moduleAPI } from '@/api'
+import { moduleAPI, patchAPI } from '@/api'
 import ReportDialog from '@/components/ReportDialog.vue'
 import PatchVersionHistory from '@/components/PatchVersionHistory.vue'
 import CommentItem from '@/components/CommentItem.vue'
@@ -459,6 +496,7 @@ const reportTargetType = ref('patch')
 const reportTargetId = ref(null)
 const reportTargetDescription = ref('')
 const versionHistoryRef = ref(null)
+const similarPatches = ref([])
 const favoriteFolders = ref([])
 const createFolderDialogVisible = ref(false)
 const newFolderForm = ref({
@@ -566,6 +604,10 @@ onMounted(async () => {
     if (userStore.isLoggedIn) {
       loadFavoriteFolders()
     }
+
+    patchAPI.getSimilar(route.params.id, { limit: 6 }).then(res => {
+      similarPatches.value = res.list || []
+    }).catch(() => {})
   } catch (e) {
     console.error(e)
   } finally {
@@ -1365,5 +1407,79 @@ const onVersionRollback = async ({ result }) => {
 :deep(.el-dropdown-menu__item:hover) {
   background: rgba(255, 215, 0, 0.1);
   color: #ffd700;
+}
+
+.similar-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 0 16px 0;
+}
+
+.similar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.similar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-wrap: wrap;
+}
+
+.similar-item:hover {
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.similar-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.similar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.similar-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.similar-likes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.similar-likes .el-icon {
+  color: #ff6b6b;
+}
+
+.similar-score {
+  flex-shrink: 0;
+}
+
+.similar-score :deep(.el-progress__text) {
+  font-size: 11px !important;
+  color: #ffd700;
+}
+
+.similar-shared {
+  width: 100%;
 }
 </style>
