@@ -30,6 +30,7 @@ const patchLabController = require('./controllers/patchLabController');
 const searchController = require('./controllers/searchController');
 const i18nController = require('./controllers/i18nController');
 const achievementController = require('./controllers/achievementController');
+const tagController = require('./controllers/tagController');
 const { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, getRoleLabel, isStaffRole } = require('./constants/permissions');
 
 const storage = multer.diskStorage({
@@ -433,6 +434,17 @@ router.put('/admin/achievements/:id', requirePermission(PERMISSIONS.ACHIEVEMENT_
 router.delete('/admin/achievements/:id', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.deleteAchievementRule);
 router.post('/admin/achievements/recalculate', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.recalculateAllAchievements);
 router.post('/admin/achievements/users/:id/recalculate', requirePermission(PERMISSIONS.ACHIEVEMENT_MANAGE), achievementController.recalculateUserAchievements);
+
+router.get('/tags/hot', tagController.getHotTags);
+router.get('/tags/suggest', tagController.suggestTags);
+
+router.get('/admin/tags', requirePermission(PERMISSIONS.TAG_VIEW), tagController.getTags);
+router.put('/admin/tags/:id', requirePermission(PERMISSIONS.TAG_MANAGE), tagController.updateTag);
+router.delete('/admin/tags/:id', requirePermission(PERMISSIONS.TAG_MANAGE), tagController.deleteTag);
+router.put('/admin/tags/:id/hot', requirePermission(PERMISSIONS.TAG_MANAGE), tagController.toggleHot);
+router.post('/admin/tags/merge', requirePermission(PERMISSIONS.TAG_MANAGE), tagController.mergeTags);
+router.post('/admin/tags/recalculate', requirePermission(PERMISSIONS.TAG_MANAGE), tagController.recalculate);
+router.get('/admin/tags/merge-logs', requirePermission(PERMISSIONS.TAG_VIEW), tagController.getMergeLogs);
 
 router.get('/admin/roles', requireAdmin, async (ctx) => {
   ctx.body = {

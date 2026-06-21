@@ -554,3 +554,21 @@ export const adminAchievementApi = {
 
 export const achievementAPI = achievementApi
 export const adminAchievementAPI = adminAchievementApi
+
+export const tagApi = {
+  getHotTags: (params) => api.get('/tags/hot', { params }),
+  suggestTags: (params) => api.get('/tags/suggest', { params })
+}
+
+export const adminTagApi = {
+  getTags: (params) => api.get('/admin/tags', { params }),
+  updateTag: (id, data) => api.put(`/admin/tags/${id}`, data),
+  deleteTag: (id) => api.delete(`/admin/tags/${id}`),
+  toggleHot: (id, is_hot) => api.put(`/admin/tags/${id}/hot`, { is_hot }),
+  mergeTags: (data) => api.post('/admin/tags/merge', data),
+  recalculate: () => api.post('/admin/tags/recalculate'),
+  getMergeLogs: (params) => api.get('/admin/tags/merge-logs', { params })
+}
+
+export const tagAPI = tagApi
+export const adminTagAPI = adminTagApi

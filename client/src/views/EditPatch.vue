@@ -32,9 +32,13 @@
             multiple
             filterable
             allow-create
+            default-first-option
+            placeholder="输入标签"
             style="width: 100%"
+            @visible-change="onTagDropdownVisible"
+            @filter-change="onTagFilterChange"
           >
-            <el-option v-for="tag in commonTags" :key="tag" :label="tag" :value="tag" />
+            <el-option v-for="tag in tagSuggestions" :key="tag" :label="tag" :value="tag" />
           </el-select>
         </el-form-item>
 
@@ -322,7 +326,7 @@ import {
   MagicStick, ArrowDown, Star, Promotion, CircleCheck, Setting
 } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
-import { moduleAPI } from '@/api'
+import { moduleAPI, tagAPI } from '@/api'
 import PatchVersionHistory from '@/components/PatchVersionHistory.vue'
 
 const route = useRoute()
@@ -541,7 +545,24 @@ const parsePatchParams = (paramsJson) => {
   }
 }
 
-const commonTags = ['bass', 'pad', 'lead', 'drums', 'ambient', 'techno', 'house', 'experimental', 'classic', 'modern']
+const tagSuggestions = ref([])
+
+const fetchTagSuggestions = async (q = '') => {
+  try {
+    const res = await tagAPI.suggestTags({ q, limit: 20 })
+    tagSuggestions.value = res.suggestions || []
+  } catch {
+    tagSuggestions.value = []
+  }
+}
+
+const onTagDropdownVisible = (visible) => {
+  if (visible) fetchTagSuggestions()
+}
+
+const onTagFilterChange = (q) => {
+  fetchTagSuggestions(q)
+}
 
 const form = reactive({
   title: '',

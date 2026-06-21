@@ -379,6 +379,12 @@ const routes = [
         name: 'AdminAchievements',
         component: () => import('@/views/admin/AdminAchievements.vue'),
         meta: { permission: PERMISSIONS.ACHIEVEMENT_VIEW }
+      },
+      {
+        path: 'tags',
+        name: 'AdminTags',
+        component: () => import('@/views/admin/AdminTags.vue'),
+        meta: { permission: PERMISSIONS.TAG_VIEW }
       }
     ]
   },

@@ -127,6 +127,10 @@
           <el-icon><Trophy /></el-icon>
           <span>成就体系</span>
         </el-menu-item>
+        <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.TAG_VIEW)" index="/admin/tags">
+          <span class="menu-icon-emoji">🏷️</span>
+          <span>标签管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>

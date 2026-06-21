@@ -43,10 +43,13 @@
               multiple
               filterable
               allow-create
+              default-first-option
               placeholder="添加标签，按回车确认"
               style="width: 100%"
+              @visible-change="onTagDropdownVisible"
+              @filter-change="onTagFilterChange"
             >
-              <el-option v-for="tag in commonTags" :key="tag" :label="tag" :value="tag" />
+              <el-option v-for="tag in tagSuggestions" :key="tag" :label="tag" :value="tag" />
             </el-select>
           </el-form-item>
 
@@ -148,7 +151,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useArticleStore } from '@/stores/articleStore'
-import { moduleAPI } from '@/api'
+import { moduleAPI, tagAPI } from '@/api'
 import { marked } from 'marked'
 
 const route = useRoute()
@@ -184,7 +187,24 @@ const rules = {
   ]
 }
 
-const commonTags = ['教程', '测评', '心得', '技巧', '入门', '进阶', '音色设计', '现场演出', '模块推荐']
+const tagSuggestions = ref([])
+
+const fetchTagSuggestions = async (q = '') => {
+  try {
+    const res = await tagAPI.suggestTags({ q, limit: 20 })
+    tagSuggestions.value = res.suggestions || []
+  } catch {
+    tagSuggestions.value = []
+  }
+}
+
+const onTagDropdownVisible = (visible) => {
+  if (visible) fetchTagSuggestions()
+}
+
+const onTagFilterChange = (q) => {
+  fetchTagSuggestions(q)
+}
 
 const renderMarkdown = (content) => {
   if (!content) return '<p style="color: #999;">预览内容将在这里显示...</p>'

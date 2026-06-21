@@ -28,10 +28,13 @@
             multiple
             filterable
             allow-create
+            default-first-option
             placeholder="输入标签，如 bass, pad, lead"
             style="width: 100%"
+            @visible-change="onTagDropdownVisible"
+            @filter-change="onTagFilterChange"
           >
-            <el-option v-for="tag in commonTags" :key="tag" :label="tag" :value="tag" />
+            <el-option v-for="tag in tagSuggestions" :key="tag" :label="tag" :value="tag" />
           </el-select>
         </el-form-item>
 
@@ -307,7 +310,7 @@ import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { usePatchStore } from '@/stores/patchStore'
-import { moduleAPI } from '@/api'
+import { moduleAPI, tagAPI } from '@/api'
 import { 
   MagicStick, ArrowDown, Star, Promotion, CircleCheck, Setting
 } from '@element-plus/icons-vue'
@@ -529,7 +532,24 @@ const applyTemplateFromQuery = async () => {
   }
 }
 
-const commonTags = ['bass', 'pad', 'lead', 'drums', 'ambient', 'techno', 'house', 'experimental', 'classic', 'modern']
+const tagSuggestions = ref([])
+
+const fetchTagSuggestions = async (q = '') => {
+  try {
+    const res = await tagAPI.suggestTags({ q, limit: 20 })
+    tagSuggestions.value = res.suggestions || []
+  } catch {
+    tagSuggestions.value = []
+  }
+}
+
+const onTagDropdownVisible = (visible) => {
+  if (visible) fetchTagSuggestions()
+}
+
+const onTagFilterChange = (q) => {
+  fetchTagSuggestions(q)
+}
 
 const form = reactive({
   title: '',
