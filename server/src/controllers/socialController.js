@@ -1850,21 +1850,109 @@ exports.comparePatchesEnhanced = async (ctx) => {
     return;
   }
 
-  const paramKeys = ['oscillators', 'filter', 'envelope', 'lfo', 'effects'];
-  const comparison = {};
+  const allModuleIds = [...new Set(
+    patches.flatMap(p => JSON.parse(p.modules_used || '[]'))
+  )];
 
-  paramKeys.forEach(key => {
-    comparison[key] = patches.map(patch => {
-      const params = JSON.parse(patch.parameters || '{}');
-      return {
-        patch_id: patch.id,
-        title: patch.title,
-        value: params[key] || null
+  let modulesInfo = {};
+  let moduleParamsInfo = {};
+  if (allModuleIds.length > 0) {
+    const modPlaceholders = allModuleIds.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT m.id, m.name, m.type, m.hp,
+             mp.id as param_id, mp.name as param_name, mp.label as param_label,
+             mp.type as param_type, mp.unit as param_unit, mp.sort_order
+      FROM modules m
+      LEFT JOIN module_parameters mp ON m.id = mp.module_id
+      WHERE m.id IN (${modPlaceholders})
+      ORDER BY m.id, mp.sort_order ASC, mp.id ASC
+    `).all(...allModuleIds);
+
+    rows.forEach(r => {
+      if (!modulesInfo[r.id]) {
+        modulesInfo[r.id] = {
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          hp: r.hp
+        };
+        moduleParamsInfo[r.id] = [];
+      }
+      if (r.param_id) {
+        moduleParamsInfo[r.id].push({
+          id: r.param_id,
+          name: r.param_name,
+          label: r.param_label || r.param_name,
+          type: r.param_type,
+          unit: r.param_unit,
+          sort_order: r.sort_order
+        });
+      }
+    });
+  }
+
+  const moduleComparison = {};
+
+  allModuleIds.forEach(modId => {
+    const paramsDef = moduleParamsInfo[modId] || [];
+    const paramMap = {};
+
+    paramsDef.forEach(pdef => {
+      paramMap[pdef.name] = patches.map(patch => {
+        const params = JSON.parse(patch.parameters || '{}');
+        const modParams = params[String(modId)] || {};
+        return {
+          patch_id: patch.id,
+          title: patch.title,
+          value: modParams[pdef.name] !== undefined ? modParams[pdef.name] : null,
+          has_module: JSON.parse(patch.modules_used || '[]').includes(modId)
+        };
+      });
+
+      const values = paramMap[pdef.name].map(c => c.has_module ? JSON.stringify(c.value) : '__NO_MODULE__');
+      const uniqueValues = [...new Set(values.filter(v => v !== '__NO_MODULE__'))];
+      const hasDiff = uniqueValues.length > 1;
+      const valueCounts = {};
+      values.forEach(v => {
+        if (v !== '__NO_MODULE__') {
+          valueCounts[v] = (valueCounts[v] || 0) + 1;
+        }
+      });
+
+      paramMap[pdef.name] = paramMap[pdef.name].map(cell => {
+        const cellValueStr = cell.has_module ? JSON.stringify(cell.value) : '__NO_MODULE__';
+        const isUnique = cell.has_module && hasDiff && valueCounts[cellValueStr] === 1;
+        const isMostCommon = cell.has_module && hasDiff && valueCounts[cellValueStr] > 1;
+        return {
+          ...cell,
+          is_unique: isUnique,
+          is_most_common: isMostCommon
+        };
+      });
+
+      paramMap[pdef.name + '__meta'] = {
+        param_def: pdef,
+        has_diff: hasDiff
       };
     });
-  });
 
-  const { diffInfo, moduleDiffInfo } = computeDiffInfo(patches, comparison);
+    const patchModuleUsage = patches.map(patch => ({
+      patch_id: patch.id,
+      title: patch.title,
+      has_module: JSON.parse(patch.modules_used || '[]').includes(modId)
+    }));
+
+    const usedCount = patchModuleUsage.filter(u => u.has_module).length;
+    moduleComparison[modId] = {
+      module_info: modulesInfo[modId] || { id: modId, name: `模块 ${modId}`, type: 'unknown', hp: 0 },
+      param_count: paramsDef.length,
+      used_count: usedCount,
+      all_patches_have: usedCount === patches.length,
+      has_diff: Object.keys(paramMap).some(k => !k.endsWith('__meta') && paramMap[k + '__meta']?.has_diff),
+      patch_module_usage: patchModuleUsage,
+      parameters: paramMap
+    };
+  });
 
   const moduleUsage = patches.map(p => ({
     patch_id: p.id,
@@ -1879,9 +1967,9 @@ exports.comparePatchesEnhanced = async (ctx) => {
 
   ctx.body = {
     patches,
-    comparison,
     module_usage: moduleUsage,
-    diff_info: diffInfo,
-    module_diff_info: moduleDiffInfo
+    module_comparison: moduleComparison,
+    all_module_ids: allModuleIds,
+    modules_info: modulesInfo
   };
 };

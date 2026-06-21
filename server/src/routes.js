@@ -162,7 +162,7 @@ router.post('/compare/:id', requireAuth, socialController.addToCompare);
 router.delete('/compare/:id', requireAuth, socialController.removeFromCompare);
 router.post('/compare/clear', requireAuth, socialController.clearCompare);
 router.get('/compare/result', socialController.comparePatches);
-router.get('/compare/result-enhanced', requireAuth, socialController.comparePatchesEnhanced);
+router.get('/compare/result-enhanced', socialController.comparePatchesEnhanced);
 
 router.post('/compare/schemes', requireAuth, socialController.saveCompareScheme);
 router.get('/compare/schemes', requireAuth, socialController.getCompareSchemes);

@@ -5,7 +5,7 @@
       <p class="page-subtitle">对比多个 Patch 的参数设置，找出差异和共同点</p>
     </div>
 
-    <div class="tabs-bar">
+    <div class="tabs-bar" v-if="isLoggedIn">
       <div class="tabs">
         <div
           class="tab-item"
@@ -35,7 +35,7 @@
     </div>
 
     <div v-if="activeTab === 'compare'">
-      <div class="action-bar">
+      <div class="action-bar" v-if="isLoggedIn">
         <el-button @click="goToPatches">
           <el-icon><Plus /></el-icon>
           添加 Patch 到对比
@@ -69,28 +69,40 @@
         />
         <span class="compare-count">已选择 {{ compareList.length }}/5 个 Patch</span>
       </div>
+      <div class="action-bar" v-else-if="comparison">
+        <el-switch
+          v-model="highlightDiffs"
+          active-text="差异高亮"
+          inactive-text=""
+        />
+        <span class="share-hint" v-if="sharedScheme">
+          <el-icon><Link /></el-icon>
+          正在查看分享方案：<b>{{ sharedScheme.name }}</b>
+        </span>
+      </div>
 
-      <div v-if="compareList.length === 0" class="empty-state">
+      <div v-if="compareList.length === 0 && !comparison" class="empty-state">
         <el-icon class="empty-icon"><DataAnalysis /></el-icon>
-        <p>还没有添加任何 Patch 到对比列表</p>
-        <el-button type="primary" class="btn-primary" @click="goToPatches">去 Patch 库添加</el-button>
+        <p v-if="isLoggedIn">还没有添加任何 Patch 到对比列表</p>
+        <p v-else>请先登录或通过分享链接查看对比</p>
+        <el-button v-if="isLoggedIn" type="primary" class="btn-primary" @click="goToPatches">去 Patch 库添加</el-button>
       </div>
 
       <template v-else>
-        <div class="compare-patches">
+        <div class="compare-patches" v-if="compareList.length > 0">
           <div v-for="patch in compareList" :key="patch.id" class="compare-patch-item">
             <div class="patch-info">
               <div class="patch-name">{{ patch.title }}</div>
               <div class="patch-author">by {{ patch.username }}</div>
             </div>
-            <el-button type="danger" size="small" @click="removeFromCompare(patch.id)">
+            <el-button v-if="isLoggedIn" type="danger" size="small" @click="removeFromCompare(patch.id)">
               <el-icon><Close /></el-icon>
             </el-button>
           </div>
         </div>
 
         <el-button
-          v-if="compareList.length >= 2"
+          v-if="compareList.length >= 2 && isLoggedIn"
           type="primary"
           size="large"
           class="btn-primary compare-btn"
@@ -100,7 +112,7 @@
           开始对比
         </el-button>
 
-        <div v-if="comparison" class="card compare-result">
+        <div v-if="comparison" class="compare-result">
           <div class="result-header">
             <h3 class="result-title">📊 对比结果</h3>
             <div class="legend-bar" v-if="highlightDiffs">
@@ -109,94 +121,170 @@
                 差异值
               </span>
               <span class="legend-item">
+                <span class="legend-dot unique"></span>
+                独有值
+              </span>
+              <span class="legend-item">
                 <span class="legend-dot same"></span>
                 相同值
               </span>
               <span class="legend-item">
-                <span class="legend-dot unique"></span>
-                独有值
+                <span class="legend-dot no-mod"></span>
+                无此模块
               </span>
             </div>
           </div>
 
-          <div class="compare-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>参数</th>
-                  <th v-for="patch in comparison.patches" :key="patch.id">
-                    {{ patch.title }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(item, key) in comparison.comparison"
-                  :key="key"
-                  :class="{ 'diff-row': highlightDiffs && comparison.diff_info[key]?.has_diff }"
-                >
-                  <td class="param-name">
-                    {{ paramLabels[key] || key }}
-                    <el-tag
-                      v-if="highlightDiffs && comparison.diff_info[key]?.has_diff"
-                      size="small"
-                      type="danger"
-                      class="diff-tag"
-                    >有差异</el-tag>
-                  </td>
-                  <td
-                    v-for="(cell, idx) in getDiffCells(key)"
-                    :key="cell.patch_id"
-                    :class="getCellClass(key, idx)"
+          <div class="summary-row">
+            <div class="summary-item">
+              <span class="summary-label">对比 Patch 数</span>
+              <span class="summary-value">{{ comparison.patches.length }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">涉及模块数</span>
+              <span class="summary-value">{{ comparison.all_module_ids.length }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">有差异的模块</span>
+              <span class="summary-value diff-value">{{ moduleDiffCount }}</span>
+            </div>
+          </div>
+
+          <div class="module-compare-list">
+            <div
+              v-for="modId in comparison.all_module_ids"
+              :key="modId"
+              class="card module-compare-card"
+            >
+              <div class="module-card-header">
+                <div class="module-title-row">
+                  <h4 class="module-name">🎛️ {{ getModuleInfo(modId).name }}</h4>
+                  <el-tag
+                    v-if="!isModuleInAllPatches(modId)"
+                    size="small"
+                    type="warning"
                   >
-                    <div v-if="cell.value" class="param-values">
-                      <div v-for="(v, k) in cell.value" :key="k" class="value-item">
-                        <span class="value-label">{{ k }}:</span>
-                        <span class="value-content">{{ formatValue(v) }}</span>
-                      </div>
-                    </div>
-                    <span v-else class="no-value">-</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="param-name">使用模块</td>
-                  <td
-                    v-for="usage in comparison.module_usage"
-                    :key="usage.patch_id"
+                    部分使用
+                  </el-tag>
+                  <el-tag
+                    v-if="highlightDiffs && hasModuleDiff(modId)"
+                    size="small"
+                    type="danger"
+                    effect="light"
                   >
-                    <div class="module-tags">
-                      <el-tag
-                        v-for="mod in usage.modules"
-                        :key="mod"
-                        size="small"
-                        :class="{ 'module-unique': isModuleUnique(mod) }"
+                    有差异
+                  </el-tag>
+                </div>
+                <div class="module-usage-row">
+                  <el-tag
+                    v-for="(usage, idx) in getModuleUsage(modId)"
+                    :key="idx"
+                    size="small"
+                    :type="usage.has_module ? 'success' : 'info'"
+                    effect="plain"
+                  >
+                    {{ usage.title }}
+                  </el-tag>
+                </div>
+              </div>
+
+              <div class="compare-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="th-param">参数</th>
+                      <th v-for="patch in comparison.patches" :key="patch.id">
+                        {{ patch.title }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="paramDef in getModuleParams(modId)"
+                      :key="paramDef.name"
+                      :class="{ 'diff-row': highlightDiffs && hasParamDiff(modId, paramDef.name) }"
+                    >
+                      <td class="param-name">
+                        <span class="param-label">{{ paramDef.label }}</span>
+                        <span v-if="paramDef.unit" class="param-unit">({{ paramDef.unit }})</span>
+                        <el-tag
+                          v-if="highlightDiffs && hasParamDiff(modId, paramDef.name)"
+                          size="small"
+                          type="danger"
+                          effect="light"
+                          class="diff-tag"
+                        >差异</el-tag>
+                      </td>
+                      <td
+                        v-for="cell in getParamCells(modId, paramDef.name)"
+                        :key="cell.patch_id"
+                        :class="getParamCellClass(cell)"
                       >
-                        {{ mod }}
-                      </el-tag>
-                      <span v-if="usage.modules.length === 0" class="no-value">-</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="param-name">浏览量</td>
-                  <td v-for="patch in comparison.patches" :key="patch.id">
-                    {{ patch.views_count }}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="param-name">点赞数</td>
-                  <td v-for="patch in comparison.patches" :key="patch.id">
-                    {{ patch.likes_count }}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="param-name">创建时间</td>
-                  <td v-for="patch in comparison.patches" :key="patch.id">
-                    {{ formatDate(patch.created_at) }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                        <template v-if="cell.has_module">
+                          <span class="param-value">{{ formatParamValue(cell.value, paramDef) }}</span>
+                        </template>
+                        <span v-else class="no-module">— 无此模块 —</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card stats-card">
+            <h4 class="stats-title">📈 基础信息对比</h4>
+            <div class="compare-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="th-param">属性</th>
+                    <th v-for="patch in comparison.patches" :key="patch.id">
+                      {{ patch.title }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="param-name">使用模块</td>
+                    <td
+                      v-for="usage in comparison.module_usage"
+                      :key="usage.patch_id"
+                    >
+                      <div class="module-tags">
+                        <el-tag
+                          v-for="mod in usage.modules"
+                          :key="mod"
+                          size="small"
+                          :class="{ 'module-unique': isModuleUniqueAcross(mod) }"
+                        >
+                          {{ comparison.modules_info[mod]?.name || `模块 ${mod}` }}
+                        </el-tag>
+                        <span v-if="usage.modules.length === 0" class="no-value">-</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="param-name">浏览量</td>
+                    <td v-for="patch in comparison.patches" :key="patch.id">
+                      {{ patch.views_count }}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="param-name">点赞数</td>
+                    <td v-for="patch in comparison.patches" :key="patch.id">
+                      {{ patch.likes_count }}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="param-name">创建时间</td>
+                    <td v-for="patch in comparison.patches" :key="patch.id">
+                      {{ formatDate(patch.created_at) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </template>
@@ -336,7 +424,7 @@
 
     <el-dialog v-model="shareDialogVisible" title="分享对比" width="500px">
       <div v-if="shareMode === 'link'" class="share-section">
-        <p class="share-tip">复制下方链接分享给他人：</p>
+        <p class="share-tip">复制下方链接分享给他人（无需登录即可查看）：</p>
         <el-input
           v-model="shareLink"
           readonly
@@ -390,15 +478,20 @@ import {
   RefreshRight, Edit, Link, CopyDocument
 } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
+import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
 const route = useRoute()
 const patchStore = usePatchStore()
+const userStore = useUserStore()
+
+const isLoggedIn = computed(() => userStore.isLoggedIn)
 
 const activeTab = ref('compare')
 const loading = ref(false)
 const compareList = ref([])
 const comparison = ref(null)
+const sharedScheme = ref(null)
 const highlightDiffs = ref(true)
 
 const schemes = ref([])
@@ -417,17 +510,14 @@ const shareMode = ref('save')
 const shareLink = ref('')
 const currentSchemeId = ref(null)
 
-const paramLabels = {
-  oscillators: '🎹 振荡器',
-  filter: '🔍 滤波器',
-  envelope: '📈 包络线',
-  lfo: '〰️ LFO',
-  effects: '✨ 效果器'
-}
+const moduleDiffCount = computed(() => {
+  if (!comparison.value?.module_comparison) return 0
+  return Object.values(comparison.value.module_comparison).filter(m => m.has_diff).length
+})
 
 onMounted(async () => {
   await handleUrlParams()
-  if (!comparison.value) {
+  if (!comparison.value && isLoggedIn.value) {
     await fetchCompareList()
   }
 })
@@ -441,7 +531,9 @@ const handleUrlParams = async () => {
       loading.value = true
       const scheme = await patchStore.fetchSharedScheme(shareToken)
       if (scheme && scheme.patch_ids && scheme.patch_ids.length >= 2) {
+        sharedScheme.value = scheme
         comparison.value = await patchStore.comparePatchesEnhanced(scheme.patch_ids, false)
+        compareList.value = comparison.value.patches
         ElMessage.success(`已加载分享的对比方案：${scheme.name}`)
       }
     } catch (e) {
@@ -510,9 +602,16 @@ const doCompare = async () => {
   }
 }
 
-const formatValue = (v) => {
-  if (typeof v === 'object') return JSON.stringify(v)
-  return v ?? '-'
+const formatParamValue = (v, paramDef) => {
+  if (v === null || v === undefined) return '-'
+  if (typeof v === 'number') {
+    if (paramDef?.type === 'select' || paramDef?.type === 'switch') {
+      return String(v)
+    }
+    const decimals = (paramDef?.unit && paramDef.unit === 'ms') ? 0 : 2
+    return Number(v).toFixed(decimals)
+  }
+  return String(v)
 }
 
 const formatDate = (date) => {
@@ -525,24 +624,53 @@ const formatDateTime = (date) => {
   return new Date(date).toLocaleString('zh-CN')
 }
 
-const getDiffCells = (key) => {
-  if (!comparison.value?.diff_info) {
-    return comparison.value?.comparison[key] || []
-  }
-  return comparison.value.diff_info[key]?.cells || comparison.value.comparison[key] || []
+const getModuleInfo = (modId) => {
+  return comparison.value?.modules_info?.[modId] || { id: modId, name: `模块 ${modId}`, type: 'unknown' }
 }
 
-const getCellClass = (key, idx) => {
-  if (!highlightDiffs.value || !comparison.value?.diff_info) return ''
-  const cell = comparison.value.diff_info[key]?.cells?.[idx]
-  if (cell?.is_unique) return 'cell-unique'
-  if (comparison.value.diff_info[key]?.has_diff && !cell?.is_most_common) return 'cell-diff'
+const getModuleParams = (modId) => {
+  const params = []
+  const paramMap = comparison.value?.module_comparison?.[modId]?.parameters || {}
+  Object.keys(paramMap).forEach(key => {
+    if (key.endsWith('__meta')) {
+      params.push(paramMap[key].param_def)
+    }
+  })
+  return params.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+}
+
+const getParamCells = (modId, paramName) => {
+  return comparison.value?.module_comparison?.[modId]?.parameters?.[paramName] || []
+}
+
+const hasParamDiff = (modId, paramName) => {
+  return comparison.value?.module_comparison?.[modId]?.parameters?.[paramName + '__meta']?.has_diff || false
+}
+
+const hasModuleDiff = (modId) => {
+  return comparison.value?.module_comparison?.[modId]?.has_diff || false
+}
+
+const isModuleInAllPatches = (modId) => {
+  return comparison.value?.module_comparison?.[modId]?.all_patches_have || false
+}
+
+const getModuleUsage = (modId) => {
+  return comparison.value?.module_comparison?.[modId]?.patch_module_usage || []
+}
+
+const getParamCellClass = (cell) => {
+  if (!highlightDiffs.value) return ''
+  if (!cell.has_module) return 'cell-no-module'
+  if (cell.is_unique) return 'cell-unique'
+  if (!cell.is_most_common) return 'cell-diff'
   return ''
 }
 
-const isModuleUnique = (modId) => {
-  if (!highlightDiffs.value || !comparison.value?.module_diff_info) return false
-  return comparison.value.module_diff_info[modId]?.is_unique || false
+const isModuleUniqueAcross = (modId) => {
+  if (!highlightDiffs.value || !comparison.value?.module_usage) return false
+  const count = comparison.value.module_usage.filter(u => u.modules.includes(modId)).length
+  return count === 1 && comparison.value.module_usage.length > 1
 }
 
 const openSaveSchemeDialog = () => {
@@ -663,7 +791,7 @@ const saveAndShare = async () => {
     currentSchemeId.value = schemeId
     shareLink.value = window.location.origin + shareRes.share_url
     shareMode.value = 'link'
-    ElMessage.success('分享链接已生成')
+    ElMessage.success('分享链接已生成，他人无需登录即可查看')
   } catch (e) {
     ElMessage.error(e.error || '生成分享链接失败')
   } finally {
@@ -675,7 +803,7 @@ const shareScheme = async (scheme) => {
   try {
     const res = await patchStore.generateShareLink(scheme.id)
     currentSchemeId.value = scheme.id
-    shareLink.value = window.location.origin + res.share_url
+    shareLink.value = window.location.origin + shareRes.share_url
     shareMode.value = 'link'
     shareDialogVisible.value = true
     fetchSchemes()
@@ -794,6 +922,14 @@ const confirmClearHistory = async () => {
   font-size: 14px;
 }
 
+.share-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #409eff;
+  font-size: 14px;
+}
+
 .action-bar {
   display: flex;
   align-items: center;
@@ -859,6 +995,7 @@ const confirmClearHistory = async () => {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .legend-item {
@@ -881,14 +1018,88 @@ const confirmClearHistory = async () => {
   border: 1px solid #ffc107;
 }
 
+.legend-dot.unique {
+  background: rgba(245, 108, 108, 0.3);
+  border: 1px solid #f56c6c;
+}
+
 .legend-dot.same {
   background: rgba(103, 194, 58, 0.2);
   border: 1px solid #67c23a;
 }
 
-.legend-dot.unique {
-  background: rgba(245, 108, 108, 0.3);
-  border: 1px solid #f56c6c;
+.legend-dot.no-mod {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.summary-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.summary-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.summary-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.diff-value {
+  color: #f56c6c;
+}
+
+.module-compare-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.module-compare-card {
+  overflow: hidden;
+}
+
+.module-card-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.module-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.module-name {
+  font-size: 16px;
+  color: #ffd700;
+  margin: 0;
+}
+
+.module-usage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .compare-table {
@@ -898,26 +1109,30 @@ const confirmClearHistory = async () => {
 .compare-table table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px;
+  min-width: 500px;
 }
 
 .compare-table th,
 .compare-table td {
-  padding: 12px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .compare-table th {
   background: rgba(255, 215, 0, 0.1);
   color: #ffd700;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
+}
+
+.th-param {
+  width: 200px;
 }
 
 .diff-row {
-  background: rgba(255, 193, 7, 0.03);
+  background: rgba(255, 193, 7, 0.04);
 }
 
 .cell-diff {
@@ -928,39 +1143,44 @@ const confirmClearHistory = async () => {
   background: rgba(245, 108, 108, 0.15) !important;
 }
 
+.cell-no-module {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  font-style: italic;
+  text-align: center !important;
+}
+
 .param-name {
   font-weight: 600;
-  color: #ffd700;
-  background: rgba(255, 215, 0, 0.05) !important;
-  width: 180px;
-  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.param-label {
+  font-size: 13px;
+}
+
+.param-unit {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-left: 4px;
 }
 
 .diff-tag {
   margin-left: 8px;
 }
 
-.param-values {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.value-item {
-  font-size: 13px;
-}
-
-.value-label {
-  color: rgba(255, 255, 255, 0.5);
-  margin-right: 6px;
-}
-
-.value-content {
+.param-value {
+  font-size: 14px;
+  font-weight: 500;
   color: #fff;
 }
 
-.no-value {
+.no-module {
   color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+  display: block;
+  text-align: center;
 }
 
 .module-tags {
@@ -973,6 +1193,20 @@ const confirmClearHistory = async () => {
   background: rgba(245, 108, 108, 0.2) !important;
   border-color: #f56c6c !important;
   color: #f56c6c !important;
+}
+
+.stats-card {
+  margin-top: 8px;
+}
+
+.stats-title {
+  font-size: 16px;
+  color: #ffd700;
+  margin: 0 0 16px 0;
+}
+
+.no-value {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .schemes-section,

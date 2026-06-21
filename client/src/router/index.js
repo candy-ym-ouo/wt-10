@@ -90,8 +90,7 @@ const routes = [
   {
     path: '/compare',
     name: 'Compare',
-    component: () => import('@/views/Compare.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('@/views/Compare.vue')
   },
   {
     path: '/patch-lab',
