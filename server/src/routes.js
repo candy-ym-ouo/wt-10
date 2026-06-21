@@ -97,6 +97,7 @@ router.put('/patches/:id', requireAuth, patchController.updatePatch);
 router.delete('/patches/:id', requireAuth, patchController.deletePatch);
 router.post('/patches/:id/comments', requireAuth, patchController.addComment);
 router.delete('/patches/:id/comments/:commentId', requireAuth, patchController.deleteComment);
+router.post('/patches/comments/:commentId/like', requireAuth, patchController.toggleCommentLike);
 
 router.get('/articles', articleController.getArticles);
 router.get('/articles/:id', articleController.getArticleDetail);
@@ -108,6 +109,7 @@ router.post('/articles/:id/like', requireAuth, articleController.toggleLike);
 router.post('/articles/:id/favorite', requireAuth, articleController.toggleFavorite);
 router.post('/articles/:id/comments', requireAuth, articleController.addComment);
 router.delete('/articles/:id/comments/:commentId', requireAuth, articleController.deleteComment);
+router.post('/articles/comments/:commentId/like', requireAuth, articleController.toggleCommentLike);
 router.get('/me/articles', requireAuth, articleController.getMyArticles);
 
 router.post('/patches/:id/like', requireAuth, socialController.toggleLike);

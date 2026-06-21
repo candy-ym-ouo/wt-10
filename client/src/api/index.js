@@ -61,8 +61,9 @@ export const patchApi = {
   create: (data) => api.post('/patches', data),
   update: (id, data) => api.put(`/patches/${id}`, data),
   delete: (id) => api.delete(`/patches/${id}`),
-  addComment: (id, content) => api.post(`/patches/${id}/comments`, { content }),
+  addComment: (id, content, parentId, replyToUserId) => api.post(`/patches/${id}/comments`, { content, parent_id: parentId, reply_to_user_id: replyToUserId }),
   deleteComment: (id, commentId) => api.delete(`/patches/${id}/comments/${commentId}`),
+  toggleCommentLike: (commentId) => api.post(`/patches/comments/${commentId}/like`),
   toggleLike: (id) => api.post(`/patches/${id}/like`),
   toggleFavorite: (id, folder) => api.post(`/patches/${id}/favorite`, { folder }),
   getVersions: (id, params) => api.get(`/patches/${id}/versions`, { params }),
@@ -390,8 +391,9 @@ export const articleApi = {
   delete: (id) => api.delete(`/articles/${id}`),
   toggleLike: (id) => api.post(`/articles/${id}/like`),
   toggleFavorite: (id, folder) => api.post(`/articles/${id}/favorite`, { folder }),
-  addComment: (id, content, parentId) => api.post(`/articles/${id}/comments`, { content, parent_id: parentId }),
+  addComment: (id, content, parentId, replyToUserId) => api.post(`/articles/${id}/comments`, { content, parent_id: parentId, reply_to_user_id: replyToUserId }),
   deleteComment: (id, commentId) => api.delete(`/articles/${id}/comments/${commentId}`),
+  toggleCommentLike: (commentId) => api.post(`/articles/comments/${commentId}/like`),
   getMyArticles: (params) => api.get('/me/articles', { params })
 }
 

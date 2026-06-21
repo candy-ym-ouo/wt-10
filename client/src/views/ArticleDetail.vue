@@ -120,7 +120,7 @@
       </div>
 
       <div class="comments-section">
-        <h3 class="section-title">💬 评论 ({{ comments.length }})</h3>
+        <h3 class="section-title">💬 评论 ({{ totalCommentsCount }})</h3>
         
         <div v-if="userStore.isLoggedIn" class="comment-input">
           <el-avatar :size="36" :src="userStore.user?.avatar">
@@ -147,43 +147,32 @@
           <el-button type="primary" @click="goToLogin">立即登录</el-button>
         </div>
 
-        <div v-if="comments.length === 0" class="empty-comments">
+        <div v-if="totalCommentsCount === 0" class="empty-comments">
           <el-icon class="empty-icon"><ChatDotRound /></el-icon>
           <p>暂无评论，快来抢沙发吧~</p>
         </div>
 
         <div v-else class="comments-list">
-          <div
+          <CommentItem
             v-for="comment in comments"
             :key="comment.id"
-            class="comment-item"
-          >
-            <el-avatar :size="40" :src="comment.avatar">
-              {{ comment.username?.charAt(0).toUpperCase() }}
-            </el-avatar>
-            <div class="comment-content">
-              <div class="comment-header">
-                <span class="comment-author" @click="goToUser(comment.user_id)">
-                  {{ comment.username }}
-                </span>
-                <span class="comment-time">{{ formatDate(comment.created_at) }}</span>
-              </div>
-              <p class="comment-text">{{ comment.content }}</p>
-              <div class="comment-footer">
-                <el-button
-                  v-if="userStore.isLoggedIn && (comment.user_id === userStore.user?.id || userStore.isAdmin)"
-                  link
-                  type="danger"
-                  size="small"
-                  @click="deleteComment(comment.id)"
-                >
-                  删除
-                </el-button>
-              </div>
-            </div>
-          </div>
+            :comment="comment"
+            :article-id="article.id"
+            @like="handleCommentLike"
+            @delete="handleCommentDelete"
+            @report="handleCommentReport"
+            @reply="handleCommentReply"
+          />
         </div>
       </div>
+      
+      <ReportDialog
+        v-model:visible="reportDialogVisible"
+        :target-type="reportTargetType"
+        :target-id="reportTargetId"
+        :target-description="reportTargetDescription"
+        @success="onReportSuccess"
+      />
     </template>
 
     <div v-else class="empty-state">
@@ -205,6 +194,8 @@ import { useArticleStore } from '@/stores/articleStore'
 import { useUserStore } from '@/stores/userStore'
 import CreatorBadge from '@/components/CreatorBadge.vue'
 import FollowButton from '@/components/FollowButton.vue'
+import CommentItem from '@/components/CommentItem.vue'
+import ReportDialog from '@/components/ReportDialog.vue'
 import { marked } from 'marked'
 
 const route = useRoute()
@@ -221,7 +212,27 @@ const isLiked = ref(false)
 const isFavorited = ref(false)
 const likesCount = ref(0)
 
+const reportDialogVisible = ref(false)
+const reportTargetType = ref('')
+const reportTargetId = ref(null)
+const reportTargetDescription = ref('')
+
 const isMe = computed(() => userStore.user?.id === article.value?.user_id)
+
+const totalCommentsCount = computed(() => {
+  if (!comments.value) return 0
+  let count = 0
+  const countReplies = (commentsList) => {
+    commentsList.forEach(c => {
+      count++
+      if (c.replies && c.replies.length > 0) {
+        countReplies(c.replies)
+      }
+    })
+  }
+  countReplies(comments.value)
+  return count
+})
 
 const parseTags = (tagsStr) => {
   try {
@@ -323,13 +334,97 @@ const handleFavorite = async () => {
 const submitComment = async () => {
   if (!newComment.value.trim()) return
   try {
-    const comment = await articleStore.addComment(article.value.id, newComment.value)
+    const comment = await articleStore.addComment(article.value.id, newComment.value.trim())
     comments.value.unshift(comment)
     newComment.value = ''
     ElMessage.success('评论成功')
   } catch (err) {
     ElMessage.error(err.error || '评论失败')
   }
+}
+
+const findCommentById = (commentsList, id) => {
+  for (const comment of commentsList) {
+    if (comment.id === id) return comment
+    if (comment.replies && comment.replies.length > 0) {
+      const found = findCommentById(comment.replies, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const findParentCommentById = (commentsList, id, parent = null) => {
+  for (const comment of commentsList) {
+    if (comment.id === id) return parent
+    if (comment.replies && comment.replies.length > 0) {
+      const found = findParentCommentById(comment.replies, id, comment)
+      if (found !== null) return found
+    }
+  }
+  return null
+}
+
+const handleCommentLike = async (comment) => {
+  try {
+    const res = await articleStore.toggleCommentLike(comment.id)
+    const targetComment = findCommentById(comments.value, comment.id)
+    if (targetComment) {
+      targetComment.is_liked = res.liked
+      targetComment.likes_count = res.likes_count
+    }
+  } catch (err) {
+    ElMessage.error(err.error || '操作失败')
+  }
+}
+
+const handleCommentDelete = async (comment) => {
+  try {
+    await articleStore.deleteComment(article.value.id, comment.id)
+    
+    const parent = findParentCommentById(comments.value, comment.id)
+    if (parent) {
+      parent.replies = parent.replies.filter(c => c.id !== comment.id)
+    } else {
+      comments.value = comments.value.filter(c => c.id !== comment.id)
+    }
+    
+    ElMessage.success('删除成功')
+  } catch {}
+}
+
+const handleCommentReport = (comment) => {
+  reportTargetType.value = 'comment'
+  reportTargetId.value = comment.id
+  reportTargetDescription.value = `评论（来自 ${comment.username}）：${comment.content.slice(0, 50)}${comment.content.length > 50 ? '...' : ''}`
+  reportDialogVisible.value = true
+}
+
+const handleCommentReply = async ({ parentId, replyToUserId, content }) => {
+  try {
+    const newReply = await articleStore.addComment(
+      article.value.id, 
+      content, 
+      parentId, 
+      replyToUserId
+    )
+    
+    const parentComment = findCommentById(comments.value, parentId)
+    if (parentComment) {
+      if (!parentComment.replies) {
+        parentComment.replies = []
+      }
+      parentComment.replies.unshift(newReply)
+    }
+    
+    ElMessage.success('回复成功')
+  } catch (err) {
+    ElMessage.error(err.error || '回复失败')
+    throw err
+  }
+}
+
+const onReportSuccess = () => {
 }
 
 const deleteComment = async (commentId) => {

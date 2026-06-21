@@ -50,8 +50,12 @@ export const useArticleStore = defineStore('article', {
       return await articleAPI.toggleFavorite(id, folder)
     },
 
-    async addComment(id, content, parentId = 0) {
-      return await articleAPI.addComment(id, content, parentId)
+    async addComment(id, content, parentId = 0, replyToUserId = null) {
+      return await articleAPI.addComment(id, content, parentId, replyToUserId)
+    },
+
+    async toggleCommentLike(commentId) {
+      return await articleAPI.toggleCommentLike(commentId)
     },
 
     async deleteComment(articleId, commentId) {

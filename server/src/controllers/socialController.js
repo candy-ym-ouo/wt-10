@@ -401,11 +401,11 @@ exports.getNotificationSubscriptions = async (ctx) => {
   `).all(userId);
 
   const defaultCategories = [
-    { category: 'comment', label: '评论通知', description: '有人评论你的 Patch 时通知', enabled: 1 },
-    { category: 'review', label: '审核通知', description: 'Patch 审核状态变更时通知', enabled: 1 },
+    { category: 'comment', label: '评论通知', description: '有人评论或回复你的内容时通知', enabled: 1 },
+    { category: 'review', label: '审核通知', description: '内容审核状态变更时通知', enabled: 1 },
     { category: 'follow', label: '关注通知', description: '有人关注你或关注的人发布内容时通知', enabled: 1 },
     { category: 'activity', label: '活动通知', description: '活动相关的通知', enabled: 1 },
-    { category: 'like', label: '点赞通知', description: '有人点赞你的 Patch 时通知', enabled: 1 },
+    { category: 'like', label: '点赞通知', description: '有人点赞你的内容或评论时通知', enabled: 1 },
     { category: 'favorite', label: '收藏通知', description: '有人收藏你的 Patch 时通知', enabled: 1 },
     { category: 'system', label: '系统通知', description: '系统相关的通知', enabled: 1 }
   ];

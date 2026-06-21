@@ -1,8 +1,21 @@
 const db = require('../db');
 
+const typeToCategory = {
+  'comment': 'comment',
+  'comment_reply': 'comment',
+  'comment_like': 'like',
+  'like': 'like',
+  'favorite': 'favorite',
+  'follow': 'follow',
+  'review': 'review',
+  'activity': 'activity',
+  'new_patch': 'follow',
+  'system': 'system'
+};
+
 const createNotification = (userId, type, fromUserId, articleId, content, options = {}) => {
   try {
-    const category = options.category || type || 'system';
+    const category = options.category || typeToCategory[type] || type || 'system';
 
     const subscription = db.prepare(`
       SELECT enabled FROM notification_subscriptions 
@@ -147,15 +160,34 @@ exports.getArticleDetail = async (ctx) => {
     ORDER BY amr.sort_order ASC
   `).all(id);
 
-  const comments = db.prepare(`
-    SELECT ac.*, u.username, u.avatar
+  const commentsRaw = db.prepare(`
+    SELECT ac.*, u.username, u.avatar,
+           EXISTS(SELECT 1 FROM article_comment_likes WHERE user_id = ? AND comment_id = ac.id) as is_liked,
+           ru.username as reply_to_username
     FROM article_comments ac
     JOIN users u ON ac.user_id = u.id
-    WHERE ac.article_id = ?
+    LEFT JOIN users ru ON ac.reply_to_user_id = ru.id
+    WHERE ac.article_id = ? AND ac.status = 'approved'
     ORDER BY ac.created_at DESC
-  `).all(id);
+  `).all(userId, id);
 
-  ctx.body = { ...article, module_refs: moduleRefs, comments };
+  const commentMap = {};
+  const topLevelComments = [];
+  
+  commentsRaw.forEach(comment => {
+    comment.replies = [];
+    commentMap[comment.id] = comment;
+  });
+  
+  commentsRaw.forEach(comment => {
+    if (comment.parent_id && commentMap[comment.parent_id]) {
+      commentMap[comment.parent_id].replies.push(comment);
+    } else {
+      topLevelComments.push(comment);
+    }
+  });
+
+  ctx.body = { ...article, module_refs: moduleRefs, comments: topLevelComments };
 };
 
 exports.createArticle = async (ctx) => {
@@ -395,7 +427,7 @@ exports.toggleFavorite = async (ctx) => {
 
 exports.addComment = async (ctx) => {
   const id = parseInt(ctx.params.id);
-  const { content, parent_id = 0 } = ctx.request.body;
+  const { content, parent_id, reply_to_user_id } = ctx.request.body;
   const userId = ctx.state.user.id;
 
   if (!content) {
@@ -426,31 +458,86 @@ exports.addComment = async (ctx) => {
     return;
   }
 
-  const stmt = db.prepare('INSERT INTO article_comments (article_id, user_id, content, parent_id) VALUES (?, ?, ?, ?)');
-  const result = stmt.run(id, userId, content, parent_id);
+  let parentComment = null;
+  let replyToUser = null;
+  let rootCommentId = null;
+
+  if (parent_id) {
+    parentComment = db.prepare('SELECT * FROM article_comments WHERE id = ? AND article_id = ?').get(parent_id, id);
+    if (!parentComment) {
+      ctx.status = 400;
+      ctx.body = { error: '父评论不存在' };
+      return;
+    }
+    
+    if (parentComment.parent_id) {
+      rootCommentId = parentComment.parent_id;
+    } else {
+      rootCommentId = parent_id;
+    }
+
+    if (reply_to_user_id) {
+      replyToUser = db.prepare('SELECT id, username FROM users WHERE id = ?').get(reply_to_user_id);
+    } else if (parentComment) {
+      replyToUser = { id: parentComment.user_id };
+    }
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO article_comments (article_id, user_id, content, parent_id, reply_to_user_id)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const result = stmt.run(
+    id, 
+    userId, 
+    content,
+    rootCommentId || null,
+    replyToUser?.id || null
+  );
 
   db.prepare('UPDATE articles SET comments_count = comments_count + 1 WHERE id = ?').run(id);
 
-  if (article.user_id !== userId) {
-    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
-    const truncatedContent = content.length > 30 ? content.substring(0, 30) + '...' : content;
+  const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+  const truncatedContent = content.length > 30 ? content.substring(0, 30) + '...' : content;
+
+  if (article.user_id !== userId && !parent_id) {
     createNotification(
       article.user_id,
       'comment',
       userId,
       id,
       `${user?.username || '用户'} 评论了你的文章 "${article.title}": "${truncatedContent}"`,
-      { category: 'comment', linkUrl: `/articles/${id}` }
+      { category: 'comment', linkUrl: `/articles/${id}#comment-${result.lastInsertRowid}` }
+    );
+  }
+
+  if (replyToUser && replyToUser.id !== userId && replyToUser.id !== article.user_id) {
+    createNotification(
+      replyToUser.id,
+      'comment_reply',
+      userId,
+      id,
+      `${user?.username || '用户'} 回复了你的评论: "${truncatedContent}"`,
+      {
+        category: 'comment',
+        linkUrl: `/articles/${id}#comment-${result.lastInsertRowid}`,
+        extraData: { comment_id: result.lastInsertRowid, parent_id: rootCommentId }
+      }
     );
   }
 
   const comment = db.prepare(`
-    SELECT ac.*, u.username, u.avatar
+    SELECT ac.*, u.username, u.avatar,
+           ru.username as reply_to_username,
+           0 as is_liked,
+           0 as likes_count
     FROM article_comments ac
     JOIN users u ON ac.user_id = u.id
+    LEFT JOIN users ru ON ac.reply_to_user_id = ru.id
     WHERE ac.id = ?
   `).get(result.lastInsertRowid);
 
+  comment.replies = [];
   ctx.body = comment;
 };
 
@@ -473,6 +560,50 @@ exports.deleteComment = async (ctx) => {
   db.prepare('DELETE FROM article_comments WHERE id = ?').run(commentId);
   db.prepare('UPDATE articles SET comments_count = comments_count - 1 WHERE id = ?').run(comment.article_id);
   ctx.body = { success: true };
+};
+
+exports.toggleCommentLike = async (ctx) => {
+  const commentId = parseInt(ctx.params.commentId);
+  const userId = ctx.state.user.id;
+
+  const comment = db.prepare('SELECT * FROM article_comments WHERE id = ?').get(commentId);
+  if (!comment) {
+    ctx.status = 404;
+    ctx.body = { error: '评论不存在' };
+    return;
+  }
+
+  const existing = db.prepare('SELECT * FROM article_comment_likes WHERE user_id = ? AND comment_id = ?').get(userId, commentId);
+
+  if (existing) {
+    db.prepare('DELETE FROM article_comment_likes WHERE id = ?').run(existing.id);
+    db.prepare('UPDATE article_comments SET likes_count = likes_count - 1 WHERE id = ?').run(commentId);
+    const likesCount = Math.max(0, db.prepare('SELECT likes_count FROM article_comments WHERE id = ?').get(commentId).likes_count);
+    ctx.body = { liked: false, likes_count: likesCount };
+  } else {
+    db.prepare('INSERT INTO article_comment_likes (user_id, comment_id) VALUES (?, ?)').run(userId, commentId);
+    db.prepare('UPDATE article_comments SET likes_count = likes_count + 1 WHERE id = ?').run(commentId);
+    const likesCount = db.prepare('SELECT likes_count FROM article_comments WHERE id = ?').get(commentId).likes_count;
+    
+    if (comment.user_id !== userId) {
+      const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+      const article = db.prepare('SELECT title FROM articles WHERE id = ?').get(comment.article_id);
+      createNotification(
+        comment.user_id,
+        'comment_like',
+        userId,
+        comment.article_id,
+        `${user?.username || '用户'} 赞了你的评论`,
+        {
+          category: 'like',
+          linkUrl: `/articles/${comment.article_id}#comment-${commentId}`,
+          extraData: { comment_id: commentId }
+        }
+      );
+    }
+    
+    ctx.body = { liked: true, likes_count: likesCount };
+  }
 };
 
 exports.getMyArticles = async (ctx) => {

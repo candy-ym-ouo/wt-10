@@ -253,7 +253,7 @@
 
           <div class="card">
             <div class="param-section">
-              <h3>💬 评论 ({{ patch.comments?.length || 0 }})</h3>
+              <h3>💬 评论 ({{ totalCommentsCount }})</h3>
               
               <div v-if="userStore.isLoggedIn" class="comment-form">
                 <el-input
@@ -275,36 +275,20 @@
               </div>
 
               <div class="comments-list" v-if="patch.comments?.length > 0">
-                <div v-for="comment in patch.comments" :key="comment.id" class="comment-item">
-                  <el-avatar :size="36" :src="comment.avatar">
-                    {{ comment.username?.charAt(0).toUpperCase() }}
-                  </el-avatar>
-                  <div class="comment-content">
-                    <div class="comment-header">
-                      <span class="comment-user" @click="goToUser(comment.user_id)">
-                        {{ comment.username }}
-                      </span>
-                      <span class="comment-time">{{ formatDate(comment.created_at) }}</span>
-                      <el-button
-                        v-if="(userStore.user?.id === comment.user_id) || userStore.isAdmin"
-                        type="text"
-                        size="small"
-                        @click="deleteComment(comment.id)"
-                      >
-                        <el-icon><Delete /></el-icon> 删除
-                      </el-button>
-                      <el-button
-                        v-if="userStore.isLoggedIn && userStore.user?.id !== comment.user_id"
-                        type="text"
-                        size="small"
-                        @click="reportComment(comment)"
-                      >
-                        <el-icon><WarningFilled /></el-icon> 举报
-                      </el-button>
-                    </div>
-                    <div class="comment-text">{{ comment.content }}</div>
-                  </div>
-                </div>
+                <CommentItem
+                  v-for="comment in patch.comments"
+                  :key="comment.id"
+                  :comment="comment"
+                  :patch-id="patch.id"
+                  @like="handleCommentLike"
+                  @delete="handleCommentDelete"
+                  @report="handleCommentReport"
+                  @reply="handleCommentReply"
+                />
+              </div>
+
+              <div v-else-if="!loading" class="empty-state" style="padding: 40px 20px;">
+                <p>暂无评论，快来发表第一条评论吧~</p>
               </div>
             </div>
           </div>
@@ -434,7 +418,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Loading, Warning, ArrowLeft, Star, Collection, SetUp, MoreFilled, Edit, Delete, 
   View, WarningFilled, Lock, Unlock, ShoppingCart, Check, InfoFilled,
-  Headset, Download, Folder, Plus, ArrowDown
+  Headset, Download, Folder, Plus, ArrowDown, ChatDotRound
 } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { useUserStore } from '@/stores/userStore'
@@ -442,6 +426,7 @@ import { useProductStore } from '@/stores/productStore'
 import { moduleAPI } from '@/api'
 import ReportDialog from '@/components/ReportDialog.vue'
 import PatchVersionHistory from '@/components/PatchVersionHistory.vue'
+import CommentItem from '@/components/CommentItem.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -531,6 +516,21 @@ const hasPermission = computed(() => {
   if (!patch.value?.is_paid) return true
   if (isOwner.value) return true
   return permission.value?.has_permission || false
+})
+
+const totalCommentsCount = computed(() => {
+  if (!patch.value?.comments) return 0
+  let count = 0
+  const countReplies = (comments) => {
+    comments.forEach(c => {
+      count++
+      if (c.replies && c.replies.length > 0) {
+        countReplies(c.replies)
+      }
+    })
+  }
+  countReplies(patch.value.comments)
+  return count
 })
 
 onMounted(async () => {
@@ -728,6 +728,28 @@ const reportComment = (comment) => {
 const onReportSuccess = () => {
 }
 
+const findCommentById = (comments, id) => {
+  for (const comment of comments) {
+    if (comment.id === id) return comment
+    if (comment.replies && comment.replies.length > 0) {
+      const found = findCommentById(comment.replies, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const findParentCommentById = (comments, id, parent = null) => {
+  for (const comment of comments) {
+    if (comment.id === id) return parent
+    if (comment.replies && comment.replies.length > 0) {
+      const found = findParentCommentById(comment.replies, id, comment)
+      if (found !== null) return found
+    }
+  }
+  return null
+}
+
 const addComment = async () => {
   if (!newComment.value.trim()) return
   commentLoading.value = true
@@ -740,6 +762,62 @@ const addComment = async () => {
     ElMessage.error(e.error || '评论失败')
   } finally {
     commentLoading.value = false
+  }
+}
+
+const handleCommentLike = async (comment) => {
+  try {
+    const res = await patchStore.toggleCommentLike(comment.id)
+    const targetComment = findCommentById(patch.value.comments, comment.id)
+    if (targetComment) {
+      targetComment.is_liked = res.liked
+      targetComment.likes_count = res.likes_count
+    }
+  } catch (e) {
+    ElMessage.error(e.error || '操作失败')
+  }
+}
+
+const handleCommentDelete = async (comment) => {
+  try {
+    await patchStore.deleteComment(patch.value.id, comment.id)
+    
+    const parent = findParentCommentById(patch.value.comments, comment.id)
+    if (parent) {
+      parent.replies = parent.replies.filter(c => c.id !== comment.id)
+    } else {
+      patch.value.comments = patch.value.comments.filter(c => c.id !== comment.id)
+    }
+    
+    ElMessage.success('删除成功')
+  } catch {}
+}
+
+const handleCommentReport = (comment) => {
+  reportComment(comment)
+}
+
+const handleCommentReply = async ({ parentId, replyToUserId, content }) => {
+  try {
+    const newReply = await patchStore.addComment(
+      patch.value.id, 
+      content, 
+      parentId, 
+      replyToUserId
+    )
+    
+    const parentComment = findCommentById(patch.value.comments, parentId)
+    if (parentComment) {
+      if (!parentComment.replies) {
+        parentComment.replies = []
+      }
+      parentComment.replies.unshift(newReply)
+    }
+    
+    ElMessage.success('回复成功')
+  } catch (e) {
+    ElMessage.error(e.error || '回复失败')
+    throw e
   }
 }
 

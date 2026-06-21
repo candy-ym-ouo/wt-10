@@ -49,12 +49,16 @@ export const usePatchStore = defineStore('patch', {
       return await patchAPI.toggleFavorite(id, data)
     },
 
-    async addComment(id, content) {
-      return await patchAPI.addComment(id, content)
+    async addComment(id, content, parentId, replyToUserId) {
+      return await patchAPI.addComment(id, content, parentId, replyToUserId)
     },
 
     async deleteComment(patchId, commentId) {
       return await patchAPI.deleteComment(patchId, commentId)
+    },
+
+    async toggleCommentLike(commentId) {
+      return await patchAPI.toggleCommentLike(commentId)
     },
 
     async fetchMyPatches(params = {}) {
