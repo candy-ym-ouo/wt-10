@@ -21,6 +21,34 @@
       <el-tab-pane label="💾 全部" name="all" />
     </el-tabs>
 
+    <div v-if="activeTab === 'trash'" class="trash-filter-bar">
+      <el-input
+        v-model="trashKeyword"
+        placeholder="搜索回收站（标题、描述）"
+        clearable
+        class="search-input"
+        @keyup.enter="handleTrashSearch"
+        @clear="handleTrashSearch"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-select v-model="trashStatus" placeholder="原状态" clearable class="status-filter" @change="handleTrashSearch">
+        <el-option label="草稿" value="draft" />
+        <el-option label="定时中" value="scheduled" />
+        <el-option label="待审核" value="pending" />
+        <el-option label="已通过" value="approved" />
+        <el-option label="已驳回" value="rejected" />
+        <el-option label="待修改" value="needs_revision" />
+      </el-select>
+      <el-button type="primary" @click="handleTrashSearch">
+        <el-icon><Search /></el-icon>
+        搜索
+      </el-button>
+      <el-button @click="resetTrashFilter">重置</el-button>
+    </div>
+
     <div v-if="loading" class="empty-state">
       <el-icon class="empty-icon"><Loading /></el-icon>
       <p>加载中...</p>
@@ -106,7 +134,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Loading, Document, Plus, View, Edit, Delete, Star } from '@element-plus/icons-vue'
+import { Loading, Document, Plus, View, Edit, Delete, Star, Search } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { useRouter, useRoute } from 'vue-router'
 
@@ -120,6 +148,8 @@ const total = ref(0)
 const page = ref(1)
 const limit = 12
 const activeTab = ref('published')
+const trashKeyword = ref('')
+const trashStatus = ref('')
 
 const emptyText = computed(() => {
   switch (activeTab.value) {
@@ -168,9 +198,13 @@ const fetchPatches = async () => {
       case 'published':
         res = await patchStore.fetchMyPatches({ ...params, status: 'approved' })
         break
-      case 'trash':
-        res = await patchStore.fetchMyTrash(params)
+      case 'trash': {
+        const trashParams = { ...params }
+        if (trashKeyword.value) trashParams.search = trashKeyword.value
+        if (trashStatus.value) trashParams.status = trashStatus.value
+        res = await patchStore.fetchMyTrash(trashParams)
         break
+      }
       default:
         res = await patchStore.fetchMyPatches({ ...params, status: 'all' })
     }
@@ -233,6 +267,18 @@ const restorePatch = async (patch) => {
     fetchPatches()
   } catch {}
 }
+
+const handleTrashSearch = () => {
+  page.value = 1
+  fetchPatches()
+}
+
+const resetTrashFilter = () => {
+  trashKeyword.value = ''
+  trashStatus.value = ''
+  page.value = 1
+  fetchPatches()
+}
 </script>
 
 <style scoped>
@@ -246,6 +292,21 @@ const restorePatch = async (patch) => {
 
 .patch-tabs {
   margin-bottom: 24px;
+}
+
+.trash-filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.trash-filter-bar .search-input {
+  max-width: 360px;
+}
+
+.trash-filter-bar .status-filter {
+  max-width: 140px;
 }
 
 .patch-card {

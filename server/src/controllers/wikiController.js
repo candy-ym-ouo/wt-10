@@ -366,7 +366,7 @@ exports.adminSearchPatches = async (ctx) => {
     patches = db.prepare(`
       SELECT p.id, p.title, p.status
       FROM patches p
-      WHERE p.title LIKE ?
+      WHERE p.title LIKE ? AND p.deleted_at IS NULL
       ORDER BY p.created_at DESC
       LIMIT ?
     `).all(`%${keyword}%`, limit);

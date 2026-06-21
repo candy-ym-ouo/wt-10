@@ -144,15 +144,17 @@ exports.deleteUser = async (ctx) => {
 };
 
 exports.getAllPatches = async (ctx) => {
-  const { page = 1, limit = 20, search, user_id, status } = ctx.query;
+  const { page = 1, limit = 20, search, keyword, user_id, status } = ctx.query;
   const offset = (page - 1) * limit;
+
+  const searchQuery = search || keyword;
 
   let where = ['p.deleted_at IS NULL'];
   let params = [];
 
-  if (search) {
-    where.push('(p.title LIKE ? OR p.description LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`);
+  if (searchQuery) {
+    where.push('(p.title LIKE ? OR p.description LIKE ? OR u.username LIKE ?)');
+    params.push(`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`);
   }
   if (user_id) {
     where.push('p.user_id = ?');
@@ -222,19 +224,25 @@ exports.adminRestorePatch = async (ctx) => {
 };
 
 exports.getTrashPatches = async (ctx) => {
-  const { page = 1, limit = 20, search, user_id } = ctx.query;
+  const { page = 1, limit = 20, search, keyword, user_id, status } = ctx.query;
   const offset = (page - 1) * limit;
+
+  const searchQuery = search || keyword;
 
   let where = ['p.deleted_at IS NOT NULL'];
   let params = [];
 
-  if (search) {
-    where.push('(p.title LIKE ? OR p.description LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`);
+  if (searchQuery) {
+    where.push('(p.title LIKE ? OR p.description LIKE ? OR u.username LIKE ?)');
+    params.push(`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`);
   }
   if (user_id) {
     where.push('p.user_id = ?');
     params.push(parseInt(user_id));
+  }
+  if (status) {
+    where.push('p.status = ?');
+    params.push(status);
   }
 
   const whereSql = 'WHERE ' + where.join(' AND ');
@@ -418,6 +426,7 @@ exports.getRecentPatches = async (ctx) => {
     SELECT p.*, u.username as author_name
     FROM patches p
     JOIN users u ON p.user_id = u.id
+    WHERE p.deleted_at IS NULL
     ORDER BY p.created_at DESC
     LIMIT 10
   `).all();

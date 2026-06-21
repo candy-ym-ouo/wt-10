@@ -10,19 +10,29 @@
     <div class="filter-bar">
       <el-input
         v-model="keyword"
-        placeholder="搜索已删除的 Patch"
+        placeholder="搜索已删除的 Patch（标题、描述、作者）"
         clearable
         class="search-input"
-        @keyup.enter="fetchTrash"
+        @keyup.enter="handleSearch"
+        @clear="handleSearch"
       >
         <template #prefix>
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
-      <el-button type="primary" @click="fetchTrash">
+      <el-select v-model="statusFilter" placeholder="原状态" clearable class="status-filter" @change="handleSearch">
+        <el-option label="草稿" value="draft" />
+        <el-option label="定时中" value="scheduled" />
+        <el-option label="待审核" value="pending" />
+        <el-option label="已通过" value="approved" />
+        <el-option label="已驳回" value="rejected" />
+        <el-option label="待修改" value="needs_revision" />
+      </el-select>
+      <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
         搜索
       </el-button>
+      <el-button @click="resetFilter">重置</el-button>
     </div>
 
     <div class="table-card">
@@ -83,6 +93,7 @@ import { adminApi } from '@/api'
 
 const loading = ref(true)
 const keyword = ref('')
+const statusFilter = ref('')
 const patches = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -120,11 +131,13 @@ const statusText = (status) => {
 const fetchTrash = async () => {
   try {
     loading.value = true
-    const res = await adminApi.getTrashPatches({
-      keyword: keyword.value,
+    const params = {
+      search: keyword.value,
       page: page.value,
       limit
-    })
+    }
+    if (statusFilter.value) params.status = statusFilter.value
+    const res = await adminApi.getTrashPatches(params)
     patches.value = res.list || []
     total.value = res.total || 0
   } catch (err) {
@@ -133,6 +146,18 @@ const fetchTrash = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  page.value = 1
+  fetchTrash()
+}
+
+const resetFilter = () => {
+  keyword.value = ''
+  statusFilter.value = ''
+  page.value = 1
+  fetchTrash()
 }
 
 const restorePatch = async (patch) => {
@@ -201,6 +226,10 @@ onMounted(() => {
 
 .search-input {
   max-width: 400px;
+}
+
+.status-filter {
+  max-width: 160px;
 }
 
 .table-card {

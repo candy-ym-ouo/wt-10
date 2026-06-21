@@ -52,7 +52,7 @@ exports.getCollectionDetail = async (ctx) => {
     JOIN patches p ON cp.patch_id = p.id
     JOIN users u ON p.user_id = u.id
     LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE cp.collection_id = ? AND p.is_public = 1
+    WHERE cp.collection_id = ? AND p.is_public = 1 AND p.deleted_at IS NULL
     GROUP BY p.id
     ORDER BY cp.sort_order ASC, cp.created_at ASC
   `).all(userId, userId, id);

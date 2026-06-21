@@ -71,7 +71,7 @@ exports.getCompareList = async (ctx) => {
       SELECT p.*, u.username, u.avatar
       FROM patches p
       JOIN users u ON p.user_id = u.id
-      WHERE p.id IN (${placeholders}) AND p.deleted_at IS NULL AND p.deleted_at IS NULL
+      WHERE p.id IN (${placeholders}) AND p.deleted_at IS NULL
     `).all(...patchIds);
   }
 
@@ -237,21 +237,36 @@ exports.getMyScheduled = async (ctx) => {
 };
 
 exports.getMyTrash = async (ctx) => {
-  const { page = 1, limit = 12 } = ctx.query;
+  const { page = 1, limit = 12, search, keyword, status } = ctx.query;
   const offset = (page - 1) * limit;
   const userId = ctx.state.user.id;
+  const searchQuery = search || keyword;
+
+  let where = ['p.user_id = ?', 'p.deleted_at IS NOT NULL'];
+  let params = [userId];
+
+  if (searchQuery) {
+    where.push('(p.title LIKE ? OR p.description LIKE ?)');
+    params.push(`%${searchQuery}%`, `%${searchQuery}%`);
+  }
+  if (status) {
+    where.push('p.status = ?');
+    params.push(status);
+  }
+
+  const whereSql = 'WHERE ' + where.join(' AND ');
 
   const patches = db.prepare(`
     SELECT p.*, COUNT(l.id) as real_likes
     FROM patches p
     LEFT JOIN likes l ON p.id = l.patch_id
-    WHERE p.user_id = ? AND p.deleted_at IS NOT NULL
+    ${whereSql}
     GROUP BY p.id
     ORDER BY p.deleted_at DESC
     LIMIT ? OFFSET ?
-  `).all(userId, limit, offset);
+  `).all(...params, limit, offset);
 
-  const total = db.prepare("SELECT COUNT(*) as count FROM patches WHERE user_id = ? AND deleted_at IS NOT NULL").get(userId);
+  const total = db.prepare(`SELECT COUNT(*) as count FROM patches p ${whereSql}`).get(...params);
 
   ctx.body = {
     list: patches,
@@ -712,7 +727,7 @@ exports.getFollowingFeed = async (ctx) => {
     LEFT JOIN likes l ON p.id = l.patch_id
     LEFT JOIN likes l2 ON l2.patch_id = p.id AND l2.user_id = ?
     LEFT JOIN favorites f ON f.patch_id = p.id AND f.user_id = ?
-    WHERE fol.follower_id = ? AND p.is_public = 1
+    WHERE fol.follower_id = ? AND p.is_public = 1 AND p.deleted_at IS NULL
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ? OFFSET ?
@@ -722,7 +737,7 @@ exports.getFollowingFeed = async (ctx) => {
     SELECT COUNT(DISTINCT p.id) as count
     FROM follows fol
     JOIN patches p ON fol.following_id = p.user_id
-    WHERE fol.follower_id = ? AND p.is_public = 1
+    WHERE fol.follower_id = ? AND p.is_public = 1 AND p.deleted_at IS NULL
   `).get(userId);
 
   ctx.body = {
@@ -1406,7 +1421,7 @@ exports.getMyFavorites = async (ctx) => {
   
   ensureDefaultFolder(userId);
   
-  let where = 'f.user_id = ?';
+  let where = 'f.user_id = ? AND p.deleted_at IS NULL';
   let params = [userId];
   
   if (folder_id) {
@@ -1507,7 +1522,7 @@ exports.getUserFavorites = async (ctx) => {
     JOIN patches p ON f.patch_id = p.id
     JOIN users u ON p.user_id = u.id
     LEFT JOIN likes l ON p.id = l.patch_id AND l.user_id = ?
-    WHERE f.user_id = ? AND p.is_public = 1
+    WHERE f.user_id = ? AND p.is_public = 1 AND p.deleted_at IS NULL
     GROUP BY p.id
     ORDER BY f.created_at DESC
     LIMIT ? OFFSET ?
@@ -1517,7 +1532,7 @@ exports.getUserFavorites = async (ctx) => {
     SELECT COUNT(*) as count 
     FROM favorites f
     JOIN patches p ON f.patch_id = p.id
-    WHERE f.user_id = ? AND p.is_public = 1
+    WHERE f.user_id = ? AND p.is_public = 1 AND p.deleted_at IS NULL
   `).get(userId);
 
   ctx.body = {

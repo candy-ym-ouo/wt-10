@@ -121,7 +121,7 @@ exports.getUserStats = async (ctx) => {
       COALESCE(SUM(p.favorites_count), 0) as total_favorites,
       COALESCE(SUM(p.views_count), 0) as total_views
     FROM users u
-    LEFT JOIN patches p ON u.id = p.user_id
+    LEFT JOIN patches p ON u.id = p.user_id AND p.deleted_at IS NULL
     ${whereSql}
     GROUP BY u.id
     ORDER BY ${sortField} ${sortOrder}
@@ -363,7 +363,7 @@ exports.exportReport = async (ctx) => {
           COALESCE(SUM(p.favorites_count), 0) as total_favorites,
           COALESCE(SUM(p.views_count), 0) as total_views
         FROM users u
-        LEFT JOIN patches p ON u.id = p.user_id
+        LEFT JOIN patches p ON u.id = p.user_id AND p.deleted_at IS NULL
         ${whereSql}
         GROUP BY u.id
         ORDER BY ${sortField} ${sortOrder}
