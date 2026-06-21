@@ -250,8 +250,8 @@ exports.getPatches = async (ctx) => {
   if (modules) {
     const moduleIds = String(modules).split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m));
     moduleIds.forEach(mid => {
-      where.push('p.modules_used LIKE ?');
-      params.push(`%${mid}%`);
+      where.push('EXISTS (SELECT 1 FROM json_each(p.modules_used) WHERE value = ?)');
+      params.push(mid);
     });
   }
 
@@ -265,11 +265,18 @@ exports.getPatches = async (ctx) => {
   let joinSql = '';
   if (sort === 'recommended' && modules) {
     try {
-      joinSql = `LEFT JOIN module_patch_affinity mpa ON mpa.patch_id = p.id AND mpa.module_id IN (${String(modules).split(',').map(() => '?').join(',')})`;
       const moduleIds = String(modules).split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m));
+      const placeholders = moduleIds.map(() => '?').join(',');
+      joinSql = `LEFT JOIN module_patch_affinity mpa ON mpa.patch_id = p.id AND mpa.module_id IN (${placeholders})`;
       params.unshift(...moduleIds);
-      orderSql = 'ORDER BY COALESCE(SUM(mpa.affinity_score), 0) DESC, p.likes_count DESC';
-    } catch (e) {}
+      orderSql = `ORDER BY 
+        COUNT(DISTINCT mpa.module_id) DESC,
+        COALESCE(SUM(mpa.affinity_score), 0) DESC,
+        COALESCE(SUM(mpa.combination_weight), 0) DESC,
+        p.likes_count DESC`;
+    } catch (e) {
+      orderSql = 'ORDER BY p.likes_count DESC, p.views_count DESC, p.created_at DESC';
+    }
   }
 
   const patches = db.prepare(`

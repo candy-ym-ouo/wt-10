@@ -617,8 +617,10 @@ exports.getSimilarPatches = async (ctx) => {
     return;
   }
 
-  const moduleConditions = sourceModules.map(() => 'p.modules_used LIKE ?').join(' AND ');
-  const moduleParams = sourceModules.map(id => `%"${id}"%`);
+  const moduleConditions = sourceModules.map(() => 
+    'EXISTS (SELECT 1 FROM json_each(p.modules_used) WHERE value = ?)'
+  ).join(' OR ');
+  const moduleParams = sourceModules.map(id => id);
 
   const candidates = db.prepare(`
     SELECT p.id, p.title, p.description, p.likes_count, p.views_count, p.tags,
@@ -667,7 +669,12 @@ exports.getSimilarPatches = async (ctx) => {
     };
   });
 
-  scored.sort((a, b) => b.similarity_score - a.similarity_score);
+  scored.sort((a, b) => {
+    if (b.shared_count !== a.shared_count) {
+      return b.shared_count - a.shared_count;
+    }
+    return b.similarity_score - a.similarity_score;
+  });
 
   const results = scored
     .filter(p => p.similarity_score >= parseFloat(min_score))

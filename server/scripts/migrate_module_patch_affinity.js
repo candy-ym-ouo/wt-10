@@ -154,7 +154,8 @@ function calculatePatchSimilarity() {
       const idB = patchIds[j];
       const dataB = patchModules.get(idB);
 
-      const shared = dataA.modules.filter(m => setA.has(m));
+      const setB = new Set(dataB.modules);
+      const shared = dataA.modules.filter(m => setB.has(m));
       if (shared.length === 0) continue;
 
       const unionSize = new Set([...dataA.modules, ...dataB.modules]).size;
