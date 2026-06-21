@@ -68,6 +68,42 @@ exports.getModuleParameters = async (ctx) => {
   ctx.body = parameters;
 };
 
+exports.getBatchModuleParameters = async (ctx) => {
+  const { module_ids } = ctx.query;
+
+  if (!module_ids) {
+    ctx.body = { parameters: {} };
+    return;
+  }
+
+  const idList = String(module_ids).split(',')
+    .map(i => parseInt(i.trim()))
+    .filter(i => !isNaN(i));
+
+  if (idList.length === 0) {
+    ctx.body = { parameters: {} };
+    return;
+  }
+
+  const placeholders = idList.map(() => '?').join(',');
+  const parameters = db.prepare(`
+    SELECT * FROM module_parameters 
+    WHERE module_id IN (${placeholders})
+    ORDER BY module_id, sort_order ASC, id ASC
+  `).all(...idList);
+
+  const result = {};
+  idList.forEach(mid => { result[mid] = []; });
+
+  parameters.forEach(p => {
+    if (result[p.module_id]) {
+      result[p.module_id].push(p);
+    }
+  });
+
+  ctx.body = { parameters: result };
+};
+
 exports.getModuleTips = async (ctx) => {
   const moduleId = parseInt(ctx.params.id);
   const tips = db.prepare(`

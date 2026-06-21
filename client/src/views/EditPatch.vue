@@ -114,82 +114,99 @@
 
         <el-divider content-position="left">🎚️ 参数设置</el-divider>
 
-        <el-row :gutter="24">
-          <el-col :span="12">
-            <el-card class="param-card">
-              <template #header>🎹 振荡器</template>
-              <el-form-item label="波形">
-                <el-select v-model="form.parameters.oscillators[0].type">
-                  <el-option label="锯齿波" value="saw" />
-                  <el-option label="方波" value="square" />
-                  <el-option label="三角波" value="triangle" />
-                  <el-option label="正弦波" value="sine" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="失谐">
-                <el-slider v-model="form.parameters.oscillators[0].detune" :min="-50" :max="50" show-input />
-              </el-form-item>
-              <el-form-item label="八度">
-                <el-slider v-model="form.parameters.oscillators[0].octave" :min="-3" :max="3" show-input />
-              </el-form-item>
-            </el-card>
-          </el-col>
+        <div v-if="form.modules_used.length === 0" class="empty-modules-tip">
+          <el-icon><Setting /></el-icon>
+          <p>请先选择使用的模块，将自动加载对应参数</p>
+        </div>
 
-          <el-col :span="12">
-            <el-card class="param-card">
-              <template #header>🔍 滤波器</template>
-              <el-form-item label="截止频率">
-                <el-slider v-model="form.parameters.filter.cutoff" :min="20" :max="20000" show-input />
-              </el-form-item>
-              <el-form-item label="共振">
-                <el-slider v-model="form.parameters.filter.resonance" :min="0" :max="1" :step="0.1" show-input />
-              </el-form-item>
-              <el-form-item label="包络量">
-                <el-slider v-model="form.parameters.filter.envAmount" :min="0" :max="1" :step="0.1" show-input />
-              </el-form-item>
-            </el-card>
-          </el-col>
-        </el-row>
+        <div v-else class="module-params-container">
+          <el-card 
+            v-for="moduleId in form.modules_used" 
+            :key="moduleId" 
+            class="param-card module-param-card"
+            :class="{ 'no-params': !moduleParamsList[moduleId] || moduleParamsList[moduleId].length === 0 }"
+          >
+            <template #header>
+              <div class="module-param-header">
+                <span class="module-name">🎛️ {{ getModuleName(moduleId) }}</span>
+                <el-dropdown
+                  @command="(tid) => applyTemplateToModule(moduleId, tid)"
+                  :disabled="!moduleTemplates[moduleId] || moduleTemplates[moduleId].length === 0"
+                  trigger="click"
+                >
+                  <el-button size="small" type="warning">
+                    <el-icon><MagicStick /></el-icon>
+                    应用模板
+                    <el-icon><ArrowDown /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item
+                        v-for="tpl in moduleTemplates[moduleId] || []"
+                        :key="tpl.id"
+                        :command="tpl.id"
+                      >
+                        <div class="tpl-menu-item">
+                          <span class="tpl-name">
+                            <el-icon v-if="tpl.is_default" style="color: #e6a23c"><Star /></el-icon>
+                            {{ tpl.name }}
+                          </span>
+                          <el-tag v-if="tpl.is_official" type="success" size="small">官方</el-tag>
+                        </div>
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </template>
 
-        <el-row :gutter="24" style="margin-top: 20px;">
-          <el-col :span="12">
-            <el-card class="param-card">
-              <template #header>📈 包络线</template>
-              <el-form-item label="起音 (ms)">
-                <el-slider v-model="form.parameters.envelope.attack" :min="0" :max="2000" show-input />
-              </el-form-item>
-              <el-form-item label="衰减 (ms)">
-                <el-slider v-model="form.parameters.envelope.decay" :min="0" :max="5000" show-input />
-              </el-form-item>
-              <el-form-item label="持续">
-                <el-slider v-model="form.parameters.envelope.sustain" :min="0" :max="1" :step="0.1" show-input />
-              </el-form-item>
-              <el-form-item label="释放 (ms)">
-                <el-slider v-model="form.parameters.envelope.release" :min="0" :max="10000" show-input />
-              </el-form-item>
-            </el-card>
-          </el-col>
+            <div v-if="!moduleParamsList[moduleId] || moduleParamsList[moduleId].length === 0" class="no-params-tip">
+              <p>该模块暂无参数定义</p>
+            </div>
 
-          <el-col :span="12">
-            <el-card class="param-card">
-              <template #header>〰️ LFO</template>
-              <el-form-item label="频率 (Hz)">
-                <el-slider v-model="form.parameters.lfo.rate" :min="0.1" :max="20" :step="0.1" show-input />
-              </el-form-item>
-              <el-form-item label="深度">
-                <el-slider v-model="form.parameters.lfo.depth" :min="0" :max="100" show-input />
-              </el-form-item>
-              <el-form-item label="波形">
-                <el-select v-model="form.parameters.lfo.wave">
-                  <el-option label="正弦" value="sine" />
-                  <el-option label="三角" value="triangle" />
-                  <el-option label="方波" value="square" />
-                  <el-option label="随机" value="random" />
-                </el-select>
-              </el-form-item>
-            </el-card>
-          </el-col>
-        </el-row>
+            <div v-else class="module-param-grid">
+              <div v-for="param in moduleParamsList[moduleId]" :key="param.id" class="param-item">
+                <el-form-item :label="param.label || param.name">
+                  <el-slider
+                    v-if="param.type === 'knob' || param.type === 'slider'"
+                    :model-value="form.parameters[String(moduleId)]?.[param.name]"
+                    @update:model-value="(val) => setModuleParam(moduleId, param.name, val)"
+                    :min="param.min_value !== null ? Number(param.min_value) : 0"
+                    :max="param.max_value !== null ? Number(param.max_value) : 100"
+                    :step="getParamStep(param)"
+                    show-input
+                  />
+                  <el-select
+                    v-else-if="param.type === 'select' || param.type === 'switch'"
+                    :model-value="form.parameters[String(moduleId)]?.[param.name]"
+                    @update:model-value="(val) => setModuleParam(moduleId, param.name, val)"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="opt in getParamOptions(param)"
+                      :key="opt.value"
+                      :label="opt.label"
+                      :value="opt.value"
+                    />
+                  </el-select>
+                  <el-input-number
+                    v-else
+                    :model-value="form.parameters[String(moduleId)]?.[param.name]"
+                    @update:model-value="(val) => setModuleParam(moduleId, param.name, val)"
+                    :min="param.min_value !== null ? Number(param.min_value) : undefined"
+                    :max="param.max_value !== null ? Number(param.max_value) : undefined"
+                    :step="getParamStep(param)"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <div class="param-foot" v-if="param.unit || param.description">
+                  <span v-if="param.unit" class="param-unit">单位：{{ param.unit }}</span>
+                  <span v-if="param.description" class="param-desc">{{ param.description }}</span>
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </div>
 
         <el-divider content-position="left">🔗 附加资源</el-divider>
 
@@ -302,7 +319,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { 
-  MagicStick, ArrowDown, Star, Promotion, CircleCheck 
+  MagicStick, ArrowDown, Star, Promotion, CircleCheck, Setting
 } from '@element-plus/icons-vue'
 import { usePatchStore } from '@/stores/patchStore'
 import { moduleAPI } from '@/api'
@@ -323,6 +340,7 @@ const patchStatus = ref('')
 const versionHistoryRef = ref(null)
 const moduleTemplates = ref({})
 const appliedTemplates = ref({})
+const moduleParamsList = ref({})
 
 const appliedTemplateNames = computed(() => {
   return Object.values(appliedTemplates.value).map(t => t.name).filter(Boolean)
@@ -340,6 +358,78 @@ const getModuleName = (modId) => {
   return mod ? mod.name : `模块 #${modId}`
 }
 
+const getParamStep = (param) => {
+  if (param.step) return Number(param.step)
+  const range = (Number(param.max_value) || 100) - (Number(param.min_value) || 0)
+  if (range > 1000) return 1
+  if (range > 10) return 0.1
+  return 0.01
+}
+
+const getParamOptions = (param) => {
+  if (param.options) {
+    if (typeof param.options === 'string') {
+      try { return JSON.parse(param.options) } catch { return [] }
+    }
+    return param.options
+  }
+  return [
+    { label: '开启', value: 'on' },
+    { label: '关闭', value: 'off' }
+  ]
+}
+
+const getDefaultParamValue = (param) => {
+  if (param.default_value !== null && param.default_value !== undefined && param.default_value !== '') {
+    const num = Number(param.default_value)
+    if (!isNaN(num)) return num
+    return param.default_value
+  }
+  if (param.type === 'select' || param.type === 'switch') {
+    const opts = getParamOptions(param)
+    return opts[0]?.value || ''
+  }
+  const min = Number(param.min_value) || 0
+  const max = Number(param.max_value) || 100
+  return (min + max) / 2
+}
+
+const getModuleDefaultParams = (moduleId) => {
+  const params = moduleParamsList.value[moduleId] || []
+  const result = {}
+  params.forEach(p => {
+    result[p.name] = getDefaultParamValue(p)
+  })
+  return result
+}
+
+const setModuleParam = (moduleId, paramName, value) => {
+  const mid = String(moduleId)
+  if (!form.parameters[mid]) {
+    form.parameters[mid] = {}
+  }
+  form.parameters[mid][paramName] = value
+}
+
+const fetchParamsForModules = async (moduleIds) => {
+  if (!moduleIds || moduleIds.length === 0) {
+    moduleParamsList.value = {}
+    return
+  }
+  try {
+    const res = await moduleAPI.getBatchModuleParameters(moduleIds)
+    moduleParamsList.value = res.parameters || {}
+    Object.keys(moduleParamsList.value).forEach(mid => {
+      const modId = parseInt(mid)
+      if (form.modules_used.includes(modId) && !form.parameters[mid]) {
+        form.parameters[mid] = getModuleDefaultParams(modId)
+      }
+    })
+  } catch (e) {
+    console.error('获取模块参数失败:', e)
+  }
+}
+
 const fetchTemplatesForModules = async (moduleIds) => {
   if (!moduleIds || moduleIds.length === 0) {
     moduleTemplates.value = {}
@@ -354,33 +444,30 @@ const fetchTemplatesForModules = async (moduleIds) => {
 }
 
 const onModulesChange = (newModules) => {
+  fetchParamsForModules(newModules)
   fetchTemplatesForModules(newModules)
   Object.keys(appliedTemplates.value).forEach(modId => {
     if (!newModules.includes(parseInt(modId))) {
       delete appliedTemplates.value[modId]
     }
   })
-}
-
-const deepMergeParams = (target, source) => {
-  if (!source || typeof source !== 'object') return target
-  const result = { ...target }
-  for (const [key, val] of Object.entries(source)) {
-    if (Array.isArray(val)) {
-      result[key] = JSON.parse(JSON.stringify(val))
-    } else if (val && typeof val === 'object') {
-      result[key] = deepMergeParams(result[key] || {}, val)
-    } else {
-      result[key] = val
+  Object.keys(form.parameters).forEach(key => {
+    if (!newModules.includes(parseInt(key))) {
+      delete form.parameters[key]
     }
-  }
-  return result
+  })
 }
 
-const applyTemplateParams = (template) => {
+const applyTemplateParams = (moduleId, template) => {
   if (!template || !template.parameter_values) return
-  const existingParams = JSON.parse(JSON.stringify(form.parameters || {}))
-  form.parameters = deepMergeParams(existingParams, template.parameter_values)
+  const mid = String(moduleId)
+  if (!form.parameters[mid]) {
+    form.parameters[mid] = getModuleDefaultParams(moduleId)
+  }
+  form.parameters[mid] = {
+    ...form.parameters[mid],
+    ...template.parameter_values
+  }
 }
 
 const applyTemplateForModule = async (command) => {
@@ -390,7 +477,7 @@ const applyTemplateForModule = async (command) => {
       if (defaultTpl) {
         try {
           await moduleAPI.useTemplate(defaultTpl.id)
-          applyTemplateParams(defaultTpl)
+          applyTemplateParams(modId, defaultTpl)
           appliedTemplates.value[modId] = defaultTpl
         } catch (e) { console.error(e) }
       }
@@ -409,7 +496,7 @@ const applyTemplateForModule = async (command) => {
     if (!tpl) return
     try {
       await moduleAPI.useTemplate(templateId)
-      applyTemplateParams(tpl)
+      applyTemplateParams(moduleId, tpl)
       appliedTemplates.value[moduleId] = tpl
       ElMessage.success(`已应用模板：${tpl.name}`)
     } catch (e) {
@@ -419,9 +506,39 @@ const applyTemplateForModule = async (command) => {
   }
 }
 
+const applyTemplateToModule = async (moduleId, templateId) => {
+  const tpl = (moduleTemplates.value[moduleId] || []).find(t => t.id === templateId)
+  if (!tpl) return
+  try {
+    await moduleAPI.useTemplate(templateId)
+    applyTemplateParams(moduleId, tpl)
+    appliedTemplates.value[moduleId] = tpl
+    ElMessage.success(`已应用模板：${tpl.name}`)
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('应用模板失败')
+  }
+}
+
 const clearAppliedTemplates = () => {
   appliedTemplates.value = {}
   ElMessage.info('已清除模板记录（参数不会被回退）')
+}
+
+const parsePatchParams = (paramsJson) => {
+  if (!paramsJson) return {}
+  try {
+    const params = JSON.parse(paramsJson)
+    if (params && typeof params === 'object' && !Array.isArray(params)) {
+      const hasModuleKeys = Object.keys(params).some(k => !isNaN(parseInt(k)))
+      if (hasModuleKeys) {
+        return params
+      }
+    }
+    return {}
+  } catch (e) {
+    return {}
+  }
 }
 
 const commonTags = ['bass', 'pad', 'lead', 'drums', 'ambient', 'techno', 'house', 'experimental', 'classic', 'modern']
@@ -438,12 +555,7 @@ const form = reactive({
   price: 0,
   preview_content: '',
   scheduled_at: null,
-  parameters: {
-    oscillators: [{ type: 'saw', detune: 0, octave: 0 }],
-    filter: { cutoff: 5000, resonance: 0.3, envAmount: 0.5 },
-    envelope: { attack: 10, decay: 200, sustain: 0.7, release: 500 },
-    lfo: { rate: 4, depth: 20, wave: 'sine' }
-  }
+  parameters: {}
 })
 
 const rules = {
@@ -502,15 +614,10 @@ onMounted(async () => {
       useScheduled.value = true
     }
 
-    if (patchData.parameters) {
-      const params = JSON.parse(patchData.parameters)
-      if (params.oscillators) form.parameters.oscillators = params.oscillators
-      if (params.filter) form.parameters.filter = params.filter
-      if (params.envelope) form.parameters.envelope = params.envelope
-      if (params.lfo) form.parameters.lfo = params.lfo
-    }
+    form.parameters = parsePatchParams(patchData.parameters)
 
     if (form.modules_used.length > 0) {
+      await fetchParamsForModules(form.modules_used)
       fetchTemplatesForModules(form.modules_used)
     }
   } catch (e) {
@@ -592,12 +699,11 @@ const onVersionRollback = async ({ version }) => {
       useScheduled.value = true
     }
 
-    if (patchData.parameters) {
-      const params = JSON.parse(patchData.parameters)
-      if (params.oscillators) form.parameters.oscillators = params.oscillators
-      if (params.filter) form.parameters.filter = params.filter
-      if (params.envelope) form.parameters.envelope = params.envelope
-      if (params.lfo) form.parameters.lfo = params.lfo
+    form.parameters = parsePatchParams(patchData.parameters)
+
+    if (form.modules_used.length > 0) {
+      await fetchParamsForModules(form.modules_used)
+      fetchTemplatesForModules(form.modules_used)
     }
 
     ElMessage.success(`已回滚到版本 v${version.version}，表单数据已更新`)
@@ -694,5 +800,98 @@ const onVersionRollback = async ({ version }) => {
   border-radius: 4px;
   background: rgba(255, 215, 0, 0.15);
   color: #ffd700;
+}
+
+.module-param-card {
+  margin-bottom: 16px;
+}
+
+.module-param-card.no-params {
+  opacity: 0.6;
+}
+
+.module-param-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.module-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.module-param-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.param-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.param-foot {
+  margin-top: -8px;
+  padding: 0 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.param-unit {
+  color: rgba(255, 215, 0, 0.6);
+}
+
+.empty-modules-tip {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.empty-modules-tip .el-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+  color: rgba(255, 215, 0, 0.3);
+}
+
+.empty-modules-tip p {
+  margin: 0;
+}
+
+.no-params-tip {
+  text-align: center;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.no-params-tip p {
+  margin: 0;
+}
+
+.tpl-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 200px;
+}
+
+.tpl-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:deep(.el-dropdown-menu) {
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>

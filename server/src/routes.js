@@ -75,6 +75,7 @@ router.get('/modules', moduleController.getModules);
 router.get('/modules/:id', moduleController.getModuleDetail);
 router.get('/modules/:id/wiki', wikiController.getModuleWiki);
 router.get('/modules/:id/parameters', wikiController.getModuleParameters);
+router.get('/modules/parameters/batch', wikiController.getBatchModuleParameters);
 router.get('/modules/:id/tips', wikiController.getModuleTips);
 router.get('/modules/:id/recommended-patches', wikiController.getRecommendedPatches);
 router.get('/modules/:id/recommended-combinations', moduleRecommendationController.getRecommendedCombinations);

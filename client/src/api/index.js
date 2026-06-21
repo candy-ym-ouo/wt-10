@@ -94,7 +94,8 @@ export const moduleApi = {
   deleteParameterTemplate: (templateId) => api.delete(`/modules/parameter-templates/${templateId}`),
   setDefaultTemplate: (templateId) => api.post(`/modules/parameter-templates/${templateId}/set-default`),
   useTemplate: (templateId) => api.post(`/modules/parameter-templates/${templateId}/use`),
-  getBatchParameterTemplates: (moduleIds) => api.get('/modules/parameter-templates/batch', { params: { module_ids: moduleIds.join(',') } })
+  getBatchParameterTemplates: (moduleIds) => api.get('/modules/parameter-templates/batch', { params: { module_ids: moduleIds.join(',') } }),
+  getBatchModuleParameters: (moduleIds) => api.get('/modules/parameters/batch', { params: { module_ids: moduleIds.join(',') } })
 }
 
 export const socialApi = {
