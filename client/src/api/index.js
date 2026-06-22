@@ -235,7 +235,10 @@ export const adminApi = {
   deleteModuleParameterTemplate: (templateId) => api.delete(`/admin/modules/parameter-templates/${templateId}`),
   setModuleDefaultTemplate: (templateId) => api.post(`/admin/modules/parameter-templates/${templateId}/set-default`),
   getSocialActionOverview: () => api.get('/admin/social-actions/overview'),
-  getSocialActionLogs: (params) => api.get('/admin/social-actions/logs', { params })
+  getSocialActionLogs: (params) => api.get('/admin/social-actions/logs', { params }),
+  batchUpdatePatchesStatus: (data) => api.post('/admin/patches/batch-status', data),
+  batchUpdateModulesStatus: (data) => api.post('/admin/modules/batch-status', data),
+  batchUpdateUsersRole: (data) => api.post('/admin/users/batch-role', data)
 }
 
 export const authAPI = authApi

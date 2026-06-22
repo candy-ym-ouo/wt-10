@@ -93,8 +93,34 @@
       </el-row>
     </div>
 
+    <div v-if="selectedModules.length > 0" class="batch-action-bar">
+      <div class="batch-info">
+        已选择 <el-tag type="primary">{{ selectedModules.length }}</el-tag> 个模块
+      </div>
+      <div class="batch-actions">
+        <el-button size="small" type="success" @click="batchToggleStatus('active')">
+          <el-icon><Top /></el-icon>
+          批量上架
+        </el-button>
+        <el-button size="small" type="warning" @click="batchToggleStatus('inactive')">
+          <el-icon><Bottom /></el-icon>
+          批量下架
+        </el-button>
+        <el-button size="small" @click="clearSelection">
+          取消选择
+        </el-button>
+      </div>
+    </div>
+
     <div class="table-card">
-      <el-table :data="modules" v-loading="loading" stripe>
+      <el-table 
+        :data="modules" 
+        v-loading="loading" 
+        stripe
+        @selection-change="handleSelectionChange"
+        row-key="id"
+      >
+        <el-table-column type="selection" width="55" reserve-selection />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="模块名称" min-width="150" />
         <el-table-column prop="manufacturer_name" label="厂商" width="150" />
@@ -220,7 +246,7 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Connection, Filter, ArrowDown, Refresh } from '@element-plus/icons-vue'
+import { Search, Plus, Connection, Filter, ArrowDown, Refresh, Top, Bottom } from '@element-plus/icons-vue'
 import { adminApi, moduleApi } from '@/api'
 
 const router = useRouter()
@@ -236,6 +262,7 @@ const powerValues = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
+const selectedModules = ref([])
 
 const showAdvancedFilter = ref(false)
 const selectedTypes = ref([])
@@ -332,6 +359,14 @@ const fetchModules = async () => {
   }
 }
 
+const handleSelectionChange = (selection) => {
+  selectedModules.value = selection
+}
+
+const clearSelection = () => {
+  selectedModules.value = []
+}
+
 const openCreateDialog = () => {
   isEdit.value = false
   Object.assign(formData, {
@@ -392,6 +427,49 @@ const toggleStatus = async (module) => {
   } catch (err) {
     ElMessage.error('操作失败')
     console.error(err)
+  }
+}
+
+const batchToggleStatus = async (status) => {
+  if (selectedModules.value.length === 0) {
+    ElMessage.warning('请先选择要操作的模块')
+    return
+  }
+
+  const actionLabel = status === 'active' ? '上架' : '下架'
+  const statusIds = selectedModules.value.filter(m => m.status !== status).map(m => m.id)
+  
+  if (statusIds.length === 0) {
+    ElMessage.info(`所选模块已全部是${actionLabel}状态`)
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要批量${actionLabel} ${statusIds.length} 个模块吗？`,
+      `确认批量${actionLabel}`,
+      { type: status === 'active' ? 'success' : 'warning' }
+    )
+
+    const res = await adminApi.batchUpdateModulesStatus({
+      ids: statusIds,
+      status
+    })
+
+    modules.value = modules.value.map(m => {
+      if (statusIds.includes(m.id)) {
+        return { ...m, status }
+      }
+      return m
+    })
+
+    clearSelection()
+    ElMessage.success(`批量${actionLabel}成功，共处理 ${res.count} 个模块`)
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error('批量操作失败')
+      console.error(err)
+    }
   }
 }
 
@@ -487,6 +565,27 @@ onMounted(async () => {
 
 .hp-separator {
   color: var(--text-secondary);
+}
+
+.batch-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.1), rgba(230, 162, 60, 0.1));
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.batch-info {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.batch-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .table-card {

@@ -31,8 +31,38 @@
       </el-button>
     </div>
 
+    <div v-if="selectedPatches.length > 0" class="batch-action-bar">
+      <div class="batch-info">
+        已选择 <el-tag type="primary">{{ selectedPatches.length }}</el-tag> 个 Patch
+      </div>
+      <div class="batch-actions">
+        <el-button size="small" type="success" @click="openBatchReviewDialog('approved')">
+          <el-icon><Check /></el-icon>
+          批量通过
+        </el-button>
+        <el-button size="small" type="warning" @click="openBatchReviewDialog('needs_revision')">
+          <el-icon><Edit /></el-icon>
+          批量待修改
+        </el-button>
+        <el-button size="small" type="danger" @click="openBatchReviewDialog('rejected')">
+          <el-icon><Close /></el-icon>
+          批量驳回
+        </el-button>
+        <el-button size="small" @click="clearSelection">
+          取消选择
+        </el-button>
+      </div>
+    </div>
+
     <div class="table-card">
-      <el-table :data="patches" v-loading="loading" stripe>
+      <el-table 
+        :data="patches" 
+        v-loading="loading" 
+        stripe
+        @selection-change="handleSelectionChange"
+        row-key="id"
+      >
+        <el-table-column type="selection" width="55" reserve-selection />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="title" label="标题" min-width="200" />
         <el-table-column prop="author_name" label="作者" width="120" />
@@ -132,6 +162,35 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="batchReviewDialogVisible" :title="batchReviewDialogTitle" width="500px">
+      <el-form :model="batchReviewForm" label-width="80px">
+        <el-form-item label="操作数量">
+          <el-tag type="primary" size="large">{{ selectedPatches.length }} 个 Patch</el-tag>
+        </el-form-item>
+        <el-form-item label="审核结果">
+          <el-tag :type="statusType(batchReviewForm.status)" size="large">
+            {{ statusText(batchReviewForm.status) }}
+          </el-tag>
+        </el-form-item>
+        <el-form-item label="审核备注">
+          <el-input
+            v-model="batchReviewForm.review_note"
+            type="textarea"
+            :rows="4"
+            :placeholder="batchReviewNotePlaceholder"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchReviewDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchReviewing" @click="submitBatchReview">
+          确认批量操作
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -139,7 +198,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Check, Edit, Close } from '@element-plus/icons-vue'
 import { adminApi } from '@/api'
 
 const router = useRouter()
@@ -147,11 +206,19 @@ const loading = ref(true)
 const keyword = ref('')
 const statusFilter = ref('')
 const patches = ref([])
+const selectedPatches = ref([])
 
 const reviewDialogVisible = ref(false)
 const reviewing = ref(false)
 const currentPatch = ref(null)
 const reviewForm = ref({
+  status: '',
+  review_note: ''
+})
+
+const batchReviewDialogVisible = ref(false)
+const batchReviewing = ref(false)
+const batchReviewForm = ref({
   status: '',
   review_note: ''
 })
@@ -168,6 +235,15 @@ const reviewDialogTitle = computed(() => {
   return '审核'
 })
 
+const batchReviewDialogTitle = computed(() => {
+  const statusMap = {
+    approved: '批量审核通过',
+    rejected: '批量审核驳回',
+    needs_revision: '批量要求修改'
+  }
+  return `${statusMap[batchReviewForm.value.status] || '批量审核'} (${selectedPatches.length}个)`
+})
+
 const reviewNotePlaceholder = computed(() => {
   const placeholders = {
     approved: '请输入审核通过的备注（可选），例如：内容质量优秀，符合平台规范...',
@@ -175,6 +251,15 @@ const reviewNotePlaceholder = computed(() => {
     needs_revision: '请输入需要修改的具体内容，例如：标题需要补充说明，描述不够清晰...'
   }
   return placeholders[reviewForm.value.status] || '请输入审核备注'
+})
+
+const batchReviewNotePlaceholder = computed(() => {
+  const placeholders = {
+    approved: '请输入批量审核通过的备注（可选）...',
+    rejected: '请输入批量驳回原因...',
+    needs_revision: '请输入批量要求修改的内容...'
+  }
+  return placeholders[batchReviewForm.value.status] || '请输入审核备注'
 })
 
 const formatDate = (dateStr) => {
@@ -221,6 +306,25 @@ const fetchPatches = async () => {
   }
 }
 
+const handleSelectionChange = (selection) => {
+  selectedPatches.value = selection
+}
+
+const clearSelection = () => {
+  selectedPatches.value = []
+  const tableEl = document.querySelector('.el-table__body-wrapper .el-checkbox')
+  if (tableEl) {
+    const checkboxes = document.querySelectorAll('.el-table .el-checkbox')
+    checkboxes.forEach(cb => {
+      const input = cb.querySelector('input')
+      if (input && input.checked) {
+        input.checked = false
+        input.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+    })
+  }
+}
+
 const viewPatch = (patch) => {
   router.push(`/patches/${patch.id}`)
 }
@@ -232,6 +336,18 @@ const openReviewDialog = (patch, status) => {
     review_note: ''
   }
   reviewDialogVisible.value = true
+}
+
+const openBatchReviewDialog = (status) => {
+  if (selectedPatches.value.length === 0) {
+    ElMessage.warning('请先选择要操作的 Patch')
+    return
+  }
+  batchReviewForm.value = {
+    status,
+    review_note: ''
+  }
+  batchReviewDialogVisible.value = true
 }
 
 const submitReview = async () => {
@@ -272,6 +388,55 @@ const submitReview = async () => {
     }
   } finally {
     reviewing.value = false
+  }
+}
+
+const submitBatchReview = async () => {
+  if (selectedPatches.value.length === 0) return
+  
+  try {
+    batchReviewing.value = true
+    const status = batchReviewForm.value.status
+    const reviewNote = batchReviewForm.value.review_note
+    
+    const statusLabels = {
+      approved: '通过',
+      rejected: '驳回',
+      needs_revision: '要求修改'
+    }
+    
+    await ElMessageBox.confirm(
+      `确定要批量${statusLabels[status]} ${selectedPatches.value.length} 个 Patch 吗？`,
+      '确认批量操作',
+      { 
+        type: status === 'approved' ? 'success' : status === 'rejected' ? 'danger' : 'warning'
+      }
+    )
+    
+    const ids = selectedPatches.value.map(p => p.id)
+    const res = await adminApi.batchUpdatePatchesStatus({
+      ids,
+      status,
+      review_note: reviewNote
+    })
+    
+    patches.value = patches.value.map(p => {
+      if (ids.includes(p.id)) {
+        return { ...p, status, review_note: reviewNote }
+      }
+      return p
+    })
+    
+    batchReviewDialogVisible.value = false
+    clearSelection()
+    ElMessage.success(`批量${statusLabels[status]}成功，共处理 ${res.count} 个 Patch`)
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error('批量操作失败')
+      console.error(err)
+    }
+  } finally {
+    batchReviewing.value = false
   }
 }
 
@@ -326,6 +491,27 @@ onMounted(() => {
 
 .filter-select {
   width: 150px;
+}
+
+.batch-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.1), rgba(103, 194, 58, 0.1));
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.batch-info {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.batch-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .table-card {

@@ -153,6 +153,10 @@ const AUDIT_RULES = [
   { method: 'POST', pattern: /^\/api\/admin\/reports\/content\/batch$/, action: 'review', targetType: 'content_report', staffOnly: true },
   { method: 'GET', pattern: /^\/api\/admin\/reports\/export$/, action: 'export', targetType: 'report', staffOnly: true },
 
+  { method: 'POST', pattern: /^\/api\/admin\/patches\/batch-status$/, action: 'batch_review', targetType: 'patch', staffOnly: true },
+  { method: 'POST', pattern: /^\/api\/admin\/modules\/batch-status$/, action: 'batch_update', targetType: 'module', staffOnly: true },
+  { method: 'POST', pattern: /^\/api\/admin\/users\/batch-role$/, action: 'batch_update', targetType: 'user', staffOnly: true },
+
   { method: 'POST', pattern: /^\/api\/products$/, action: 'create', targetType: 'product', staffOnly: true },
   { method: 'POST', pattern: /^\/api\/admin\/products$/, action: 'create', targetType: 'product', staffOnly: true },
   { method: 'PUT', pattern: /^\/api\/products\/(\d+)$/, action: 'update', targetType: 'product', idGroup: 1, staffOnly: true },
@@ -265,6 +269,7 @@ const globalAuditMiddleware = async (ctx, next) => {
 
       if (hasAuditUser && passesStaffCheck) {
         let targetName = null;
+        let targetIdForLog = matched.targetId;
         let newValue = ctx.request.body && Object.keys(ctx.request.body).length > 0
           ? ctx.request.body
           : null;
@@ -278,10 +283,28 @@ const globalAuditMiddleware = async (ctx, next) => {
           } else if (matched.action === 'create' && matched.targetType === 'user') {
             targetName = responseBodySnapshot.username || responseBodySnapshot.email || null;
           }
+          if (matched.action.startsWith('batch_') && responseBodySnapshot.count) {
+            const actionLabel = matched.action === 'batch_review' ? '审核' : '更新';
+            const typeLabel = matched.targetType === 'patch' ? 'Patch' : matched.targetType === 'module' ? '模块' : '用户';
+            targetName = `批量${actionLabel}${responseBodySnapshot.count}个${typeLabel}`;
+            if (responseBodySnapshot.ids && responseBodySnapshot.ids.length) {
+              targetNameForLog = responseBodySnapshot.ids.slice(0, 5).join(',');
+              if (responseBodySnapshot.ids.length > 5) {
+                targetNameForLog += `...(共${responseBodySnapshot.ids.length}个)`;
+              }
+            }
+          }
         }
 
         if (!targetName && newValue && typeof newValue === 'object') {
           targetName = newValue.name || newValue.title || newValue.username || null;
+          if (matched.action.startsWith('batch_') && Array.isArray(newValue.ids) && newValue.ids.length) {
+            const actionLabel = matched.action === 'batch_review' ? '审核' : '更新';
+            const typeLabel = matched.targetType === 'patch' ? 'Patch' : matched.targetType === 'module' ? '模块' : '用户';
+            targetName = `批量${actionLabel}${newValue.ids.length}个${typeLabel}`;
+            const idsPreview = newValue.ids.slice(0, 5).join(',');
+            targetIdForLog = idsPreview + (newValue.ids.length > 5 ? `...(共${newValue.ids.length}个)` : '');
+          }
         }
 
         let errorMessage = null;
@@ -301,7 +324,7 @@ const globalAuditMiddleware = async (ctx, next) => {
           role: auditRole,
           action: matched.action,
           targetType: matched.targetType,
-          targetId: matched.targetId,
+          targetId: targetIdForLog,
           targetName,
           oldValue: null,
           newValue,

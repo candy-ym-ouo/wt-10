@@ -620,3 +620,247 @@ exports.createManufacturer = async (ctx) => {
 
   ctx.body = { id: result.lastInsertRowid, success: true };
 };
+
+exports.batchUpdatePatchesStatus = async (ctx) => {
+  const { ids, status, scheduled_at, review_note } = ctx.request.body;
+  const adminId = ctx.state.user.id;
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    ctx.status = 400;
+    ctx.body = { error: '请选择要操作的 Patch' };
+    return;
+  }
+
+  const validStatuses = ['draft', 'pending', 'approved', 'rejected', 'scheduled', 'needs_revision'];
+  if (!validStatuses.includes(status)) {
+    ctx.status = 400;
+    ctx.body = { error: '无效的状态值' };
+    return;
+  }
+
+  const statusLabels = {
+    draft: '草稿',
+    pending: '待审核',
+    approved: '审核通过',
+    rejected: '审核未通过',
+    scheduled: '定时发布',
+    needs_revision: '待修改'
+  };
+
+  const placeholders = ids.map(() => '?').join(',');
+  const patches = db.prepare(`
+    SELECT id, user_id, title, status as old_status, scheduled_at as old_scheduled_at
+    FROM patches WHERE id IN (${placeholders}) AND deleted_at IS NULL
+  `).all(...ids);
+
+  if (patches.length === 0) {
+    ctx.status = 404;
+    ctx.body = { error: '未找到有效的 Patch' };
+    return;
+  }
+
+  let scheduledAt = scheduled_at || null;
+  if (status !== 'scheduled') {
+    scheduledAt = null;
+  }
+  if (status === 'scheduled' && !scheduledAt) {
+    scheduledAt = patches[0].old_scheduled_at;
+  }
+  if (status === 'scheduled' && !scheduledAt) {
+    ctx.status = 400;
+    ctx.body = { error: '定时发布需要指定发布时间' };
+    return;
+  }
+
+  let isPublic = undefined;
+  if (status === 'draft' || status === 'needs_revision') {
+    isPublic = 0;
+  } else if (status === 'scheduled' || status === 'pending' || status === 'approved') {
+    isPublic = 1;
+  }
+
+  const updateFields = ['status = ?', 'scheduled_at = ?'];
+  const baseParams = [status, scheduledAt];
+  
+  if (isPublic !== undefined) {
+    updateFields.push('is_public = ?');
+    baseParams.push(isPublic);
+  }
+  
+  if (review_note !== undefined) {
+    updateFields.push('review_note = ?');
+    baseParams.push(review_note);
+  }
+  
+  updateFields.push('updated_at = CURRENT_TIMESTAMP');
+
+  const updateStmt = db.prepare(`UPDATE patches SET ${updateFields.join(', ')} WHERE id = ?`);
+  const tx = db.transaction(() => {
+    for (const patch of patches) {
+      updateStmt.run(...baseParams, patch.id);
+    }
+  });
+  tx();
+
+  for (const patch of patches) {
+    if (status === 'approved' && patch.old_status !== 'approved') {
+      const user = db.prepare('SELECT username FROM users WHERE id = ?').get(patch.user_id);
+      const followers = db.prepare(`
+        SELECT follower_id FROM follows WHERE following_id = ?
+      `).all(patch.user_id);
+      
+      followers.forEach(follower => {
+        createNotification(
+          follower.follower_id,
+          'new_patch',
+          patch.user_id,
+          patch.id,
+          `${user.username} 发布了新 Patch：${patch.title}`,
+          { linkUrl: `/patches/${patch.id}` }
+        );
+      });
+    }
+
+    if (patch.user_id !== adminId) {
+      let notificationContent = `你的 Patch "${patch.title}" 状态已变更为：${statusLabels[status] || status}`;
+      if (review_note && review_note.trim()) {
+        notificationContent += `\n审核备注：${review_note}`;
+      }
+      
+      createNotification(
+        patch.user_id,
+        'review',
+        adminId,
+        patch.id,
+        notificationContent,
+        {
+          category: 'review',
+          linkUrl: `/patches/${patch.id}`,
+          extraData: {
+            review_status: status,
+            review_note: review_note || null
+          }
+        }
+      );
+      createMessage(patch.user_id, 'review', 'review', {
+        fromUserId: adminId,
+        targetType: 'patch',
+        targetId: patch.id,
+        title: `Patch 审核结果`,
+        content: notificationContent,
+        linkUrl: `/patches/${patch.id}`,
+        extraData: {
+          review_status: status,
+          review_note: review_note || null
+        }
+      });
+    }
+  }
+
+  ctx.body = { 
+    success: true, 
+    count: patches.length,
+    ids: patches.map(p => p.id),
+    status, 
+    scheduled_at: scheduledAt, 
+    review_note: review_note || null 
+  };
+};
+
+exports.batchUpdateModulesStatus = async (ctx) => {
+  const { ids, status } = ctx.request.body;
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    ctx.status = 400;
+    ctx.body = { error: '请选择要操作的模块' };
+    return;
+  }
+
+  if (!['active', 'inactive'].includes(status)) {
+    ctx.status = 400;
+    ctx.body = { error: '无效的状态值，只能是 active 或 inactive' };
+    return;
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
+  const modules = db.prepare(`
+    SELECT id, name, status as old_status FROM modules WHERE id IN (${placeholders})
+  `).all(...ids);
+
+  if (modules.length === 0) {
+    ctx.status = 404;
+    ctx.body = { error: '未找到有效的模块' };
+    return;
+  }
+
+  const updateStmt = db.prepare(`
+    UPDATE modules SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `);
+  const tx = db.transaction(() => {
+    for (const mod of modules) {
+      updateStmt.run(status, mod.id);
+    }
+  });
+  tx();
+
+  ctx.body = { 
+    success: true, 
+    count: modules.length,
+    ids: modules.map(m => m.id),
+    status
+  };
+};
+
+exports.batchUpdateUsersRole = async (ctx) => {
+  const { ids, role } = ctx.request.body;
+  const adminId = ctx.state.user.id;
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    ctx.status = 400;
+    ctx.body = { error: '请选择要操作的用户' };
+    return;
+  }
+
+  const validRoles = ['user', 'auditor', 'operator', 'admin', 'banned', 'suspended'];
+  if (!validRoles.includes(role)) {
+    ctx.status = 400;
+    ctx.body = { error: '无效的角色值' };
+    return;
+  }
+
+  const filteredIds = ids.filter(id => id !== adminId);
+  if (filteredIds.length === 0) {
+    ctx.status = 400;
+    ctx.body = { error: '不能修改自己的角色' };
+    return;
+  }
+
+  const placeholders = filteredIds.map(() => '?').join(',');
+  const users = db.prepare(`
+    SELECT id, username, role as old_role FROM users WHERE id IN (${placeholders})
+  `).all(...filteredIds);
+
+  if (users.length === 0) {
+    ctx.status = 404;
+    ctx.body = { error: '未找到有效的用户' };
+    return;
+  }
+
+  const updateStmt = db.prepare(`
+    UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `);
+  const tx = db.transaction(() => {
+    for (const user of users) {
+      updateStmt.run(role, user.id);
+    }
+  });
+  tx();
+
+  ctx.body = { 
+    success: true, 
+    count: users.length,
+    ids: users.map(u => u.id),
+    role,
+    skipped_count: ids.length - filteredIds.length
+  };
+};

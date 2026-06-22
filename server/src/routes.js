@@ -214,12 +214,14 @@ router.get('/admin/patches/stats/rankings', requirePermission(PERMISSIONS.DASHBO
 router.get('/admin/users/recent', requirePermission(PERMISSIONS.USER_VIEW), adminController.getRecentUsers);
 router.get('/admin/users', requirePermission(PERMISSIONS.USER_VIEW), adminController.getUsers);
 router.put('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), adminController.updateUser);
+router.post('/admin/users/batch-role', requirePermission(PERMISSIONS.USER_MANAGE), adminController.batchUpdateUsersRole);
 router.delete('/admin/users/:id', requirePermission(PERMISSIONS.USER_MANAGE), adminController.deleteUser);
 router.get('/admin/patches/recent', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getRecentPatches);
 router.get('/admin/patches', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getAllPatches);
 router.get('/admin/patches/trash', requirePermission(PERMISSIONS.PATCH_VIEW), adminController.getTrashPatches);
 router.get('/admin/patches/versions', requirePermission(PERMISSIONS.PATCH_VIEW), patchController.adminGetAllPatchVersions);
 router.put('/admin/patches/:id/status', requireAnyPermission([PERMISSIONS.PATCH_REVIEW, PERMISSIONS.PATCH_MANAGE]), adminController.updatePatchStatus);
+router.post('/admin/patches/batch-status', requireAnyPermission([PERMISSIONS.PATCH_REVIEW, PERMISSIONS.PATCH_MANAGE]), adminController.batchUpdatePatchesStatus);
 router.put('/admin/patches/:id/public', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.togglePatchPublic);
 router.delete('/admin/patches/:id', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.adminDeletePatch);
 router.post('/admin/patches/:id/restore', requirePermission(PERMISSIONS.PATCH_MANAGE), adminController.adminRestorePatch);
@@ -227,6 +229,7 @@ router.delete('/admin/patches/:id/permanent', requirePermission(PERMISSIONS.PATC
 router.get('/admin/modules', requirePermission(PERMISSIONS.MODULE_VIEW), adminController.getAllModules);
 router.post('/admin/modules', requirePermission(PERMISSIONS.MODULE_MANAGE), adminController.createModule);
 router.put('/admin/modules/:id', requirePermission(PERMISSIONS.MODULE_MANAGE), adminController.updateModule);
+router.post('/admin/modules/batch-status', requirePermission(PERMISSIONS.MODULE_MANAGE), adminController.batchUpdateModulesStatus);
 router.get('/admin/modules/:id/wiki', requirePermission(PERMISSIONS.MODULE_VIEW), wikiController.adminGetWiki);
 router.post('/admin/modules/:id/wiki', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminSaveWiki);
 router.post('/admin/modules/:id/parameters', requirePermission(PERMISSIONS.MODULE_MANAGE), wikiController.adminCreateParameter);
