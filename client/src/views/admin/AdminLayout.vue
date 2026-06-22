@@ -125,6 +125,10 @@
         </el-menu-item>
         <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.SEARCH_VIEW)" index="/admin/search">
           <el-icon><Search /></el-icon>
+          <span>全局搜索</span>
+        </el-menu-item>
+        <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.SEARCH_MANAGE)" index="/admin/search/operations">
+          <el-icon><Setting /></el-icon>
           <span>搜索运营</span>
         </el-menu-item>
         <el-menu-item v-if="userStore.hasPermission(PERMISSIONS.I18N_VIEW)" index="/admin/i18n">

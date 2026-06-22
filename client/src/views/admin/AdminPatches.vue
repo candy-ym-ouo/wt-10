@@ -5,17 +5,33 @@
     </div>
 
     <div class="filter-bar">
-      <el-input
-        v-model="keyword"
-        placeholder="搜索 Patch 标题"
-        clearable
-        class="search-input"
-        @keyup.enter="fetchPatches"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
+      <div class="search-input-wrapper" :class="{ 'search-focused': searchFocused }">
+        <el-input
+          v-model="keyword"
+          placeholder="搜索 Patch 标题、作者、描述..."
+          clearable
+          class="search-input"
+          @keyup.enter="fetchPatches"
+          @focus="searchFocused = true"
+          @blur="handleSearchBlur"
+          @input="handleSearchInput"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <div v-if="showSuggestions && suggestions.length > 0" class="search-suggestions">
+          <div
+            v-for="(s, idx) in suggestions"
+            :key="idx"
+            class="suggestion-item"
+            @mousedown.prevent="selectSuggestion(s)"
+          >
+            <el-icon class="suggestion-icon"><Search /></el-icon>
+            <span v-html="highlightText(s)"></span>
+          </div>
+        </div>
+      </div>
       <el-select v-model="statusFilter" placeholder="状态筛选" class="filter-select" @change="fetchPatches">
         <el-option label="全部" value="" />
         <el-option label="草稿" value="draft" />
@@ -64,8 +80,16 @@
       >
         <el-table-column type="selection" width="55" reserve-selection />
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="title" label="标题" min-width="200" />
-        <el-table-column prop="author_name" label="作者" width="120" />
+        <el-table-column prop="title" label="标题" min-width="200">
+          <template #default="{ row }">
+            <span v-html="highlightText(row.title)"></span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="author_name" label="作者" width="120">
+          <template #default="{ row }">
+            <span v-html="highlightText(row.author_name)"></span>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="110">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)">
@@ -195,11 +219,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Check, Edit, Close } from '@element-plus/icons-vue'
-import { adminApi } from '@/api'
+import { adminApi, searchAPI } from '@/api'
 
 const router = useRouter()
 const loading = ref(true)
@@ -207,6 +231,15 @@ const keyword = ref('')
 const statusFilter = ref('')
 const patches = ref([])
 const selectedPatches = ref([])
+
+const searchFocused = ref(false)
+const suggestions = ref([])
+let suggestTimer = null
+let blurTimer = null
+
+const showSuggestions = computed(() => {
+  return searchFocused.value && suggestions.value.length > 0 && keyword.value.trim() !== ''
+})
 
 const reviewDialogVisible = ref(false)
 const reviewing = ref(false)
@@ -264,6 +297,43 @@ const batchReviewNotePlaceholder = computed(() => {
 
 const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN')
+}
+
+const highlightText = (text) => {
+  if (!text || !keyword.value.trim()) return text
+  const escaped = keyword.value.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return String(text).replace(
+    new RegExp(`(${escaped})`, 'gi'),
+    '<mark class="search-highlight">$1</mark>'
+  )
+}
+
+const handleSearchInput = (val) => {
+  if (suggestTimer) clearTimeout(suggestTimer)
+  if (!val.trim()) {
+    suggestions.value = []
+    return
+  }
+  suggestTimer = setTimeout(async () => {
+    try {
+      const res = await searchAPI.getSuggestions({ keyword: val.trim(), types: 'patch', limit: 6 })
+      suggestions.value = res.suggestions || []
+    } catch (e) {
+      suggestions.value = []
+    }
+  }, 300)
+}
+
+const handleSearchBlur = () => {
+  blurTimer = setTimeout(() => {
+    searchFocused.value = false
+  }, 200)
+}
+
+const selectSuggestion = (val) => {
+  keyword.value = val
+  suggestions.value = []
+  fetchPatches()
 }
 
 const statusType = (status) => {
@@ -459,6 +529,12 @@ const deletePatch = async (patch) => {
   }
 }
 
+watch(keyword, (val) => {
+  if (!val.trim()) {
+    suggestions.value = []
+  }
+})
+
 onMounted(() => {
   fetchPatches()
 })
@@ -467,6 +543,64 @@ onMounted(() => {
 <style scoped>
 .admin-page {
   padding: 0;
+}
+
+.search-input-wrapper {
+  position: relative;
+  max-width: 400px;
+}
+
+.search-input-wrapper :deep(.el-input__wrapper) {
+  transition: all 0.3s ease;
+}
+
+.search-input-wrapper.search-focused :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+}
+
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.suggestion-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.suggestion-icon {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.suggestion-item :deep(.search-highlight) {
+  background: rgba(255, 215, 0, 0.25);
+  color: #ffd700;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+:deep(.search-highlight) {
+  background: rgba(255, 215, 0, 0.25);
+  color: #ffd700;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 .page-header {

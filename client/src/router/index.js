@@ -383,8 +383,14 @@ const routes = [
       {
         path: 'search',
         name: 'AdminSearch',
-        component: () => import('@/views/admin/AdminSearch.vue'),
+        component: () => import('@/views/admin/AdminGlobalSearch.vue'),
         meta: { permission: PERMISSIONS.SEARCH_VIEW }
+      },
+      {
+        path: 'search/operations',
+        name: 'AdminSearchOperations',
+        component: () => import('@/views/admin/AdminSearch.vue'),
+        meta: { permission: PERMISSIONS.SEARCH_MANAGE }
       },
       {
         path: 'i18n',

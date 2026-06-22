@@ -9,17 +9,33 @@
     </div>
 
     <div class="filter-bar">
-      <el-input
-        v-model="keyword"
-        placeholder="搜索厂商名称"
-        clearable
-        class="search-input"
-        @keyup.enter="fetchManufacturers"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
+      <div class="search-input-wrapper" :class="{ 'search-focused': searchFocused }">
+        <el-input
+          v-model="keyword"
+          placeholder="搜索厂商名称、国家..."
+          clearable
+          class="search-input"
+          @keyup.enter="fetchManufacturers"
+          @focus="searchFocused = true"
+          @blur="handleSearchBlur"
+          @input="handleSearchInput"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <div v-if="showSuggestions && suggestions.length > 0" class="search-suggestions">
+          <div
+            v-for="(s, idx) in suggestions"
+            :key="idx"
+            class="suggestion-item"
+            @mousedown.prevent="selectSuggestion(s)"
+          >
+            <el-icon class="suggestion-icon"><Search /></el-icon>
+            <span v-html="highlightText(s)"></span>
+          </div>
+        </div>
+      </div>
       <el-button type="primary" @click="fetchManufacturers">
         <el-icon><Search /></el-icon>
         搜索
@@ -29,8 +45,16 @@
     <div class="table-card">
       <el-table :data="manufacturers" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="厂商名称" min-width="150" />
-        <el-table-column prop="country" label="国家" width="120" />
+        <el-table-column prop="name" label="厂商名称" min-width="150">
+          <template #default="{ row }">
+            <span v-html="highlightText(row.name)"></span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="country" label="国家" width="120">
+          <template #default="{ row }">
+            <span v-html="highlightText(row.country)"></span>
+          </template>
+        </el-table-column>
         <el-table-column prop="website" label="官网" min-width="200">
           <template #default="{ row }">
             <a v-if="row.website" :href="row.website" target="_blank" class="link">
@@ -96,10 +120,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
-import { adminApi } from '@/api'
+import { adminApi, searchAPI } from '@/api'
 
 const loading = ref(true)
 const keyword = ref('')
@@ -107,6 +131,15 @@ const manufacturers = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
+
+const searchFocused = ref(false)
+const suggestions = ref([])
+let suggestTimer = null
+let blurTimer = null
+
+const showSuggestions = computed(() => {
+  return searchFocused.value && suggestions.value.length > 0 && keyword.value.trim() !== ''
+})
 
 const formData = reactive({
   name: '',
@@ -121,6 +154,43 @@ const rules = {
 
 const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN')
+}
+
+const highlightText = (text) => {
+  if (!text || !keyword.value.trim()) return text
+  const escaped = keyword.value.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return String(text).replace(
+    new RegExp(`(${escaped})`, 'gi'),
+    '<mark class="search-highlight">$1</mark>'
+  )
+}
+
+const handleSearchInput = (val) => {
+  if (suggestTimer) clearTimeout(suggestTimer)
+  if (!val.trim()) {
+    suggestions.value = []
+    return
+  }
+  suggestTimer = setTimeout(async () => {
+    try {
+      const res = await searchAPI.getSuggestions({ keyword: val.trim(), types: 'manufacturer', limit: 6 })
+      suggestions.value = res.suggestions || []
+    } catch (e) {
+      suggestions.value = []
+    }
+  }, 300)
+}
+
+const handleSearchBlur = () => {
+  blurTimer = setTimeout(() => {
+    searchFocused.value = false
+  }, 200)
+}
+
+const selectSuggestion = (val) => {
+  keyword.value = val
+  suggestions.value = []
+  fetchManufacturers()
 }
 
 const fetchManufacturers = async () => {
@@ -202,6 +272,12 @@ const deleteManufacturer = async (manufacturer) => {
   }
 }
 
+watch(keyword, (val) => {
+  if (!val.trim()) {
+    suggestions.value = []
+  }
+})
+
 onMounted(() => {
   fetchManufacturers()
 })
@@ -210,6 +286,64 @@ onMounted(() => {
 <style scoped>
 .admin-page {
   padding: 0;
+}
+
+.search-input-wrapper {
+  position: relative;
+  max-width: 400px;
+}
+
+.search-input-wrapper :deep(.el-input__wrapper) {
+  transition: all 0.3s ease;
+}
+
+.search-input-wrapper.search-focused :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+}
+
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.suggestion-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.suggestion-icon {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.suggestion-item :deep(.search-highlight) {
+  background: rgba(255, 215, 0, 0.25);
+  color: #ffd700;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+:deep(.search-highlight) {
+  background: rgba(255, 215, 0, 0.25);
+  color: #ffd700;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 .page-header {
