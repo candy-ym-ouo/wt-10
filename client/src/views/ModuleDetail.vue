@@ -48,6 +48,15 @@
             <span class="spec-label">技巧</span>
             <span class="spec-value">{{ wikiData.tips.length }} 条</span>
           </div>
+          <div class="spec-item highlight">
+            <span class="spec-label">兼容 Patch</span>
+            <span class="spec-value">
+              <el-tag type="warning" size="small" effect="light">
+                <el-icon><TrendCharts /></el-icon>
+                {{ wikiData.compatible_patch_count || 0 }} 个
+              </el-tag>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -425,6 +434,229 @@
             <p>暂无搭配推荐，更多 Patch 发布后将自动生成</p>
           </div>
         </el-tab-pane>
+
+        <el-tab-pane label="热门参数组合" name="param-combinations">
+          <div v-if="wikiData.popular_param_combinations && wikiData.popular_param_combinations.sample_size > 0">
+            <div class="stats-header">
+              <el-alert 
+                type="info" 
+                :closable="false"
+                class="stats-alert"
+              >
+                <template #title>
+                  <div class="stats-info">
+                    <el-icon><DataAnalysis /></el-icon>
+                    <span>基于 {{ wikiData.popular_param_combinations.sample_size }} 个 Patch 的参数使用统计</span>
+                  </div>
+                </template>
+              </el-alert>
+            </div>
+
+            <div class="section-title">
+              <h3><el-icon><TrendCharts /></el-icon> 参数热度排行</h3>
+            </div>
+            <div class="param-popularity-grid">
+              <div 
+                v-for="param in wikiData.popular_param_combinations.param_popularity" 
+                :key="param.param_id"
+                class="card param-popularity-card"
+              >
+                <div class="param-popularity-header">
+                  <h4>{{ param.param_label }}</h4>
+                  <el-tag size="small" type="info">{{ param.param_type }}</el-tag>
+                </div>
+                <div class="param-occurrences">
+                  <span>出现次数：{{ param.total_occurrences }}</span>
+                </div>
+                <div class="param-values-list">
+                  <div 
+                    v-for="(val, idx) in param.top_values" 
+                    :key="idx"
+                    class="param-value-item"
+                  >
+                    <div class="param-value-header">
+                      <span class="param-value-text">{{ formatParamValue(param, val.value) }}</span>
+                      <span class="param-value-count">{{ val.count }} 次 ({{ val.percentage }}%)</span>
+                    </div>
+                    <el-progress 
+                      :percentage="val.percentage" 
+                      :stroke-width="6"
+                      :show-text="false"
+                      color="#ffd700"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-title" v-if="wikiData.popular_param_combinations.top_combinations.length > 0">
+              <h3><el-icon><MagicStick /></el-icon> 热门参数组合</h3>
+            </div>
+            <div class="param-combinations-list" v-if="wikiData.popular_param_combinations.top_combinations.length > 0">
+              <div 
+                v-for="(combo, idx) in wikiData.popular_param_combinations.top_combinations" 
+                :key="idx"
+                class="card param-combo-card"
+              >
+                <div class="param-combo-rank">
+                  <span class="rank-number">{{ idx + 1 }}</span>
+                </div>
+                <div class="param-combo-content">
+                  <div class="param-combo-params">
+                    <el-tag 
+                      v-for="(p, pIdx) in combo.params" 
+                      :key="pIdx"
+                      size="small"
+                      class="combo-param-tag"
+                    >
+                      {{ p.param_label }}: {{ formatParamValue(p, p.value) }}
+                    </el-tag>
+                  </div>
+                  <div class="param-combo-stats">
+                    <span class="combo-count">
+                      <el-icon><TrendCharts /></el-icon>
+                      {{ combo.count }} 个 Patch 使用
+                    </span>
+                    <span class="combo-percentage">
+                      占比 {{ combo.percentage }}%
+                    </span>
+                  </div>
+                </div>
+                <el-progress 
+                  :percentage="combo.percentage" 
+                  type="dashboard"
+                  :width="60"
+                  :stroke-width="10"
+                  color="#ffd700"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="card empty-card" v-else>
+            <el-icon><DataAnalysis /></el-icon>
+            <p>暂无参数使用统计数据，更多 Patch 发布后将自动生成</p>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="相关厂商推荐" name="manufacturers">
+          <div v-if="hasManufacturerData">
+            <div class="manufacturer-section" v-if="wikiData.related_manufacturers.same_manufacturer.length > 0">
+              <div class="section-title">
+                <h3><el-icon><OfficeBuilding /></el-icon> 同厂商其他模块</h3>
+                <span class="section-count">{{ wikiData.related_manufacturers.same_manufacturer.length }} 个</span>
+              </div>
+              <div class="manufacturer-grid">
+                <div 
+                  v-for="item in wikiData.related_manufacturers.same_manufacturer" 
+                  :key="item.module_id"
+                  class="card manufacturer-card"
+                  @click="$router.push(`/modules/${item.module_id}`)"
+                >
+                  <div class="manufacturer-badge same">
+                    <el-icon><Star /></el-icon>
+                    <span>同厂商</span>
+                  </div>
+                  <div class="manufacturer-module-info">
+                    <span class="module-type-tag">{{ item.module_type }}</span>
+                    <h4 class="module-name">{{ item.module_name }}</h4>
+                    <p class="module-desc">{{ item.module_description }}</p>
+                  </div>
+                  <div class="manufacturer-module-stats">
+                    <span v-if="item.module_hp">{{ item.module_hp }} HP</span>
+                    <span v-if="item.module_power">{{ item.module_power }}</span>
+                    <span class="patch-count-tag">
+                      <el-icon><Document /></el-icon>
+                      {{ item.patch_count }} 个 Patch
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="manufacturer-section" v-if="wikiData.related_manufacturers.same_type_different_manufacturer.length > 0">
+              <div class="section-title">
+                <h3><el-icon><Collection /></el-icon> 同类型其他厂商</h3>
+                <span class="section-count">{{ wikiData.related_manufacturers.same_type_different_manufacturer.length }} 个</span>
+              </div>
+              <div class="manufacturer-grid">
+                <div 
+                  v-for="item in wikiData.related_manufacturers.same_type_different_manufacturer" 
+                  :key="item.module_id"
+                  class="card manufacturer-card"
+                  @click="$router.push(`/modules/${item.module_id}`)"
+                >
+                  <div class="manufacturer-badge type">
+                    <el-icon><Collection /></el-icon>
+                    <span>同类型</span>
+                  </div>
+                  <div class="manufacturer-module-info">
+                    <span class="module-type-tag">{{ item.module_type }}</span>
+                    <h4 class="module-name">{{ item.module_name }}</h4>
+                    <p class="module-manufacturer" v-if="item.manufacturer_name">
+                      厂商：{{ item.manufacturer_name }}
+                    </p>
+                    <p class="module-desc">{{ item.module_description }}</p>
+                  </div>
+                  <div class="manufacturer-module-stats">
+                    <span v-if="item.module_hp">{{ item.module_hp }} HP</span>
+                    <span v-if="item.module_power">{{ item.module_power }}</span>
+                    <span class="patch-count-tag">
+                      <el-icon><Document /></el-icon>
+                      {{ item.patch_count }} 个 Patch
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="manufacturer-section" v-if="wikiData.related_manufacturers.related_from_combinations.length > 0">
+              <div class="section-title">
+                <h3><el-icon><Connection /></el-icon> 搭配热门厂商</h3>
+                <span class="section-count">{{ wikiData.related_manufacturers.related_from_combinations.length }} 个</span>
+              </div>
+              <div class="manufacturer-grid">
+                <div 
+                  v-for="item in wikiData.related_manufacturers.related_from_combinations" 
+                  :key="item.module_id"
+                  class="card manufacturer-card"
+                  @click="$router.push(`/modules/${item.module_id}`)"
+                >
+                  <div class="manufacturer-badge combo">
+                    <el-icon><Connection /></el-icon>
+                    <span>热门搭配</span>
+                  </div>
+                  <div class="manufacturer-module-info">
+                    <span class="module-type-tag">{{ item.module_type }}</span>
+                    <h4 class="module-name">{{ item.module_name }}</h4>
+                    <p class="module-manufacturer" v-if="item.manufacturer_name">
+                      厂商：{{ item.manufacturer_name }}
+                    </p>
+                    <p class="module-desc">{{ item.module_description }}</p>
+                  </div>
+                  <div class="manufacturer-module-stats">
+                    <span v-if="item.module_hp">{{ item.module_hp }} HP</span>
+                    <span v-if="item.module_power">{{ item.module_power }}</span>
+                  </div>
+                  <div class="combo-confidence">
+                    <el-progress
+                      :percentage="Math.round((item.confidence_score || 0) * 100)"
+                      :stroke-width="6"
+                      :show-text="false"
+                      color="#67c23a"
+                    />
+                    <span class="confidence-text">
+                      匹配度 {{ Math.round((item.confidence_score || 0) * 100) }}% · 共同出现 {{ item.co_occurrence_count || 0 }} 次
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card empty-card" v-else>
+            <el-icon><OfficeBuilding /></el-icon>
+            <p>暂无相关厂商推荐数据</p>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </template>
 
@@ -554,7 +786,8 @@ import {
   Loading, ArrowLeft, Warning, Reading, InfoFilled, 
   Timer, Star, Suitcase, DocumentAdd, Setting,
   Document, TrendCharts, Connection, MagicStick, Plus,
-  View, Promotion, MoreFilled, Medal
+  View, Promotion, MoreFilled, Medal, DataAnalysis,
+  OfficeBuilding, Collection
 } from '@element-plus/icons-vue'
 import { moduleAPI } from '@/api'
 
@@ -627,6 +860,25 @@ const formatModuleParamValue = (param, value) => {
   }
   return String(value)
 }
+
+const formatParamValue = (param, value) => {
+  if (value === null || value === undefined) return '-'
+  const num = Number(value)
+  if (!isNaN(num)) {
+    return Math.round(num * 100) / 100
+  }
+  return String(value)
+}
+
+const hasManufacturerData = computed(() => {
+  const rm = wikiData.value?.related_manufacturers
+  if (!rm) return false
+  return (
+    rm.same_manufacturer?.length > 0 ||
+    rm.same_type_different_manufacturer?.length > 0 ||
+    rm.related_from_combinations?.length > 0
+  )
+})
 
 const getDefaultParamValue = (param) => {
   if (param.default_value !== null && param.default_value !== undefined && param.default_value !== '') {
@@ -1698,5 +1950,315 @@ onMounted(async () => {
   padding: 8px;
   border-radius: 6px;
   margin-bottom: 8px;
+}
+
+.spec-item.highlight {
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.spec-item.highlight .spec-label {
+  color: #ffd700;
+}
+
+.stats-header {
+  margin-bottom: 20px;
+}
+
+.stats-alert {
+  background: rgba(102, 177, 255, 0.1);
+  border: 1px solid rgba(102, 177, 255, 0.3);
+}
+
+.stats-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.stats-info .el-icon {
+  color: #66b1ff;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 28px 0 16px 0;
+}
+
+.section-title h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffd700;
+  font-size: 16px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.section-title h3 .el-icon {
+  color: #ffd700;
+}
+
+.section-count {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+
+.param-popularity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.param-popularity-card {
+  transition: all 0.3s ease;
+}
+
+.param-popularity-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.param-popularity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.param-popularity-header h4 {
+  margin: 0;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.param-occurrences {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 12px;
+}
+
+.param-values-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.param-value-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.param-value-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.param-value-text {
+  color: #ffd700;
+  font-weight: 500;
+}
+
+.param-value-count {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.param-combinations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.param-combo-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.3s ease;
+}
+
+.param-combo-card:hover {
+  transform: translateX(4px);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.param-combo-rank {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rank-number {
+  color: #1a1a2e;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.param-combo-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.param-combo-params {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.combo-param-tag {
+  background: rgba(255, 215, 0, 0.1);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: #ffd700;
+}
+
+.param-combo-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  flex-wrap: wrap;
+}
+
+.combo-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.combo-count .el-icon {
+  color: #67c23a;
+}
+
+.manufacturer-section {
+  margin-bottom: 32px;
+}
+
+.manufacturer-section:last-child {
+  margin-bottom: 0;
+}
+
+.manufacturer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.manufacturer-card {
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.manufacturer-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.manufacturer-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 1;
+}
+
+.manufacturer-badge.same {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 170, 0, 0.1));
+  color: #ffd700;
+}
+
+.manufacturer-badge.type {
+  background: rgba(102, 177, 255, 0.15);
+  color: #66b1ff;
+}
+
+.manufacturer-badge.combo {
+  background: rgba(103, 194, 58, 0.15);
+  color: #67c23a;
+}
+
+.manufacturer-module-info {
+  margin-bottom: 12px;
+}
+
+.module-type-tag {
+  display: inline-block;
+  font-size: 11px;
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.module-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px 0;
+}
+
+.module-manufacturer {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 6px 0;
+}
+
+.module-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.manufacturer-module-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.patch-count-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #ffd700;
+}
+
+.patch-count-tag .el-icon {
+  color: #ffd700;
 }
 </style>
